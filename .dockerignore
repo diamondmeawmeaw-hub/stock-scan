@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-e2e
+.git
+.env
+.env.local
+tests/e2e
+playwright.config.ts
+test-results
+playwright-report
+coverage
+Dockerfile
+docker-compose.yml
+README.md

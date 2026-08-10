@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: stock-scan-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stock}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ต้องตั้ง POSTGRES_PASSWORD ใน .env}
+      POSTGRES_DB: ${POSTGRES_DB:-stockscan}
+    ports:
+      # ผูกกับ loopback เท่านั้น - Postgres ไม่ควรโผล่ออกวงแลน
+      # แอปต่อผ่านเน็ตเวิร์คภายในของ compose ไม่ได้ใช้พอร์ตนี้
+      # ที่เปิดไว้เพื่อให้ next dev / integration test บนเครื่องตัวเองต่อเข้ามาได้
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-stock} -d ${POSTGRES_DB:-stockscan}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-scan-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # ในเน็ตเวิร์คของ compose ต่อ db ด้วยชื่อ service และพอร์ต 5432 (ไม่ใช่พอร์ตที่ map ออกมา)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock}:${POSTGRES_PASSWORD:?ต้องตั้ง POSTGRES_PASSWORD ใน .env}@db:5432/${POSTGRES_DB:-stockscan}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?ต้องตั้ง AUTH_SECRET ใน .env (อย่างน้อย 32 ตัวอักษร สุ่มเอา)}
+      # ใช้สร้างผู้ดูแลระบบคนแรกตอนฐานข้อมูลยังว่าง หลังจากนั้นไม่ถูกใช้อีก
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-ผู้ดูแลระบบ}
+      NODE_ENV: production
+      # เข้าผ่าน http:// ตรงๆ (เช่น http://nas-ip:3000) ต้องเป็น false ไม่งั้น login ไม่ติด
+      # ถ้ามี reverse proxy ที่เป็น https อยู่หน้า ให้ตั้ง true
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      PORT: '3000'
+      HOSTNAME: '0.0.0.0'
+    ports:
+      - '${APP_PORT:-3000}:3000'
+
+volumes:
+  pgdata:

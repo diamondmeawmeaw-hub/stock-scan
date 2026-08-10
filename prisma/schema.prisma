@@ -1,0 +1,185 @@
+// Prisma schema - ระบบเช็คสต็อกด้วยการสแกน serial
+// serial ทุกตัวไม่ซ้ำกันทั้งคลัง (1 serial = 1 ชิ้น)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum UnitStatus {
+  IN_STOCK // อยู่ในคลัง
+  OUT // เบิกออกไปแล้ว
+}
+
+enum ScanType {
+  IN
+  OUT
+  AUDIT
+}
+
+/// ผลของการสแกนแต่ละครั้ง เก็บทั้งที่สำเร็จและไม่สำเร็จเพื่อย้อนดูได้
+enum ScanResult {
+  CREATED // รับเข้า: serial ใหม่ ยังไม่เคยมีในระบบ
+  RETURNED // รับเข้า: serial เคยถูกเบิกออก ตอนนี้รับกลับเข้าคลัง
+  DUPLICATE // สแกนซ้ำ (รับเข้าทั้งที่ยังอยู่ในคลัง / audit ยิงซ้ำในรอบเดียวกัน)
+  PRODUCT_MISMATCH // รับเข้า: serial นี้เคยผูกกับสินค้าตัวอื่น
+  OK // เบิกออก/ตรวจนับสำเร็จ
+  ALREADY_OUT // เบิกออก: ถูกเบิกไปแล้ว
+  UNKNOWN_SERIAL // ไม่รู้จัก serial นี้
+  NOT_IN_SCOPE // ตรวจนับ: serial อยู่นอกประเภทของที่กำลังนับรอบนี้
+  FOUND_BUT_OUT // ตรวจนับ: ระบบว่าเบิกออกไปแล้ว แต่เจอของจริงในคลัง (ของเกิน)
+  MISSING // ตรวจนับ: ระบบว่ามีของ แต่นับไม่เจอ (ของหาย) - บันทึกตอนปิดรอบแบบปรับสต็อก
+}
+
+enum OutReason {
+  SALE // ขาย
+  INTERNAL_USE // ใช้ภายใน
+  DAMAGED // ชำรุด/ทิ้ง
+  RETURN_SUPPLIER // ส่งคืนผู้ขาย
+  OTHER // อื่นๆ
+}
+
+enum AuditStatus {
+  OPEN
+  CLOSED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  passwordHash  String
+  displayName   String
+  role          Role     @default(STAFF)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  scanLogs      ScanLog[]
+  auditSessions AuditSession[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products      Product[]
+  auditSessions AuditSession[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  sku        String   @unique
+  name       String
+  brand      String?
+  note       String?
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  units    SerialUnit[]
+  scanLogs ScanLog[]
+
+  @@index([categoryId])
+  @@index([brand])
+}
+
+/// ผู้ขาย/ตัวแทนจำหน่ายที่รับของเข้ามา เช่น SiS
+model Vendor {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  note      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  units    SerialUnit[]
+  scanLogs ScanLog[]
+}
+
+model SerialUnit {
+  id         String     @id @default(cuid())
+  serial     String     @unique
+  productId  String
+  status     UnitStatus @default(IN_STOCK)
+  /// ผู้ขายที่รับของชิ้นนี้เข้ามาครั้งล่าสุด
+  vendorId   String?
+  receivedAt DateTime?
+  releasedAt DateTime?
+  lastScanAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  vendor   Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  scanLogs ScanLog[]
+
+  @@index([productId, status])
+  @@index([status])
+  @@index([vendorId])
+}
+
+/// บันทึกทุกครั้งที่มีการยิงสแกน (สำเร็จหรือไม่ก็เก็บ) ใช้ย้อนรอยว่าใครทำอะไรเมื่อไหร่
+model ScanLog {
+  id             String     @id @default(cuid())
+  serial         String
+  type           ScanType
+  result         ScanResult
+  accepted       Boolean // ระบบรับรายการนี้หรือปฏิเสธ
+  message        String?
+  reason         OutReason?
+  note           String?
+  userId         String
+  productId      String?
+  unitId         String?
+  /// ผู้ขายที่ระบุไว้ตอนรับเข้า - เก็บซ้ำที่ log เพื่อให้ย้อนดูได้ว่ารอบนั้นรับจากใคร
+  /// แม้ของชิ้นเดิมจะถูกรับเข้าใหม่จากผู้ขายรายอื่นทีหลัง
+  vendorId       String?
+  auditSessionId String?
+  createdAt      DateTime   @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  unit         SerialUnit?   @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  vendor       Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  auditSession AuditSession? @relation(fields: [auditSessionId], references: [id], onDelete: Cascade)
+
+  @@index([type, createdAt])
+  @@index([serial])
+  @@index([auditSessionId])
+  @@index([userId, createdAt])
+  @@index([vendorId])
+}
+
+/// รอบการตรวจนับ 1 รอบ - เปิดรอบ ยิงของ แล้วปิดรอบเพื่อดูผลต่าง
+model AuditSession {
+  id          String      @id @default(cuid())
+  name        String
+  status      AuditStatus @default(OPEN)
+  categoryId  String? // ถ้าระบุ = นับเฉพาะประเภทนี้, ถ้าไม่ระบุ = นับทั้งคลัง
+  startedById String
+  startedAt   DateTime    @default(now())
+  closedAt    DateTime?
+  note        String?
+  /// สรุปผลตอนปิดรอบ (เก็บเป็น snapshot กันตัวเลขเพี้ยนเมื่อสต็อกเปลี่ยนทีหลัง)
+  report      Json?
+
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  startedBy User      @relation(fields: [startedById], references: [id], onDelete: Restrict)
+  scans     ScanLog[]
+
+  @@index([status, startedAt])
+}
