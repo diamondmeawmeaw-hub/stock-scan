@@ -79,6 +79,4 @@ npm run test:e2e
 └── tests/            # Unit, integration และ E2E tests
 ```
 
-## License
 
-Private project — สงวนลิขสิทธิ์
