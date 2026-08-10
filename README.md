@@ -54,6 +54,8 @@ npm run dev
 
 เปิดเบราว์เซอร์ไปที่ [http://localhost:3000](http://localhost:3000)
 
+demo:https://stock-scan-alpha.vercel.app/
+
 ## การทดสอบ
 
 ```bash
