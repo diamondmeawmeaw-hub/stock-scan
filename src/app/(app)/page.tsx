@@ -72,7 +72,9 @@ export default async function HomePage() {
               {recentScans.map((log) => (
                 <tr key={log.id}>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-500">
-                    {log.createdAt.toLocaleString('th-TH')}
+                    {log.createdAt.toLocaleString('th-TH', {
+                      timeZone: 'Asia/Bangkok',
+                        })}
                   </td>
                   <td className="px-4 py-2">{typeLabel[log.type]}</td>
                   <td className="px-4 py-2 font-mono">{log.serial}</td>
