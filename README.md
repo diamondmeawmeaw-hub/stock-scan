@@ -34,7 +34,7 @@ npm install
 
 # คัดลอกไฟล์ environment variables
 cp .env.example .env
-# แก้ไขค่าใน .env ให้ตรงกับสภาพแวดล้อมของคุณ
+# แก้ไขค่าใน .env ให้ตรงกับenvironmentของคุณ
 
 # รัน database ผ่าน Docker
 docker-compose up -d
