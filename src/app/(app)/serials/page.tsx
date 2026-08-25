@@ -84,11 +84,18 @@ export default async function SerialsPage({ searchParams }: { searchParams: Sear
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">ค้นหาตาม Serial</h1>
-        <p className="text-sm text-slate-500">
-          ยิงหรือพิมพ์ serial เพื่อดูว่าของชิ้นนี้อยู่ที่ไหน รับเข้าวันไหน เบิกออกวันไหน และใครเป็นคนทำ
-        </p>
+      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+            <SearchIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">ค้นหาตาม Serial</h1>
+            <p className="text-sm text-slate-500">
+              ยิงหรือพิมพ์ serial เพื่อดูว่าของชิ้นนี้อยู่ที่ไหน รับเข้าวันไหน เบิกออกวันไหน และใครเป็นคนทำ
+            </p>
+          </div>
+        </div>
       </div>
 
       <SerialSearchForm initial={query} />
@@ -118,20 +125,33 @@ function SerialResult({
   if (!unit) {
     return (
       <div className="space-y-4">
-        <div className="card p-6" data-testid="serial-not-found">
-          <p className="font-medium">
-            ไม่พบ <span className="font-mono">{detail.serial}</span> ในคลัง
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            {history.length > 0
-              ? 'ไม่เคยรับเข้าระบบ แต่มีประวัติการยิงอยู่ด้านล่าง'
-              : 'ยังไม่เคยมีการยิง serial นี้เลย'}
-          </p>
+        <div
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm"
+          data-testid="serial-not-found"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <SearchXIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-medium text-amber-900">
+                ไม่พบ <span className="font-mono">{detail.serial}</span> ในคลัง
+              </p>
+              <p className="mt-1 text-sm text-amber-700/80">
+                {history.length > 0
+                  ? 'ไม่เคยรับเข้าระบบ แต่มีประวัติการยิงอยู่ด้านล่าง'
+                  : 'ยังไม่เคยมีการยิง serial นี้เลย'}
+              </p>
+            </div>
+          </div>
         </div>
 
         {suggestions.length > 0 && (
-          <div className="card overflow-hidden" data-testid="serial-suggestions">
-            <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-medium">
+          <div
+            className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm"
+            data-testid="serial-suggestions"
+          >
+            <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">
               serial ที่ใกล้เคียง
             </h2>
             <ul className="divide-y divide-slate-100">
@@ -139,7 +159,7 @@ function SerialResult({
                 <li key={s.serial} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
                   <Link
                     href={`/serials?serial=${encodeURIComponent(s.serial)}`}
-                    className="font-mono font-medium underline underline-offset-2"
+                    className="font-mono font-medium text-sky-700 underline underline-offset-2 hover:text-sky-800"
                   >
                     {s.serial}
                   </Link>
@@ -161,9 +181,9 @@ function SerialResult({
 
   return (
     <div className="space-y-4">
-      <div className="card p-4" data-testid="serial-detail">
+      <div className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm" data-testid="serial-detail">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="font-mono text-2xl font-semibold" data-testid="serial-value">
+          <span className="font-mono text-2xl font-semibold text-slate-900" data-testid="serial-value">
             {detail.serial}
           </span>
           <StatusBadge status={unit.status} />
@@ -175,9 +195,9 @@ function SerialResult({
         </div>
 
         <dl className="mt-4 grid gap-3 sm:grid-cols-4">
-          <div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
             <dt className="text-sm text-slate-500">รับเข้าจากผู้ขาย</dt>
-            <dd className="mt-0.5 font-medium" data-testid="serial-vendor">
+            <dd className="mt-0.5 font-medium text-slate-800" data-testid="serial-vendor">
               {unit.vendorName ?? '-'}
             </dd>
           </div>
@@ -202,9 +222,9 @@ function Field({
   testId: string
 }) {
   return (
-    <div>
+    <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
       <dt className="text-sm text-slate-500">{label}</dt>
-      <dd className="mt-0.5 font-medium" data-testid={testId}>
+      <dd className="mt-0.5 font-medium text-slate-800" data-testid={testId}>
         {value ? thaiDateTime(value) : '-'}
       </dd>
     </div>
@@ -227,8 +247,8 @@ function StatusBadge({ status }: { status: 'IN_STOCK' | 'OUT' }) {
 
 function HistoryTable({ history }: { history: SerialDetail['history'] }) {
   return (
-    <div className="card overflow-hidden">
-      <h2 className="border-b border-slate-200 px-4 py-3 font-medium">
+    <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
+      <h2 className="border-b border-slate-100 px-4 py-3 font-medium text-slate-900">
         ประวัติทั้งหมด ({history.length} รายการ)
       </h2>
       {history.length === 0 ? (
@@ -236,49 +256,51 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
           ยังไม่มีประวัติการสแกน
         </p>
       ) : (
-        <table className="w-full text-sm" data-testid="serial-history">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-2 font-medium">เวลา</th>
-              <th className="px-4 py-2 font-medium">ประเภท</th>
-              <th className="px-4 py-2 font-medium">ผล</th>
-              <th className="px-4 py-2 font-medium">ผู้ขาย</th>
-              <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
-              <th className="px-4 py-2 font-medium">ผู้สแกน</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {history.map((h) => (
-              <tr key={h.id} data-testid="serial-history-row" className={h.accepted ? '' : 'bg-red-50/50'}>
-                <td className="whitespace-nowrap px-4 py-2 text-slate-500">{thaiDateTime(h.at)}</td>
-                <td className="px-4 py-2">
-                  {TYPE_LABEL[h.type]}
-                  {h.auditSessionName && (
-                    <span className="text-slate-400"> · {h.auditSessionName}</span>
-                  )}
-                </td>
-                <td
-                  className={`px-4 py-2 ${
-                    h.result === 'MISSING'
-                      ? 'text-amber-700'
-                      : h.accepted
-                        ? 'text-emerald-700'
-                        : 'text-red-700'
-                  }`}
-                >
-                  {h.message ?? h.result}
-                </td>
-                <td className="px-4 py-2 text-slate-600">{h.vendorName ?? '-'}</td>
-                <td className="px-4 py-2 text-slate-600">
-                  {[h.reason ? OUT_REASON_LABELS[h.reason] : null, h.note]
-                    .filter(Boolean)
-                    .join(' · ') || '-'}
-                </td>
-                <td className="px-4 py-2 text-slate-600">{h.userName}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" data-testid="serial-history">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">เวลา</th>
+                <th className="px-4 py-2 font-medium">ประเภท</th>
+                <th className="px-4 py-2 font-medium">ผล</th>
+                <th className="px-4 py-2 font-medium">ผู้ขาย</th>
+                <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
+                <th className="px-4 py-2 font-medium">ผู้สแกน</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {history.map((h) => (
+                <tr key={h.id} data-testid="serial-history-row" className={h.accepted ? '' : 'bg-red-50/50'}>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-500">{thaiDateTime(h.at)}</td>
+                  <td className="px-4 py-2">
+                    {TYPE_LABEL[h.type]}
+                    {h.auditSessionName && (
+                      <span className="text-slate-400"> · {h.auditSessionName}</span>
+                    )}
+                  </td>
+                  <td
+                    className={`px-4 py-2 ${
+                      h.result === 'MISSING'
+                        ? 'text-amber-700'
+                        : h.accepted
+                          ? 'text-emerald-700'
+                          : 'text-red-700'
+                    }`}
+                  >
+                    {h.message ?? h.result}
+                  </td>
+                  <td className="px-4 py-2 text-slate-600">{h.vendorName ?? '-'}</td>
+                  <td className="px-4 py-2 text-slate-600">
+                    {[h.reason ? OUT_REASON_LABELS[h.reason] : null, h.note]
+                      .filter(Boolean)
+                      .join(' · ') || '-'}
+                  </td>
+                  <td className="px-4 py-2 text-slate-600">{h.userName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -301,9 +323,12 @@ function ScanLogSection({
   const last = first + logs.rows.length - 1
 
   return (
-    <div className="card overflow-hidden scroll-mt-4" id="scan-logs">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 px-4 py-3">
-        <h2 className="font-medium">ประวัติการสแกน</h2>
+    <div
+      className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm scroll-mt-4"
+      id="scan-logs"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <h2 className="font-medium text-slate-900">ประวัติการสแกน</h2>
         <p className="text-sm text-slate-500" data-testid="scan-log-count">
           {logs.total === 0
             ? 'ไม่พบรายการ'
@@ -344,7 +369,7 @@ function ScanLogSection({
                   <td className="px-4 py-2">
                     <Link
                       href={`/serials?serial=${encodeURIComponent(row.serial)}`}
-                      className="font-mono font-medium underline underline-offset-2"
+                      className="font-mono font-medium text-sky-700 underline underline-offset-2 hover:text-sky-800"
                     >
                       {row.serial}
                     </Link>
@@ -382,7 +407,7 @@ function ScanLogSection({
 
       {logs.totalPages > 1 && (
         <div
-          className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3"
+          className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3"
           data-testid="scan-log-pager"
         >
           <PagerLink
@@ -419,14 +444,60 @@ function PagerLink({
 }) {
   if (disabled) {
     return (
-      <span className="btn-ghost cursor-not-allowed opacity-50" data-testid={testId} aria-disabled>
+      <span
+        className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-slate-400 opacity-70"
+        data-testid={testId}
+        aria-disabled
+      >
         {label}
       </span>
     )
   }
   return (
-    <Link href={href} className="btn-ghost" data-testid={testId}>
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+      data-testid={testId}
+    >
       {label}
     </Link>
+  )
+}
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className ?? 'h-5 w-5'}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  )
+}
+
+function SearchXIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className ?? 'h-5 w-5'}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path d="m13.5 8.5-5 5" />
+      <path d="m8.5 8.5 5 5" />
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
   )
 }
