@@ -49,25 +49,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-            <BarChartIcon className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">รายงาน</h1>
-            <p className="text-sm text-slate-500">
-              กรองตามประเภทของ แบรนด์ ผู้ขาย หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือหรือความเคลื่อนไหวตามช่วงวัน
-            </p>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-xl font-semibold">รายงาน</h1>
+        <p className="text-sm text-slate-500">
+          กรองตามประเภทของ แบรนด์ ผู้ขาย หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือหรือความเคลื่อนไหวตามช่วงวัน
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav
-          className="inline-flex gap-1 rounded-xl border border-sky-100 bg-sky-50/70 p-1"
-          data-testid="report-tabs"
-        >
+        <nav className="flex gap-1" data-testid="report-tabs">
           <Tab
             href={{ ...filters, view: 'stock' }}
             active={view === 'stock'}
@@ -83,20 +73,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         </nav>
 
         <div className="flex gap-2">
-          <a
-            href={exportHref('xlsx')}
-            data-testid="export-xlsx"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
-          >
-            <DownloadIcon className="h-4 w-4 text-emerald-600" />
+          <a href={exportHref('xlsx')} data-testid="export-xlsx" className="btn-ghost">
             โหลด Excel
           </a>
-          <a
-            href={exportHref('pdf')}
-            data-testid="export-pdf"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
-          >
-            <FileTextIcon className="h-4 w-4 text-red-600" />
+          <a href={exportHref('pdf')} data-testid="export-pdf" className="btn-ghost">
             โหลด PDF
           </a>
         </div>
@@ -141,9 +121,7 @@ function Tab({
       href={`/reports${query ? `?${query}` : ''}`}
       data-testid={testId}
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-        active
-          ? 'bg-sky-600 text-white shadow-sm'
-          : 'text-slate-600 hover:bg-white/70'
+        active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
       }`}
     >
       {label}
@@ -158,36 +136,24 @@ async function StockView({ filters }: { filters: ViewFilters }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">
-          ณ {new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
-        </span>
-        <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800">
-          รวม
-          <b className="tabular-nums text-sky-900" data-testid="grand-total">
-            {grandTotalInStock.toLocaleString('th-TH')}
-          </b>
-          ชิ้น
-        </span>
-      </div>
+      <p className="text-sm text-slate-500">
+        ณ {new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })} · รวม{' '}
+        <b className="text-slate-900" data-testid="grand-total">
+          {grandTotalInStock.toLocaleString('th-TH')}
+        </b>{' '}
+        ชิ้น
+      </p>
 
       {categories.length === 0 && (
-        <p
-          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm"
-          data-testid="stock-empty"
-        >
+        <p className="card p-6 text-sm text-slate-500" data-testid="stock-empty">
           ไม่พบสินค้าตามเงื่อนไขที่เลือก
         </p>
       )}
 
       {categories.map((c) => (
-        <div
-          key={c.categoryId}
-          className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm"
-          data-testid="report-category"
-        >
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-            <h2 className="font-medium text-slate-900">
+        <div key={c.categoryId} className="card overflow-hidden" data-testid="report-category">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <h2 className="font-medium">
               {c.categoryName} <span className="text-slate-400">({c.categoryCode})</span>
             </h2>
             <span className="text-sm text-slate-600">
@@ -197,32 +163,28 @@ async function StockView({ filters }: { filters: ViewFilters }) {
           {c.products.length === 0 ? (
             <p className="px-4 py-4 text-sm text-slate-500">ยังไม่มีสินค้าในประเภทนี้</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">SKU</th>
-                    <th className="px-4 py-2 font-medium">สินค้า</th>
-                    <th className="px-4 py-2 font-medium">แบรนด์</th>
-                    <th className="px-4 py-2 text-right font-medium">คงเหลือ</th>
-                    <th className="px-4 py-2 text-right font-medium">เบิกออกไปแล้ว</th>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-2 font-medium">SKU</th>
+                  <th className="px-4 py-2 font-medium">สินค้า</th>
+                  <th className="px-4 py-2 font-medium">แบรนด์</th>
+                  <th className="px-4 py-2 text-right font-medium">คงเหลือ</th>
+                  <th className="px-4 py-2 text-right font-medium">เบิกออกไปแล้ว</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {c.products.map((p) => (
+                  <tr key={p.productId}>
+                    <td className="px-4 py-2 font-mono">{p.sku}</td>
+                    <td className="px-4 py-2">{p.name}</td>
+                    <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
+                    <td className="px-4 py-2 text-right font-medium">{p.inStock}</td>
+                    <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {c.products.map((p) => (
-                    <tr key={p.productId}>
-                      <td className="px-4 py-2 font-mono text-slate-700">{p.sku}</td>
-                      <td className="px-4 py-2">{p.name}</td>
-                      <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
-                      <td className="px-4 py-2 text-right font-medium tabular-nums">
-                        {p.inStock}
-                      </td>
-                      <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       ))}
@@ -244,120 +206,54 @@ async function MovementView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">
-          {thaiDate(from)} - {thaiDate(to)}
-        </span>
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">
-            รับเข้า <b className="tabular-nums text-emerald-900" data-testid="total-in">{report.totalIn.toLocaleString('th-TH')}</b> ชิ้น
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
-            เบิกออก <b className="tabular-nums text-amber-900" data-testid="total-out">{report.totalOut.toLocaleString('th-TH')}</b> ชิ้น
-          </span>
-        </span>
-      </div>
+      <p className="text-sm text-slate-500">
+        {thaiDate(from)} - {thaiDate(to)} · รับเข้า{' '}
+        <b className="text-slate-900" data-testid="total-in">
+          {report.totalIn.toLocaleString('th-TH')}
+        </b>{' '}
+        ชิ้น · เบิกออก{' '}
+        <b className="text-slate-900" data-testid="total-out">
+          {report.totalOut.toLocaleString('th-TH')}
+        </b>{' '}
+        ชิ้น
+      </p>
 
       {report.rows.length === 0 ? (
-        <p
-          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm"
-          data-testid="movement-empty"
-        >
+        <p className="card p-6 text-sm text-slate-500" data-testid="movement-empty">
           ช่วงวันที่นี้ไม่มีการรับเข้าหรือเบิกออก
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">SKU</th>
-                  <th className="px-4 py-2 font-medium">สินค้า</th>
-                  <th className="px-4 py-2 font-medium">แบรนด์</th>
-                  <th className="px-4 py-2 font-medium">ประเภทของ</th>
-                  <th className="px-4 py-2 text-right font-medium">รับเข้า</th>
-                  <th className="px-4 py-2 text-right font-medium">เบิกออก</th>
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">SKU</th>
+                <th className="px-4 py-2 font-medium">สินค้า</th>
+                <th className="px-4 py-2 font-medium">แบรนด์</th>
+                <th className="px-4 py-2 font-medium">ประเภทของ</th>
+                <th className="px-4 py-2 text-right font-medium">รับเข้า</th>
+                <th className="px-4 py-2 text-right font-medium">เบิกออก</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {report.rows.map((r) => (
+                <tr key={r.productId} data-testid="movement-row">
+                  <td className="px-4 py-2 font-mono">{r.sku}</td>
+                  <td className="px-4 py-2">{r.name}</td>
+                  <td className="px-4 py-2 text-slate-600">{r.brand ?? '-'}</td>
+                  <td className="px-4 py-2 text-slate-600">{r.categoryName}</td>
+                  <td className="px-4 py-2 text-right font-medium text-emerald-700">
+                    {r.inCount || '-'}
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium text-amber-700">
+                    {r.outCount || '-'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {report.rows.map((r) => (
-                  <tr key={r.productId} data-testid="movement-row">
-                    <td className="px-4 py-2 font-mono text-slate-700">{r.sku}</td>
-                    <td className="px-4 py-2">{r.name}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.brand ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.categoryName}</td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums text-emerald-700">
-                      {r.inCount || '-'}
-                    </td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700">
-                      {r.outCount || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
-  )
-}
-
-function BarChartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className ?? 'h-5 w-5'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <line x1="12" x2="12" y1="20" y2="10" />
-      <line x1="18" x2="18" y1="20" y2="4" />
-      <line x1="6" x2="6" y1="20" y2="16" />
-    </svg>
-  )
-}
-
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className ?? 'h-5 w-5'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M12 15V3" />
-    </svg>
-  )
-}
-
-function FileTextIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className ?? 'h-5 w-5'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
-      <path d="M10 9H8" />
-    </svg>
   )
 }

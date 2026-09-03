@@ -11,9 +11,6 @@ export type ScanLogFilterValues = {
   to: string
 }
 
-const fieldClass =
-  'w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10'
-
 export function ScanLogFilters({
   users,
   values,
@@ -41,7 +38,7 @@ export function ScanLogFilters({
 
   return (
     <form
-      className="grid gap-3 border-b border-slate-100 bg-sky-50/40 p-4 sm:grid-cols-2 lg:grid-cols-5"
+      className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5"
       data-testid="scan-log-filters"
       onSubmit={(e) => {
         e.preventDefault()
@@ -55,7 +52,7 @@ export function ScanLogFilters({
         <input
           id="log-q"
           data-testid="log-q"
-          className={`${fieldClass} font-mono`}
+          className="field font-mono"
           placeholder="เช่น AP-00"
           autoComplete="off"
           value={form.q}
@@ -70,7 +67,7 @@ export function ScanLogFilters({
         <select
           id="log-type"
           data-testid="log-type"
-          className={fieldClass}
+          className="field"
           value={form.type}
           onChange={(e) => setForm({ ...form, type: e.target.value })}
         >
@@ -88,7 +85,7 @@ export function ScanLogFilters({
         <select
           id="log-user"
           data-testid="log-user"
-          className={fieldClass}
+          className="field"
           value={form.userId}
           onChange={(e) => setForm({ ...form, userId: e.target.value })}
         >
@@ -109,7 +106,7 @@ export function ScanLogFilters({
           id="log-from"
           data-testid="log-from"
           type="date"
-          className={fieldClass}
+          className="field"
           value={form.from}
           onChange={(e) => setForm({ ...form, from: e.target.value })}
         />
@@ -123,22 +120,19 @@ export function ScanLogFilters({
           id="log-to"
           data-testid="log-to"
           type="date"
-          className={fieldClass}
+          className="field"
           value={form.to}
           onChange={(e) => setForm({ ...form, to: e.target.value })}
         />
       </div>
 
       <div className="flex items-end gap-2 lg:col-span-5">
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
-          data-testid="apply-log-filters"
-        >
+        <button className="btn-primary" data-testid="apply-log-filters">
           ดูประวัติ
         </button>
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+          className="btn-ghost"
           data-testid="clear-log-filters"
           onClick={() => {
             const cleared = { q: '', type: '', userId: '', from: '', to: '' }

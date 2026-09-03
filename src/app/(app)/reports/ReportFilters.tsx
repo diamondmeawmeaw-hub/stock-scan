@@ -12,9 +12,6 @@ type Values = {
   to: string
 }
 
-const fieldClass =
-  'w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10'
-
 export function ReportFilters({
   categories,
   brands,
@@ -47,7 +44,7 @@ export function ReportFilters({
 
   return (
     <form
-      className="grid gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+      className="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
       data-testid="report-filters"
       onSubmit={(e) => {
         e.preventDefault()
@@ -61,7 +58,7 @@ export function ReportFilters({
         <input
           id="filter-q"
           data-testid="filter-q"
-          className={fieldClass}
+          className="field"
           placeholder="เช่น UniFi, กล้อง, CAM-"
           value={form.q}
           onChange={(e) => setForm({ ...form, q: e.target.value })}
@@ -75,7 +72,7 @@ export function ReportFilters({
         <select
           id="filter-category"
           data-testid="filter-category"
-          className={fieldClass}
+          className="field"
           value={form.categoryId}
           onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
         >
@@ -95,7 +92,7 @@ export function ReportFilters({
         <select
           id="filter-brand"
           data-testid="filter-brand"
-          className={fieldClass}
+          className="field"
           value={form.brand}
           onChange={(e) => setForm({ ...form, brand: e.target.value })}
         >
@@ -115,7 +112,7 @@ export function ReportFilters({
         <select
           id="filter-vendor"
           data-testid="filter-vendor"
-          className={fieldClass}
+          className="field"
           value={form.vendorId}
           onChange={(e) => setForm({ ...form, vendorId: e.target.value })}
         >
@@ -138,7 +135,7 @@ export function ReportFilters({
               id="filter-from"
               data-testid="filter-from"
               type="date"
-              className={fieldClass}
+              className="field"
               value={form.from}
               onChange={(e) => setForm({ ...form, from: e.target.value })}
             />
@@ -151,7 +148,7 @@ export function ReportFilters({
               id="filter-to"
               data-testid="filter-to"
               type="date"
-              className={fieldClass}
+              className="field"
               value={form.to}
               onChange={(e) => setForm({ ...form, to: e.target.value })}
             />
@@ -160,15 +157,12 @@ export function ReportFilters({
       )}
 
       <div className="flex items-end gap-2">
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
-          data-testid="apply-filters"
-        >
+        <button className="btn-primary" data-testid="apply-filters">
           ดูรายงาน
         </button>
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+          className="btn-ghost"
           data-testid="clear-filters"
           onClick={() => {
             const cleared = { ...form, categoryId: '', brand: '', vendorId: '', q: '' }
