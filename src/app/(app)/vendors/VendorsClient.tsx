@@ -39,7 +39,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">ผู้ขาย</h1>
+        <h1 className="text-xl font-semibold">ซื้อจาก</h1>
         <p className="text-sm text-slate-500">
           ตัวแทนจำหน่ายที่รับของเข้ามา เช่น SiS · เลือกตอนรับเข้าเพื่อให้ย้อนดูได้ว่าของมาจากเจ้าไหน
           · {vendors.length} ราย

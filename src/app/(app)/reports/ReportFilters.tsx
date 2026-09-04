@@ -110,7 +110,7 @@ export function ReportFilters({
 
       <div>
         <label className="label" htmlFor="filter-vendor">
-          ผู้ขาย
+          ซื้อจาก
         </label>
         <select
           id="filter-vendor"

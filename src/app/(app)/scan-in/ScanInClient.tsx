@@ -79,7 +79,7 @@ export function ScanInClient({
         </div>
         <div>
           <label className="label" htmlFor="vendor">
-            ผู้ขาย (ไม่ระบุก็ได้)
+            ซื้อจาก (ไม่ระบุก็ได้)
           </label>
           <select
             id="vendor"
@@ -97,7 +97,7 @@ export function ScanInClient({
           </select>
           {vendors.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">
-              ยังไม่มีผู้ขายในระบบ - เพิ่มได้ที่หน้า &ldquo;ผู้ขาย&rdquo;
+              ยังไม่มีผู้ขายในระบบ - เพิ่มได้ที่หน้า &ldquo;ซื้อจาก&rdquo;
             </p>
           )}
         </div>

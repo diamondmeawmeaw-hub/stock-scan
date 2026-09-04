@@ -57,7 +57,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           <div>
             <h1 className="text-xl font-semibold text-slate-900">รายงาน</h1>
             <p className="text-sm text-slate-500">
-              กรองตามประเภทของ แบรนด์ ผู้ขาย หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือหรือความเคลื่อนไหวตามช่วงวัน
+              กรองตามประเภทของ แบรนด์ ซื้อจาก หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือหรือความเคลื่อนไหวตามช่วงวัน
             </p>
           </div>
         </div>

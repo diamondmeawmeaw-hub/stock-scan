@@ -196,7 +196,7 @@ function SerialResult({
 
         <dl className="mt-4 grid gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-            <dt className="text-sm text-slate-500">รับเข้าจากผู้ขาย</dt>
+            <dt className="text-sm text-slate-500">ซื้อจาก</dt>
             <dd className="mt-0.5 font-medium text-slate-800" data-testid="serial-vendor">
               {unit.vendorName ?? '-'}
             </dd>
@@ -263,7 +263,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                 <th className="px-4 py-2 font-medium">เวลา</th>
                 <th className="px-4 py-2 font-medium">ประเภท</th>
                 <th className="px-4 py-2 font-medium">ผล</th>
-                <th className="px-4 py-2 font-medium">ผู้ขาย</th>
+                <th className="px-4 py-2 font-medium">ซื้อจาก</th>
                 <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
                 <th className="px-4 py-2 font-medium">ผู้สแกน</th>
               </tr>
