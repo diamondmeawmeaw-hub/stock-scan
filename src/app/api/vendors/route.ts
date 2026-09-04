@@ -4,8 +4,8 @@ import { requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 const createSchema = z.object({
-  code: z.string().trim().min(1, 'กรอกรหัสผู้ขาย').max(20).toUpperCase(),
-  name: z.string().trim().min(1, 'กรอกชื่อผู้ขาย').max(100),
+  code: z.string().trim().min(1, 'กรอกรหัสผู้จำหน่าย').max(20).toUpperCase(),
+  name: z.string().trim().min(1, 'กรอกชื่อผู้จำหน่าย').max(100),
   note: z.string().trim().max(500).optional().nullable(),
 })
 

@@ -88,7 +88,7 @@ export function ScanInClient({
             value={vendorId}
             onChange={(e) => setVendorId(e.target.value)}
           >
-            <option value="">— ไม่ระบุผู้ขาย —</option>
+            <option value="">— ไม่ระบุผู้จำหน่าย —</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.code} · {v.name}
@@ -97,7 +97,7 @@ export function ScanInClient({
           </select>
           {vendors.length === 0 && (
             <p className="mt-1 text-xs text-slate-500">
-              ยังไม่มีผู้ขายในระบบ - เพิ่มได้ที่หน้า &ldquo;ซื้อจาก&rdquo;
+              ยังไม่มีผู้จำหน่ายในระบบ - เพิ่มได้ที่หน้า &ldquo;ซื้อจาก&rdquo;
             </p>
           )}
         </div>

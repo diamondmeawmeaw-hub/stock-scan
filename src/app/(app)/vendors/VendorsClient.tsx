@@ -68,7 +68,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
       >
         <div>
           <label className="label" htmlFor="vendor-code">
-            รหัสผู้ขาย
+            รหัสผู้จำหน่าย
           </label>
           <input
             id="vendor-code"
@@ -82,7 +82,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
         </div>
         <div>
           <label className="label" htmlFor="vendor-name">
-            ชื่อผู้ขาย
+            ชื่อผู้จำหน่าย
           </label>
           <input
             id="vendor-name"
@@ -108,7 +108,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
         </div>
         <div className="flex items-end">
           <button className="btn-primary" disabled={busy} data-testid="vendor-submit">
-            เพิ่มผู้ขาย
+            เพิ่มผู้จำหน่าย
           </button>
         </div>
       </form>
@@ -128,7 +128,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
             {vendors.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-slate-500">
-                  ยังไม่มีผู้ขาย
+                  ยังไม่มีผู้จำหน่าย
                 </td>
               </tr>
             )}
@@ -219,7 +219,7 @@ export function VendorsClient({ vendors }: { vendors: Vendor[] }) {
                       className="btn-danger"
                       disabled={busy}
                       onClick={() => {
-                        if (!window.confirm(`ลบผู้ขาย "${v.name}" ?`)) return
+                        if (!window.confirm(`ลบผู้จำหน่าย "${v.name}" ?`)) return
                         void run(() => api(`/api/vendors/${v.id}`, { method: 'DELETE' }))
                       }}
                     >

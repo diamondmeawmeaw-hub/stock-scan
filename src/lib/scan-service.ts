@@ -94,8 +94,8 @@ export async function scanIn(input: {
   const vendorId = input.vendorId ?? null
   if (vendorId) {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } })
-    if (!vendor) throw new HttpError(400, 'ไม่พบผู้ขายที่เลือกไว้')
-    if (!vendor.active) throw new HttpError(400, `ผู้ขาย "${vendor.name}" ถูกปิดใช้งานอยู่`)
+    if (!vendor) throw new HttpError(400, 'ไม่พบผู้จำหน่ายที่เลือกไว้')
+    if (!vendor.active) throw new HttpError(400, `ผู้จำหน่าย "${vendor.name}" ถูกปิดใช้งานอยู่`)
   }
 
   const productInfo = {
@@ -133,7 +133,7 @@ export async function scanIn(input: {
             receivedAt: now,
             releasedAt: null,
             lastScanAt: now,
-            // รับกลับเข้ามาโดยไม่ระบุผู้ขาย ให้คงเจ้าเดิมไว้ ดีกว่าล้างทิ้ง
+            // รับกลับเข้ามาโดยไม่ระบุผู้จำหน่าย ให้คงเจ้าเดิมไว้ ดีกว่าล้างทิ้ง
             ...(vendorId ? { vendorId } : {}),
           },
         })
@@ -507,7 +507,7 @@ export async function closeAuditSession(input: {
 export type StockReportFilters = {
   categoryId?: string | null
   brand?: string | null
-  /** กรองเฉพาะของที่รับเข้ามาจากผู้ขายรายนี้ */
+  /** กรองเฉพาะของที่รับเข้ามาจากผู้จำหน่ายรายนี้ */
   vendorId?: string | null
   /** ค้นหาตามชื่อสินค้า / SKU / แบรนด์ */
   q?: string | null
@@ -586,7 +586,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   })
 
   // มีตัวกรองอยู่ = ซ่อนประเภทที่ไม่มีสินค้าเข้าเงื่อนไข ไม่ให้รกจอ
-  // กรองตามผู้ขายก็ต้องตัดสินค้าที่ไม่เคยรับจากเจ้านี้ออกด้วย ไม่งั้นจะเห็นเลข 0 เต็มไปหมด
+  // กรองตามผู้จำหน่ายก็ต้องตัดสินค้าที่ไม่เคยรับจากเจ้านี้ออกด้วย ไม่งั้นจะเห็นเลข 0 เต็มไปหมด
   const filtered = vendorId
     ? rows
         .map((r) => {
@@ -618,7 +618,7 @@ export async function listBrands(): Promise<string[]> {
   return rows.map((r) => r.brand!).filter((b) => b.length > 0)
 }
 
-/** ผู้ขายที่ยังเปิดใช้งาน + เจ้าที่ปิดไปแล้วแต่ยังมีของค้างอยู่ - ใช้เติม dropdown ตัวกรอง */
+/** ผู้จำหน่ายที่ยังเปิดใช้งาน + เจ้าที่ปิดไปแล้วแต่ยังมีของค้างอยู่ - ใช้เติม dropdown ตัวกรอง */
 export async function listVendors(): Promise<{ id: string; code: string; name: string }[]> {
   return prisma.vendor.findMany({
     where: { OR: [{ active: true }, { units: { some: {} } }] },

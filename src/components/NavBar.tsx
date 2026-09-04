@@ -16,7 +16,7 @@ const LINKS = [
 const MANAGE_LINKS = [
   { href: '/products', label: 'สินค้า' },
   { href: '/categories', label: 'ประเภทของ' },
-  { href: '/vendors', label: 'ผู้ขาย' },
+  { href: '/vendors', label: 'ซื้อจาก' },
   { href: '/users', label: 'ผู้ใช้', adminOnly: true },
 ]
 

@@ -26,7 +26,7 @@ export function filterSummary(meta: ExportMeta): string {
   const parts: string[] = []
   if (meta.categoryName) parts.push(`ประเภทของ: ${meta.categoryName}`)
   if (meta.brand) parts.push(`แบรนด์: ${meta.brand}`)
-  if (meta.vendorName) parts.push(`ผู้ขาย: ${meta.vendorName}`)
+  if (meta.vendorName) parts.push(`ผู้จำหน่าย: ${meta.vendorName}`)
   if (meta.q) parts.push(`ค้นหา: ${meta.q}`)
   return parts.length > 0 ? parts.join(' · ') : 'ไม่ได้กรอง (ทั้งหมด)'
 }

@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 /**
- * ลบได้เฉพาะผู้ขายที่ไม่เคยมีของผูกอยู่
+ * ลบได้เฉพาะผู้จำหน่ายที่ไม่เคยมีของผูกอยู่
  * ที่เคยรับของเข้ามาแล้วให้ปิดใช้งานแทน (PATCH active: false) เพื่อไม่ให้ประวัติขาด
  */
 export async function DELETE(_request: Request, { params }: Params) {
@@ -34,7 +34,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     if (unitCount > 0) {
       throw new HttpError(
         409,
-        `ลบไม่ได้ - มีของที่รับจากผู้ขายรายนี้อยู่ ${unitCount} ชิ้น (ปิดใช้งานแทนได้)`
+        `ลบไม่ได้ - มีของที่รับจากผู้จำหน่ายรายนี้อยู่ ${unitCount} ชิ้น (ปิดใช้งานแทนได้)`
       )
     }
     await prisma.vendor.delete({ where: { id } })
