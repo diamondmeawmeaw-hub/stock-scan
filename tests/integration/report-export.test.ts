@@ -89,13 +89,13 @@ describe('GET /api/reports/export', () => {
     expect(onlyIt).toContain('ตัวกรอง: ประเภทของ: อุปกรณ์ไอที')
   })
 
-  it('กรองตามผู้ขาย -> หัวรายงานบอกชื่อผู้ขาย', async () => {
+  it('กรองตามผู้จำหน่าย -> หัวรายงานบอกชื่อผู้จำหน่าย', async () => {
     const vendor = await prisma.vendor.create({ data: { code: 'SIS', name: 'SiS Distribution' } })
 
     const text = await sheetText(
       (await download({ view: 'stock', format: 'xlsx', vendorId: vendor.id })).buffer
     )
-    expect(text).toContain('ผู้ขาย: SiS Distribution')
+    expect(text).toContain('ผู้จำหน่าย: SiS Distribution')
   })
 
   it('ความเคลื่อนไหวแต่ไม่ส่งช่วงวันที่ -> 400', async () => {

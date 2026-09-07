@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { ScanConsole, type ScanOutcomeLike } from '@/components/ScanConsole'
+import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { api } from '@/lib/client'
 
 type ProductOption = {
@@ -37,13 +37,33 @@ export function ScanInClient({
 
   const selected = products.find((p) => p.id === productId) ?? null
 
-  const onScan = useCallback(
-    async (serial: string): Promise<ScanOutcomeLike> =>
-      api<ScanOutcomeLike>('/api/scan/in', {
+  const onScan = useCallback(async (serial: string): Promise<ScanOutcomeLike> => ({
+    accepted: true,
+    result: 'PENDING',
+    message: 'รอยืนยันการบันทึก',
+    serial,
+    product: selected,
+  }), [selected])
+
+  const onConfirm = useCallback(
+    async (items: FeedItem[]) => Promise.all(
+      items.map((item) => api<ScanOutcomeLike>('/api/scan/in', {
         method: 'POST',
-        body: JSON.stringify({ serial, productId, vendorId: vendorId || null, note: note || null }),
-      }),
+        body: JSON.stringify({ serial: item.serial, productId, vendorId: vendorId || null, note: note || null }),
+      }))
+    ),
     [productId, vendorId, note]
+  )
+
+  const onDelete = useCallback(
+    async (item: ScanOutcomeLike) => {
+      if (!item.scanLogId) return
+      await api('/api/scan/undo', {
+        method: 'POST',
+        body: JSON.stringify({ scanLogId: item.scanLogId }),
+      })
+    },
+    []
   )
 
   return (
@@ -117,6 +137,8 @@ export function ScanInClient({
 
       <ScanConsole
         onScan={onScan}
+        onDelete={onDelete}
+        onConfirm={onConfirm}
         disabled={!productId}
         disabledHint="เลือกสินค้าก่อนถึงจะยิงได้"
         label={selected ? `ยิง serial ของ ${selected.name}` : 'ยิงบาร์โค้ด / serial'}

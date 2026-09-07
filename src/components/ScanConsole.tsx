@@ -9,6 +9,8 @@ export type ScanOutcomeLike = {
   serial: string
   product?: { id: string; sku: string; name: string; categoryName: string } | null
   productInStock?: number
+  unitId?: string | null
+  scanLogId?: string | null
 }
 
 export type FeedItem = ScanOutcomeLike & { key: number; at: Date }
@@ -44,16 +46,22 @@ function beep(ok: boolean) {
  */
 export function ScanConsole({
   onScan,
+  onDelete,
+  onConfirm,
   disabled = false,
   disabledHint,
   label = 'ยิงบาร์โค้ด / serial',
   soundEnabled = true,
+  hideFeed = false,
 }: {
   onScan: (serial: string) => Promise<ScanOutcomeLike>
+  onDelete?: (item: FeedItem) => Promise<void> | void
+  onConfirm?: (items: FeedItem[]) => Promise<ScanOutcomeLike[] | void>
   disabled?: boolean
   disabledHint?: string
   label?: string
   soundEnabled?: boolean
+  hideFeed?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const queueRef = useRef<string[]>([])
@@ -64,6 +72,44 @@ export function ScanConsole({
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [pending, setPending] = useState(0)
   const [stats, setStats] = useState({ accepted: 0, rejected: 0 })
+  const [confirming, setConfirming] = useState(false)
+
+  const removeFromFeed = useCallback(
+    (key: number) => {
+      setFeed((prev) => prev.filter((item) => item.key !== key))
+    },
+    []
+  )
+
+  const handleDelete = useCallback(
+    async (item: FeedItem) => {
+      if (onDelete) {
+        await onDelete(item)
+      }
+      removeFromFeed(item.key)
+      setStats((current) => item.accepted
+        ? { ...current, accepted: Math.max(0, current.accepted - 1) }
+        : { ...current, rejected: Math.max(0, current.rejected - 1) })
+    },
+    [onDelete, removeFromFeed]
+  )
+
+  async function confirmFeed() {
+    if (!onConfirm || feed.length === 0 || confirming) return
+    setConfirming(true)
+    try {
+      const outcomes = await onConfirm(feed)
+      if (outcomes) {
+        setStats({
+          accepted: outcomes.filter((outcome) => outcome.accepted).length,
+          rejected: outcomes.filter((outcome) => !outcome.accepted).length,
+        })
+        setFeed([])
+      }
+    } finally {
+      setConfirming(false)
+    }
+  }
 
   const drain = useCallback(async () => {
     if (drainingRef.current) return
@@ -181,6 +227,20 @@ export function ScanConsole({
 
       {feed.length > 0 && (
         <div className="card overflow-hidden">
+          {onConfirm && (
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-amber-50 px-4 py-3">
+              <span className="text-sm text-amber-800">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
+              <button
+                type="button"
+                className="btn-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={confirming || feed.length === 0}
+                onClick={() => void confirmFeed()}
+                data-testid="confirm-scan"
+              >
+                {confirming ? 'กำลังบันทึก...' : `ยืนยันบันทึก ${feed.length} รายการ`}
+              </button>
+            </div>
+          )}
           <table className="w-full text-sm" data-testid="scan-feed">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
               <tr>
@@ -188,6 +248,7 @@ export function ScanConsole({
                 <th className="px-4 py-2 font-medium">Serial</th>
                 <th className="px-4 py-2 font-medium">สินค้า</th>
                 <th className="px-4 py-2 font-medium">ผล</th>
+                <th className="px-4 py-2 font-medium w-12 text-center">ลบ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -202,6 +263,32 @@ export function ScanConsole({
                     className={`px-4 py-2 ${item.accepted ? 'text-emerald-700' : 'text-red-700'}`}
                   >
                     {item.message}
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    {onDelete && item.accepted && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-red-100 text-red-600 transition-colors"
+                        title="ลบรายการนี้"
+                        data-testid={`delete-${item.key}`}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

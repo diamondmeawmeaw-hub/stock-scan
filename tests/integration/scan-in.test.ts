@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { POST as scanInRoute } from '@/app/api/scan/in/route'
+import { POST as undoRoute } from '@/app/api/scan/undo/route'
 import type { ScanOutcome } from '@/lib/scan-service'
 import { giveStock, postJson, prisma, seedFixtures, unitBySerial } from './helpers'
 
@@ -144,5 +145,59 @@ describe('POST /api/scan/in', () => {
     await scanIn('NB0001', fx.products.notebook.id, 'รับจากใบสั่งซื้อ PO-2026-001')
     const log = await prisma.scanLog.findFirst({ where: { serial: 'NB0001' } })
     expect(log?.note).toBe('รับจากใบสั่งซื้อ PO-2026-001')
+  })
+
+  it('ยกเลิกการรับเข้า CREATED -> ลบ serial unit และสร้าง log ยกเลิก', async () => {
+    const res = await scanIn('NB0001', fx.products.notebook.id)
+    expect(res.body.accepted).toBe(true)
+    expect(res.body.result).toBe('CREATED')
+    const scanLogId = res.body.scanLogId
+    expect(scanLogId).toBeDefined()
+
+    const undoRes = await postJson(undoRoute as Handler, { scanLogId })
+    expect(undoRes.status).toBe(200)
+    expect(undoRes.body.success).toBe(true)
+
+    expect(await unitBySerial('NB0001')).toBeNull()
+    const logs = await prisma.scanLog.findMany({ where: { serial: 'NB0001' }, orderBy: { createdAt: 'desc' } })
+    expect(logs.length).toBe(2)
+    expect(logs[0].accepted).toBe(false)
+    expect(logs[0].message).toContain('ยกเลิกการรับเข้า')
+  })
+
+  it('ยกเลิกการรับเข้า RETURNED -> คืนสถานะเป็น OUT และล้าง receivedAt', async () => {
+    await giveStock(fx.products.notebook.id, ['NB0001'])
+    await prisma.serialUnit.update({
+      where: { serial: 'NB0001' },
+      data: { status: 'OUT', releasedAt: new Date() },
+    })
+
+    const res = await scanIn('NB0001', fx.products.notebook.id)
+    expect(res.body.accepted).toBe(true)
+    expect(res.body.result).toBe('RETURNED')
+    const scanLogId = res.body.scanLogId
+    expect(scanLogId).toBeDefined()
+
+    const undoRes = await postJson(undoRoute as Handler, { scanLogId })
+    expect(undoRes.status).toBe(200)
+
+    const unit = await unitBySerial('NB0001')
+    expect(unit?.status).toBe('OUT')
+    expect(unit?.releasedAt).toBeInstanceOf(Date)
+    expect(unit?.receivedAt).toBeNull()
+  })
+
+  it('ยกเลิก log ที่ไม่ใช่ IN -> 400', async () => {
+    const res = await scanIn('NB0001', fx.products.notebook.id)
+    const scanLogId = res.body.scanLogId
+
+    await prisma.scanLog.update({
+      where: { id: scanLogId },
+      data: { type: 'OUT' },
+    })
+
+    const undoRes = await postJson(undoRoute as Handler, { scanLogId })
+    expect(undoRes.status).toBe(400)
+    expect(undoRes.body.error).toContain('ยกเลิกได้เฉพาะการรับเข้าสต็อก')
   })
 })

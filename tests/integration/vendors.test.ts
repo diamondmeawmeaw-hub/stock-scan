@@ -21,19 +21,19 @@ async function seedVendor(code = 'SIS', name = 'SiS Distribution') {
   return prisma.vendor.create({ data: { code, name } })
 }
 
-describe('จัดการผู้ขาย', () => {
+describe('จัดการผู้จำหน่าย', () => {
   beforeEach(async () => {
     fx = await seedFixtures()
   })
 
-  it('staff ดูรายการและเพิ่มผู้ขายได้', async () => {
+  it('staff ดูรายการและเพิ่มผู้จำหน่ายได้', async () => {
     await seedVendor()
 
     expect((await listVendors()).status).toBe(200)
     expect((await createVendor({ code: 'ing', name: 'Ingram' })).status).toBe(200)
   })
 
-  it('เพิ่มผู้ขายแล้วรหัสถูกแปลงเป็นตัวใหญ่', async () => {
+  it('เพิ่มผู้จำหน่ายแล้วรหัสถูกแปลงเป็นตัวใหญ่', async () => {
     await asAdmin()
 
     const res = await createVendor({ code: 'sis', name: 'SiS Distribution' })
@@ -51,7 +51,7 @@ describe('จัดการผู้ขาย', () => {
     expect(res.status).toBe(409)
   })
 
-  it('ลบผู้ขายที่ยังไม่มีของผูกอยู่ได้', async () => {
+  it('ลบผู้จำหน่ายที่ยังไม่มีของผูกอยู่ได้', async () => {
     await asAdmin()
     const vendor = await seedVendor()
 
@@ -61,7 +61,7 @@ describe('จัดการผู้ขาย', () => {
     expect(await prisma.vendor.findUnique({ where: { id: vendor.id } })).toBeNull()
   })
 
-  it('ลบผู้ขายที่มีของผูกอยู่ไม่ได้ -> 409 และของยังอยู่ครบ', async () => {
+  it('ลบผู้จำหน่ายที่มีของผูกอยู่ไม่ได้ -> 409 และของยังอยู่ครบ', async () => {
     const vendor = await seedVendor()
     await postJson(scanInRoute, {
       serial: 'NB0001',
@@ -95,7 +95,7 @@ describe('จัดการผู้ขาย', () => {
   })
 })
 
-describe('รับเข้าพร้อมระบุผู้ขาย', () => {
+describe('รับเข้าพร้อมระบุผู้จำหน่าย', () => {
   beforeEach(async () => {
     fx = await seedFixtures()
   })
@@ -103,7 +103,7 @@ describe('รับเข้าพร้อมระบุผู้ขาย', (
   const scanIn = (serial: string, vendorId?: string | null) =>
     postJson(scanInRoute, { serial, productId: fx.products.notebook.id, vendorId })
 
-  it('ผู้ขายที่ระบุไปโผล่ทั้งที่ตัวของและในประวัติ', async () => {
+  it('ผู้จำหน่ายที่ระบุไปโผล่ทั้งที่ตัวของและในประวัติ', async () => {
     const vendor = await seedVendor()
 
     expect((await scanIn('NB0001', vendor.id)).status).toBe(200)
@@ -113,21 +113,21 @@ describe('รับเข้าพร้อมระบุผู้ขาย', (
     expect(res.body.history[0].vendorName).toBe('SiS Distribution')
   })
 
-  it('ไม่ระบุผู้ขายก็รับเข้าได้ ค่าเป็นว่าง', async () => {
+  it('ไม่ระบุผู้จำหน่ายก็รับเข้าได้ ค่าเป็นว่าง', async () => {
     expect((await scanIn('NB0001', null)).status).toBe(200)
 
     const res = await lookup('NB0001')
     expect(res.body.unit?.vendorName).toBeNull()
   })
 
-  it('ผู้ขายที่ไม่มีอยู่จริง -> 400 และไม่รับของเข้า', async () => {
+  it('ผู้จำหน่ายที่ไม่มีอยู่จริง -> 400 และไม่รับของเข้า', async () => {
     const res = await scanIn('NB0001', 'ไม่มีอยู่จริง')
 
     expect(res.status).toBe(400)
     expect(await prisma.serialUnit.findUnique({ where: { serial: 'NB0001' } })).toBeNull()
   })
 
-  it('ผู้ขายที่ปิดใช้งานอยู่ -> 400', async () => {
+  it('ผู้จำหน่ายผู้ขายที่ปิดใช้งานอยู่ -> 400', async () => {
     const vendor = await prisma.vendor.create({
       data: { code: 'OLD', name: 'เจ้าเก่า', active: false },
     })
