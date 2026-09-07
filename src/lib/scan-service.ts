@@ -177,10 +177,18 @@ export async function scanOut(input: {
   userId: string
   reason: OutReasonCode
   note?: string | null
+  customerId?: string | null
 }): Promise<ScanOutcome> {
   const validation = validateSerial(input.rawSerial)
   if (!validation.ok) return rejectedOutcome(input.rawSerial.trim(), validation.message)
   const serial = validation.serial
+
+  const customer = input.customerId
+    ? await prisma.customer.findUnique({ where: { id: input.customerId } })
+    : null
+  if (input.customerId && (!customer || !customer.active)) {
+    throw new HttpError(400, 'ไม่พบลูกค้าที่เลือกหรือถูกปิดใช้งานแล้ว')
+  }
 
   const outcome = await prisma.$transaction(async (tx) => {
     await lockSerial(tx, serial)
@@ -207,6 +215,7 @@ export async function scanOut(input: {
         userId: input.userId,
         productId: unit?.productId ?? null,
         unitId: unit?.id ?? null,
+        customerId: input.reason === 'SALE' ? input.customerId ?? null : null,
       },
     })
 
@@ -652,6 +661,7 @@ export type SerialHistoryEntry = {
   userName: string
   productName: string | null
   vendorName: string | null
+  customerName: string | null
   auditSessionName: string | null
   at: string
 }
@@ -660,6 +670,7 @@ const scanLogInclude = {
   user: { select: { displayName: true } },
   product: { select: { name: true } },
   vendor: { select: { name: true } },
+  customer: { select: { code: true, name: true } },
   auditSession: { select: { name: true } },
 } satisfies Prisma.ScanLogInclude
 
@@ -677,6 +688,7 @@ function toHistoryEntry(log: ScanLogWithRelations): SerialHistoryEntry {
     userName: log.user.displayName,
     productName: log.product?.name ?? null,
     vendorName: log.vendor?.name ?? null,
+    customerName: log.customer ? `${log.customer.code} · ${log.customer.name}` : null,
     auditSessionName: log.auditSession?.name ?? null,
     at: log.createdAt.toISOString(),
   }
@@ -921,4 +933,3 @@ export async function buildMovementReport(
     totalOut: rows.reduce((sum, r) => sum + r.outCount, 0),
   }
 }
-

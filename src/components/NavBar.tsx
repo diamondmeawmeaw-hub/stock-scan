@@ -10,6 +10,7 @@ const LINKS = [
   { href: '/scan-out', label: 'เบิกออก' },
   { href: '/audit', label: 'ตรวจนับ' },
   { href: '/serials', label: 'ค้นหา Serial' },
+  { href: '/sales', label: 'ประวัติการขาย' },
   { href: '/reports', label: 'รายงาน' },
 ]
 
@@ -17,6 +18,7 @@ const MANAGE_LINKS = [
   { href: '/products', label: 'สินค้า' },
   { href: '/categories', label: 'ประเภทของ' },
   { href: '/vendors', label: 'ซื้อจาก' },
+  { href: '/customers', label: 'ลูกค้า' },
   { href: '/users', label: 'ผู้ใช้', adminOnly: true },
 ]
 

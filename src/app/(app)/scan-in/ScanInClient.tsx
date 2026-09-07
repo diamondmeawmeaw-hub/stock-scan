@@ -46,12 +46,30 @@ export function ScanInClient({
   }), [selected])
 
   const onConfirm = useCallback(
-    async (items: FeedItem[]) => Promise.all(
-      items.map((item) => api<ScanOutcomeLike>('/api/scan/in', {
-        method: 'POST',
-        body: JSON.stringify({ serial: item.serial, productId, vendorId: vendorId || null, note: note || null }),
-      }))
-    ),
+    async (items: FeedItem[]) => {
+      const outcomes: ScanOutcomeLike[] = []
+      for (const item of items) {
+        try {
+          outcomes.push(await api<ScanOutcomeLike>('/api/scan/in', {
+            method: 'POST',
+            body: JSON.stringify({
+              serial: item.serial,
+              productId,
+              vendorId: vendorId || null,
+              note: note || null,
+            }),
+          }))
+        } catch (error) {
+          outcomes.push({
+            accepted: false,
+            result: 'ERROR',
+            message: error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ',
+            serial: item.serial,
+          })
+        }
+      }
+      return outcomes
+    },
     [productId, vendorId, note]
   )
 

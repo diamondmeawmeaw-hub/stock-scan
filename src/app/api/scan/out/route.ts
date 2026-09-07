@@ -7,6 +7,7 @@ const schema = z.object({
   serial: z.string().min(1, 'ไม่ได้ส่ง serial มา'),
   reason: z.enum(['SALE', 'INTERNAL_USE', 'DAMAGED', 'RETURN_SUPPLIER', 'OTHER']),
   note: z.string().trim().max(500).optional().nullable(),
+  customerId: z.string().min(1).optional().nullable(),
 })
 
 export async function POST(request: Request) {
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       userId: user.userId,
       reason: body.reason,
       note: body.note ?? null,
+      customerId: body.customerId ?? null,
     })
   })
 }

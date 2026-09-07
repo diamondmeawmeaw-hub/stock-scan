@@ -73,6 +73,7 @@ export function ScanConsole({
   const [pending, setPending] = useState(0)
   const [stats, setStats] = useState({ accepted: 0, rejected: 0 })
   const [confirming, setConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
 
   const removeFromFeed = useCallback(
     (key: number) => {
@@ -97,6 +98,7 @@ export function ScanConsole({
   async function confirmFeed() {
     if (!onConfirm || feed.length === 0 || confirming) return
     setConfirming(true)
+    setConfirmError(null)
     try {
       const outcomes = await onConfirm(feed)
       if (outcomes) {
@@ -104,9 +106,17 @@ export function ScanConsole({
           accepted: outcomes.filter((outcome) => outcome.accepted).length,
           rejected: outcomes.filter((outcome) => !outcome.accepted).length,
         })
-        setFeed([])
+        setFeed((prev) => prev
+          .map((item) => {
+            const outcome = outcomes.find((candidate) => candidate.serial === item.serial)
+            return outcome ? { ...item, ...outcome } : item
+          })
+          .filter((item) => item.result === 'ERROR' || item.accepted === false))
       }
-    } finally {
+    } catch (error) {
+      setConfirmError(error instanceof Error ? error.message : 'ยืนยันบันทึกไม่สำเร็จ')
+    }
+    finally {
       setConfirming(false)
     }
   }
@@ -229,7 +239,10 @@ export function ScanConsole({
         <div className="card overflow-hidden">
           {onConfirm && (
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-amber-50 px-4 py-3">
-              <span className="text-sm text-amber-800">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
+              <div>
+                <span className="text-sm text-amber-800">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
+                {confirmError && <p className="mt-1 text-sm text-red-700">{confirmError}</p>}
+              </div>
               <button
                 type="button"
                 className="btn-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"

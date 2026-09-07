@@ -67,6 +67,19 @@ model User {
   auditSessions AuditSession[]
 }
 
+/// ลูกค้าที่ซื้อสินค้า
+model Customer {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  note      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scanLogs ScanLog[]
+}
+
 model Category {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -148,6 +161,8 @@ model ScanLog {
   /// ผู้ขายที่ระบุไว้ตอนรับเข้า - เก็บซ้ำที่ log เพื่อให้ย้อนดูได้ว่ารอบนั้นรับจากใคร
   /// แม้ของชิ้นเดิมจะถูกรับเข้าใหม่จากผู้ขายรายอื่นทีหลัง
   vendorId       String?
+  /// ลูกค้าที่ซื้อสินค้า - ใช้กับรายการเบิกออกเหตุผล SALE
+  customerId     String?
   auditSessionId String?
   createdAt      DateTime   @default(now())
 
@@ -155,6 +170,7 @@ model ScanLog {
   product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   unit         SerialUnit?   @relation(fields: [unitId], references: [id], onDelete: SetNull)
   vendor       Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   auditSession AuditSession? @relation(fields: [auditSessionId], references: [id], onDelete: Cascade)
 
   @@index([type, createdAt])
@@ -162,6 +178,7 @@ model ScanLog {
   @@index([auditSessionId])
   @@index([userId, createdAt])
   @@index([vendorId])
+  @@index([customerId])
 }
 
 /// รอบการตรวจนับ 1 รอบ - เปิดรอบ ยิงของ แล้วปิดรอบเพื่อดูผลต่าง

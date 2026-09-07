@@ -264,6 +264,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                 <th className="px-4 py-2 font-medium">ประเภท</th>
                 <th className="px-4 py-2 font-medium">ผล</th>
                 <th className="px-4 py-2 font-medium">ซื้อจาก</th>
+                <th className="px-4 py-2 font-medium">ลูกค้า</th>
                 <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
                 <th className="px-4 py-2 font-medium">ผู้สแกน</th>
               </tr>
@@ -290,6 +291,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                     {h.message ?? h.result}
                   </td>
                   <td className="px-4 py-2 text-slate-600">{h.vendorName ?? '-'}</td>
+                  <td className="px-4 py-2 text-slate-600">{h.customerName ?? '-'}</td>
                   <td className="px-4 py-2 text-slate-600">
                     {[h.reason ? OUT_REASON_LABELS[h.reason] : null, h.note]
                       .filter(Boolean)
