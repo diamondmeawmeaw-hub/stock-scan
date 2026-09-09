@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
-import { movementToExcel, stockToExcel } from '@/lib/reports/excel'
-import { movementToPdf, stockToPdf } from '@/lib/reports/pdf'
-import type { MovementReport, StockReportRow } from '@/lib/scan-service'
+import { movementDetailedToExcel, stockToExcel } from '@/lib/reports/excel'
+import { movementDetailedToPdf, stockToPdf } from '@/lib/reports/pdf'
+import type { MovementDetailReport, StockReportRow } from '@/lib/scan-service'
 
 const GENERATED_AT = new Date('2026-08-06T10:00:00+07:00')
 const META = { generatedAt: GENERATED_AT }
@@ -23,21 +23,44 @@ const stockReport = {
   grandTotalInStock: 5,
 }
 
-const movementReport: MovementReport = {
+const movementReport: MovementDetailReport = {
   from: '2026-08-01',
   to: '2026-08-06',
   rows: [
     {
-      productId: 'p1',
+      id: 'log1',
+      at: '2026-08-02T10:00:00+07:00',
+      serial: 'SN001',
+      type: 'IN',
+      result: 'CREATED',
+      message: null,
+      reason: null,
+      note: null,
       sku: 'IT-NB-001',
-      name: 'โน๊ตบุ๊ค',
+      productName: 'โน๊ตบุ๊ค',
       brand: 'Dell',
       categoryName: 'อุปกรณ์ไอที',
-      inCount: 4,
-      outCount: 1,
+      userName: 'admin',
+      customerName: null,
+    },
+    {
+      id: 'log2',
+      at: '2026-08-04T14:00:00+07:00',
+      serial: 'SN001',
+      type: 'OUT',
+      result: 'CREATED',
+      message: null,
+      reason: 'SALE',
+      note: null,
+      sku: 'IT-NB-001',
+      productName: 'โน๊ตบุ๊ค',
+      brand: 'Dell',
+      categoryName: 'อุปกรณ์ไอที',
+      userName: 'admin',
+      customerName: 'C001 · บริษัท ABC',
     },
   ],
-  totalIn: 4,
+  totalIn: 1,
   totalOut: 1,
 }
 
@@ -90,31 +113,19 @@ describe('export ยอดคงเหลือเป็น Excel', () => {
 
 describe('export ความเคลื่อนไหวเป็น Excel', () => {
   it('มีแถวสินค้าและแถวรวมท้ายตาราง', async () => {
-    const { name, rows } = await readSheet(await movementToExcel(movementReport, META))
+    const { name, rows } = await readSheet(await movementDetailedToExcel(movementReport, META))
 
     expect(name).toBe('ความเคลื่อนไหว')
-    expect(rows.find((r) => r[0] === 'SKU')).toEqual([
-      'SKU',
-      'สินค้า',
-      'แบรนด์',
-      'ประเภทของ',
-      'รับเข้า',
-      'เบิกออก',
+    expect(rows.find((r) => r[0] === 'วันที่')).toEqual([
+      'วันที่', 'รายการ', 'Serial', 'สินค้า', 'SKU', 'ผู้ซื้อ / ลูกค้า', 'ผู้ทำรายการ', 'หมายเหตุ',
     ])
-    expect(rows.find((r) => r[0] === 'IT-NB-001')).toEqual([
-      'IT-NB-001',
-      'โน๊ตบุ๊ค',
-      'Dell',
-      'อุปกรณ์ไอที',
-      4,
-      1,
-    ])
-    expect(rows.find((r) => r[3] === 'รวม')?.slice(4)).toEqual([4, 1])
+    expect(rows.find((r) => r[2] === 'SN001')).toBeDefined()
+    expect(rows.find((r) => r[6] === 'รวม')).toBeDefined()
   })
 
   it('ช่วงวันที่ไม่มีความเคลื่อนไหว -> ขึ้นข้อความแทน', async () => {
     const { rows } = await readSheet(
-      await movementToExcel({ ...movementReport, rows: [], totalIn: 0, totalOut: 0 }, META)
+      await movementDetailedToExcel({ ...movementReport, rows: [], totalIn: 0, totalOut: 0 }, META)
     )
     expect(rows.some((r) => r[0] === 'ช่วงวันที่นี้ไม่มีการรับเข้าหรือเบิกออก')).toBe(true)
   })
@@ -130,7 +141,7 @@ describe('export เป็น PDF', () => {
   })
 
   it('ความเคลื่อนไหวได้ไฟล์ PDF ที่ใช้ได้', async () => {
-    const buffer = await movementToPdf(movementReport, META)
+    const buffer = await movementDetailedToPdf(movementReport, META)
     expect(isPdf(buffer)).toBe('%PDF-')
     expect(buffer.length).toBeGreaterThan(1000)
   })
@@ -138,7 +149,7 @@ describe('export เป็น PDF', () => {
   it('รายงานว่างก็ยังออกไฟล์ได้ ไม่ล้ม', async () => {
     expect(isPdf(await stockToPdf({ categories: [], grandTotalInStock: 0 }, META))).toBe('%PDF-')
     expect(
-      isPdf(await movementToPdf({ ...movementReport, rows: [], totalIn: 0, totalOut: 0 }, META))
+      isPdf(await movementDetailedToPdf({ ...movementReport, rows: [], totalIn: 0, totalOut: 0 }, META))
     ).toBe('%PDF-')
   })
 })

@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
-import { buildMovementReport, buildStockReport, listBrands, listVendors } from '@/lib/scan-service'
+import { dayRange, shiftDays, todayInThailand, type TimePeriod } from '@/lib/date-range'
+import { buildMovementDetail, buildStockReport, listBrands, listCustomers, listVendors } from '@/lib/scan-service'
 import { ReportFilters } from './ReportFilters'
+import { StockView } from './StockView'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,30 +23,43 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
   const brand = one(params, 'brand')
   const vendorId = one(params, 'vendorId')
   const q = one(params, 'q')
+  const customerId = one(params, 'customerId')
+  const timePeriod = (one(params, 'timePeriod') || '30d') as TimePeriod
 
   const today = todayInThailand()
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
   const from = DATE_PATTERN.test(rawFrom) ? rawFrom : shiftDays(today, -6)
   const to = DATE_PATTERN.test(rawTo) ? rawTo : today
-  // เลือกช่วงกลับหัวมา (from > to) ก็ไม่ต้องเออเรอร์ สลับให้เลย
   const [start, end] = from <= to ? [from, to] : [to, from]
 
-  const filters = { categoryId, brand, vendorId, q }
-  const [categories, brands, vendors] = await Promise.all([
+  // Stock filters include timePeriod; Movement filters do NOT include timePeriod
+  const stockFilters = { categoryId, brand, vendorId, q, customerId, timePeriod }
+  const movementFilters = { categoryId, brand, vendorId, q, customerId }
+
+  const [categories, brands, vendors, customers] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     listBrands(),
     listVendors(),
+    listCustomers(),
   ])
 
-  // ปุ่มโหลดไฟล์อิงตัวกรองใน URL (สิ่งที่เห็นบนจอจริง) ไม่ใช่ state ในฟอร์มที่ยังไม่กดดู
-  const exportHref = (format: 'xlsx' | 'pdf') =>
-    `/api/reports/export?${queryString({
-      ...filters,
+  const exportHref = (format: 'xlsx' | 'pdf') => {
+    if (view === 'movement') {
+      return `/api/reports/export?${queryString({
+        ...movementFilters,
+        view,
+        format,
+        from: start,
+        to: end,
+      })}`
+    }
+    return `/api/reports/export?${queryString({
+      ...stockFilters,
       view,
       format,
-      ...(view === 'movement' ? { from: start, to: end } : {}),
     })}`
+  }
 
   return (
     <div className="space-y-5">
@@ -57,7 +71,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           <div>
             <h1 className="text-xl font-semibold text-slate-900">รายงาน</h1>
             <p className="text-sm text-slate-500">
-              กรองตามประเภทของ แบรนด์ ซื้อจาก หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือหรือความเคลื่อนไหวตามช่วงวัน
+              {view === 'stock'
+                ? 'กรองตามประเภทของ แบรนด์ ผู้ซื้อ ช่วงเวลา หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือแบบละเอียด'
+                : 'ดูประวัติการเคลื่อนไหวของสินค้า · รับเข้า เบิกออก ตรวจนับ'}
             </p>
           </div>
         </div>
@@ -69,13 +85,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           data-testid="report-tabs"
         >
           <Tab
-            href={{ ...filters, view: 'stock' }}
+            href={{ ...stockFilters, view: 'stock' }}
             active={view === 'stock'}
             label="ยอดคงเหลือ"
             testId="tab-stock"
           />
           <Tab
-            href={{ ...filters, view: 'movement', from: start, to: end }}
+            href={{ ...movementFilters, view: 'movement', from: start, to: end }}
             active={view === 'movement'}
             label="ความเคลื่อนไหว"
             testId="tab-movement"
@@ -106,20 +122,29 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         categories={categories}
         brands={brands}
         vendors={vendors}
+        customers={customers}
         view={view}
-        values={{ categoryId, brand, vendorId, q, from: start, to: end }}
+        values={{
+          categoryId,
+          brand,
+          vendorId,
+          q,
+          customerId,
+          timePeriod: view === 'stock' ? timePeriod : '30d',
+          from: start,
+          to: end,
+        }}
       />
 
       {view === 'stock' ? (
-        <StockView filters={filters} />
+        <StockViewWithFilters stockFilters={stockFilters} />
       ) : (
-        <MovementView filters={filters} from={start} to={end} />
+        <MovementView filters={movementFilters} from={start} to={end} />
       )}
     </div>
   )
 }
 
-/** ตัดค่าว่างทิ้งเพื่อไม่ให้ URL รกด้วยพารามิเตอร์เปล่า */
 function queryString(values: Record<string, string>): string {
   return new URLSearchParams(Object.entries(values).filter(([, v]) => v)).toString()
 }
@@ -151,96 +176,45 @@ function Tab({
   )
 }
 
-type ViewFilters = { categoryId: string; brand: string; vendorId: string; q: string }
+type StockViewFilters = { categoryId: string; brand: string; vendorId: string; q: string; customerId: string; timePeriod: TimePeriod }
+type MovementViewFilters = { categoryId: string; brand: string; vendorId: string; q: string; customerId: string }
 
-async function StockView({ filters }: { filters: ViewFilters }) {
-  const { categories, grandTotalInStock } = await buildStockReport(filters)
+async function StockViewWithFilters({ stockFilters }: { stockFilters: StockViewFilters }) {
+  const { categories, grandTotalInStock } = await buildStockReport(stockFilters)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">
-          ณ {new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
-        </span>
-        <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800">
-          รวม
-          <b className="tabular-nums text-sky-900" data-testid="grand-total">
-            {grandTotalInStock.toLocaleString('th-TH')}
-          </b>
-          ชิ้น
-        </span>
-      </div>
-
-      {categories.length === 0 && (
-        <p
-          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm"
-          data-testid="stock-empty"
-        >
-          ไม่พบสินค้าตามเงื่อนไขที่เลือก
-        </p>
-      )}
-
-      {categories.map((c) => (
-        <div
-          key={c.categoryId}
-          className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm"
-          data-testid="report-category"
-        >
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-            <h2 className="font-medium text-slate-900">
-              {c.categoryName} <span className="text-slate-400">({c.categoryCode})</span>
-            </h2>
-            <span className="text-sm text-slate-600">
-              คงเหลือรวม <b className="text-slate-900">{c.totalInStock}</b> ชิ้น
-            </span>
-          </div>
-          {c.products.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-slate-500">ยังไม่มีสินค้าในประเภทนี้</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">SKU</th>
-                    <th className="px-4 py-2 font-medium">สินค้า</th>
-                    <th className="px-4 py-2 font-medium">แบรนด์</th>
-                    <th className="px-4 py-2 text-right font-medium">คงเหลือ</th>
-                    <th className="px-4 py-2 text-right font-medium">เบิกออกไปแล้ว</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {c.products.map((p) => (
-                    <tr key={p.productId}>
-                      <td className="px-4 py-2 font-mono text-slate-700">{p.sku}</td>
-                      <td className="px-4 py-2">{p.name}</td>
-                      <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
-                      <td className="px-4 py-2 text-right font-medium tabular-nums">
-                        {p.inStock}
-                      </td>
-                      <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+    <StockView
+      categories={categories}
+      grandTotalInStock={grandTotalInStock}
+      filters={stockFilters}
+      snapshotAt={new Date().toISOString()}
+    />
   )
 }
+
+const SCAN_TYPE_LABEL: Record<string, string> = { IN: 'รับเข้า', OUT: 'เบิกออก', AUDIT: 'ตรวจนับ' }
 
 async function MovementView({
   filters,
   from,
   to,
 }: {
-  filters: ViewFilters
+  filters: MovementViewFilters
   from: string
   to: string
 }) {
-  const report = await buildMovementReport({ ...filters, ...dayRange(from, to) })
+  const report = await buildMovementDetail({ ...filters, ...dayRange(from, to) })
   const thaiDate = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateString('th-TH')
+
+  const thaiDateTime = (iso: string) => new Date(iso).toLocaleString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 
   return (
     <div className="space-y-4">
@@ -250,10 +224,10 @@ async function MovementView({
         </span>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">
-            รับเข้า <b className="tabular-nums text-emerald-900" data-testid="total-in">{report.totalIn.toLocaleString('th-TH')}</b> ชิ้น
+            รับเข้า <b className="tabular-nums text-emerald-900" data-testid="total-in">{report.totalIn.toLocaleString('th-TH')}</b> รายการ
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
-            เบิกออก <b className="tabular-nums text-amber-900" data-testid="total-out">{report.totalOut.toLocaleString('th-TH')}</b> ชิ้น
+            เบิกออก <b className="tabular-nums text-amber-900" data-testid="total-out">{report.totalOut.toLocaleString('th-TH')}</b> รายการ
           </span>
         </span>
       </div>
@@ -271,26 +245,35 @@ async function MovementView({
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-2 font-medium">SKU</th>
+                  <th className="px-4 py-2 font-medium">วันที่</th>
+                  <th className="px-4 py-2 font-medium">รายการ</th>
+                  <th className="px-4 py-2 font-medium">Serial</th>
                   <th className="px-4 py-2 font-medium">สินค้า</th>
-                  <th className="px-4 py-2 font-medium">แบรนด์</th>
-                  <th className="px-4 py-2 font-medium">ประเภทของ</th>
-                  <th className="px-4 py-2 text-right font-medium">รับเข้า</th>
-                  <th className="px-4 py-2 text-right font-medium">เบิกออก</th>
+                  <th className="px-4 py-2 font-medium">ผู้ซื้อ / ลูกค้า</th>
+                  <th className="px-4 py-2 font-medium">ผู้ทำรายการ</th>
+                  <th className="px-4 py-2 font-medium">หมายเหตุ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {report.rows.map((r) => (
-                  <tr key={r.productId} data-testid="movement-row">
-                    <td className="px-4 py-2 font-mono text-slate-700">{r.sku}</td>
-                    <td className="px-4 py-2">{r.name}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.brand ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.categoryName}</td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums text-emerald-700">
-                      {r.inCount || '-'}
+                  <tr key={r.id} data-testid="movement-row">
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{thaiDateTime(r.at)}</td>
+                    <td className="px-4 py-2">
+                      <span className={`font-medium ${
+                        r.type === 'IN' ? 'text-emerald-700' : r.type === 'OUT' ? 'text-amber-700' : 'text-slate-600'
+                      }`}>
+                        {SCAN_TYPE_LABEL[r.type] ?? r.type}
+                      </span>
                     </td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700">
-                      {r.outCount || '-'}
+                    <td className="px-4 py-2 font-mono text-slate-700">{r.serial}</td>
+                    <td className="px-4 py-2">
+                      <span className="text-slate-700">{r.productName}</span>
+                      <span className="ml-1 text-xs text-slate-400">{r.sku}</span>
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{r.customerName ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-600">{r.userName}</td>
+                    <td className="px-4 py-2 text-slate-500">
+                      {r.note ?? (r.reason ? `(${r.reason})` : '-')}
                     </td>
                   </tr>
                 ))}

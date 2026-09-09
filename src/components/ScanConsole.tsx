@@ -268,7 +268,7 @@ export function ScanConsole({
               {feed.map((item) => (
                 <tr key={item.key} className={item.accepted ? '' : 'bg-red-50/50'}>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-500">
-                    {item.at.toLocaleTimeString('th-TH')}
+                    {item.at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} {item.at.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                   </td>
                   <td className="px-4 py-2 font-mono">{item.serial}</td>
                   <td className="px-4 py-2 text-slate-600">{item.product?.name ?? '-'}</td>

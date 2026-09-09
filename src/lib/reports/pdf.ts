@@ -1,6 +1,6 @@
 import PdfPrinter from 'pdfmake'
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { MovementReport, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 import { SARABUN_BOLD_BASE64, SARABUN_REGULAR_BASE64 } from './sarabun-font'
 
@@ -32,6 +32,8 @@ function render(content: Content[]): Promise<Buffer> {
       subtitle: { fontSize: 10, color: '#475569' },
       meta: { fontSize: 8, color: '#64748b', margin: [0, 0, 0, 10] },
       section: { fontSize: 11, bold: true, margin: [0, 12, 0, 4] },
+      productHeader: { fontSize: 9, bold: true, color: '#1e293b', margin: [0, 4, 0, 2] },
+      historySection: { fontSize: 9, bold: true, color: '#475569', margin: [8, 8, 0, 2] },
       th: { bold: true, fillColor: '#f1f5f9' },
       empty: { color: '#64748b', italics: true },
     },
@@ -127,12 +129,186 @@ export function stockToPdf(report: StockReport, meta: ExportMeta): Promise<Buffe
   return render(content)
 }
 
-export function movementToPdf(report: MovementReport, meta: ExportMeta): Promise<Buffer> {
+const STATUS_LABEL: Record<string, string> = { IN_STOCK: 'ในคลัง', OUT: 'เบิกแล้ว' }
+const SCAN_TYPE_LABEL: Record<string, string> = { IN: 'รับเข้า', OUT: 'เบิกออก', AUDIT: 'ตรวจนับ' }
+const SCAN_RESULT_LABEL: Record<string, string> = {
+  CREATED: 'สร้างใหม่',
+  RETURNED: 'รับกลับ',
+  DUPLICATE: 'ซ้ำ',
+  PRODUCT_MISMATCH: 'สินค้าไม่ตรง',
+  OK: 'สำเร็จ',
+  ALREADY_OUT: 'เบิกแล้ว',
+  UNKNOWN_SERIAL: 'ไม่รู้จัก',
+  NOT_IN_SCOPE: 'นอกรอบ',
+  FOUND_BUT_OUT: 'เจอแต่เบิกแล้ว',
+  MISSING: 'ของหาย',
+}
+const OUT_REASON_LABEL: Record<string, string> = {
+  SALE: 'ขาย',
+  INTERNAL_USE: 'ใช้ภายใน',
+  DAMAGED: 'ชำรุด',
+  RETURN_SUPPLIER: 'ส่งคืน',
+  OTHER: 'อื่นๆ',
+}
+
+function thaiDateTimeShort(iso: string | null): string {
+  if (!iso) return '-'
+  return new Date(iso).toLocaleString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+export function stockDetailedToPdf(report: StockReportDetailed, meta: ExportMeta): Promise<Buffer> {
+  const content: Content[] = header(
+    'รายงานยอดคงเหลือ (รายละเอียด)',
+    `รวมคงเหลือ ${report.grandTotalInStock.toLocaleString('th-TH')} ชิ้น`,
+    meta
+  )
+
+  if (report.categories.length === 0) {
+    content.push({ text: 'ไม่พบสินค้าตามเงื่อนไขที่เลือก', style: 'empty' })
+    return render(content)
+  }
+
+  for (const category of report.categories) {
+    content.push({
+      text: `${category.categoryName} (${category.categoryCode}) · คงเหลือรวม ${category.totalInStock} ชิ้น`,
+      style: 'section',
+    })
+
+    if (category.products.length === 0) {
+      content.push({ text: 'ยังไม่มีสินค้าในประเภทนี้', style: 'empty' })
+      continue
+    }
+
+    for (const p of category.products) {
+      // ── 1. Product Header ──
+      const headerParts = [
+        `${p.sku} · ${p.name}`,
+        p.brand ? ` (${p.brand})` : '',
+        ` · คงเหลือ ${p.inStock} / เบิก ${p.out}`,
+      ].join('')
+      content.push({
+        text: headerParts,
+        style: 'productHeader',
+        margin: [8, 6, 0, 2] as [number, number, number, number],
+      })
+
+      if (p.serials.length === 0) {
+        content.push({
+          text: 'ไม่มี Serial Tracking',
+          style: 'empty',
+          margin: [16, 0, 0, 4] as [number, number, number, number],
+        })
+        continue
+      }
+
+      // ── 2. Serial Summary Table (one row per serial, no history) ──
+      const serialBody: TableCell[][] = [
+        [th('Serial'), th('สถานะ'), th('วันที่รับเข้า'), th('วันที่เบิกออก'), th('ผู้จำหน่าย'), th('ผู้ซื้อ / ลูกค้า')],
+      ]
+
+      for (const s of p.serials) {
+        const buyer = s.history
+          .filter((h) => h.type === 'OUT' && h.customerName)
+          .pop()?.customerName ?? null
+
+        const statusCell: TableCell = s.status === 'OUT'
+          ? { text: STATUS_LABEL[s.status] ?? s.status, color: '#dc2626', bold: true }
+          : STATUS_LABEL[s.status] ?? s.status
+
+        serialBody.push([
+          { text: s.serial, font: 'Sarabun' },
+          statusCell,
+          thaiDateTimeShort(s.receivedAt),
+          thaiDateTimeShort(s.releasedAt),
+          s.vendorName ?? '-',
+          buyer ?? '-',
+        ])
+      }
+
+      content.push({
+        table: {
+          headerRows: 1,
+          widths: [80, 50, 95, 95, 70, '*'],
+          body: serialBody,
+        },
+        layout: TABLE_LAYOUT,
+        margin: [8, 0, 0, 4] as [number, number, number, number],
+      })
+
+      // ── 3. Transaction History (separate section, grouped by serial) ──
+      const serialsWithHistory = p.serials.filter((s) => s.history.length > 0)
+      if (serialsWithHistory.length > 0) {
+        content.push({
+          text: 'ประวัติการเคลื่อนไหว',
+          style: 'historySection',
+          margin: [8, 8, 0, 4] as [number, number, number, number],
+        })
+
+        for (const s of serialsWithHistory) {
+          // Serial sub-header
+          content.push({
+            text: `Serial: ${s.serial}`,
+            bold: true,
+            margin: [16, 4, 0, 2] as [number, number, number, number],
+          })
+
+          const historyBody: TableCell[][] = [
+            [th('วันที่'), th('รายการ'), th('ผลลัพธ์'), th('ผู้ซื้อ / ลูกค้า'), th('ผู้ทำรายการ'), th('หมายเหตุ')],
+          ]
+
+          for (const h of s.history) {
+            const detail = [
+              h.reason ? `(${OUT_REASON_LABEL[h.reason] ?? h.reason})` : '',
+              h.note ?? '',
+            ].filter(Boolean).join(' ')
+
+            historyBody.push([
+              thaiDateTimeShort(h.at),
+              SCAN_TYPE_LABEL[h.type] ?? h.type,
+              SCAN_RESULT_LABEL[h.result] ?? h.result,
+              h.customerName ?? '-',
+              h.userName,
+              detail || '-',
+            ])
+          }
+
+          content.push({
+            table: {
+              headerRows: 1,
+              widths: [95, 60, 60, '*', 70, '*'],
+              body: historyBody,
+            },
+            layout: TABLE_LAYOUT,
+            margin: [20, 0, 0, 6] as [number, number, number, number],
+          })
+        }
+      }
+    }
+  }
+
+  content.push({
+    text: `รวมทั้งหมด ${report.grandTotalInStock.toLocaleString('th-TH')} ชิ้น`,
+    style: 'section',
+    alignment: 'right',
+  })
+
+  return render(content)
+}
+
+export function movementDetailedToPdf(report: MovementDetailReport, meta: ExportMeta): Promise<Buffer> {
   const content: Content[] = header(
     'รายงานความเคลื่อนไหว',
     `${thaiDate(report.from)} - ${thaiDate(report.to)} · รับเข้า ${report.totalIn.toLocaleString(
       'th-TH'
-    )} ชิ้น · เบิกออก ${report.totalOut.toLocaleString('th-TH')} ชิ้น`,
+    )} รายการ · เบิกออก ${report.totalOut.toLocaleString('th-TH')} รายการ`,
     meta
   )
 
@@ -141,35 +317,40 @@ export function movementToPdf(report: MovementReport, meta: ExportMeta): Promise
     return render(content)
   }
 
+  const SCAN_TYPE_LABEL: Record<string, string> = { IN: 'รับเข้า', OUT: 'เบิกออก', AUDIT: 'ตรวจนับ' }
+
   content.push({
     table: {
       headerRows: 1,
-      widths: [80, '*', 90, 110, 50, 50],
+      widths: [95, 55, 80, '*', 70, 70, 70, '*'],
       body: [
         [
-          th('SKU'),
+          th('วันที่'),
+          th('รายการ'),
+          th('Serial'),
           th('สินค้า'),
-          th('แบรนด์'),
-          th('ประเภทของ'),
-          th('รับเข้า', true),
-          th('เบิกออก', true),
+          th('ผู้ซื้อ / ลูกค้า'),
+          th('ผู้ทำรายการ'),
+          th('หมายเหตุ'),
         ],
-        ...report.rows.map((r): TableCell[] => [
-          r.sku,
-          r.name,
-          r.brand ?? '-',
-          r.categoryName,
-          num(r.inCount),
-          num(r.outCount),
-        ]),
-        [
-          { text: 'รวม', colSpan: 4, bold: true },
-          {},
-          {},
-          {},
-          { text: String(report.totalIn), alignment: 'right', bold: true },
-          { text: String(report.totalOut), alignment: 'right', bold: true },
-        ],
+        ...report.rows.map((r): TableCell[] => {
+          const detail = [
+            r.reason ? `(${r.reason})` : '',
+            r.note ?? '',
+          ].filter(Boolean).join(' ')
+
+          const typeColor = r.type === 'IN' ? '#059669' : r.type === 'OUT' ? '#d97706' : '#475569'
+
+          return [
+            thaiDateTimeShort(r.at),
+            { text: SCAN_TYPE_LABEL[r.type] ?? r.type, color: typeColor, bold: true },
+            { text: r.serial, font: 'Sarabun' },
+            r.productName,
+            r.customerName ?? '-',
+            r.userName,
+            detail || '-',
+          ]
+        }),
       ],
     },
     layout: TABLE_LAYOUT,
