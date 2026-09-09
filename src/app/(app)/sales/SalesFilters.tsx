@@ -119,7 +119,7 @@ export function SalesFilters({
           value={form.customerId}
           onChange={(e) => setForm({ ...form, customerId: e.target.value })}
         >
-          <option value="">ทุกลูกค้า</option>
+          <option value="">ทั้งหมด</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}

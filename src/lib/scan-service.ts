@@ -628,6 +628,23 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
     ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
 
+  // ── หา serials ที่ตรงกับ customerId filter ──
+  let customerSerials: Set<string> | null = null
+  if (filters.customerId) {
+    const matched = await prisma.scanLog.findMany({
+      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      select: { serial: true },
+      distinct: ['serial'],
+    })
+    customerSerials = new Set(matched.map((l) => l.serial))
+  }
+
+  const unitWhere: Prisma.SerialUnitWhereInput = {
+    ...(vendorId ? { vendorId } : {}),
+    ...(customerSerials ? { serial: { in: [...customerSerials] } } : {}),
+  }
+  const hasUnitFilter = vendorId || customerSerials
+
   const categories = await prisma.category.findMany({
     orderBy: { name: 'asc' },
     include: {
@@ -635,7 +652,9 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         where: finalWhere,
         orderBy: { name: 'asc' },
         include: {
-          units: { where: vendorId ? { vendorId } : undefined, select: { status: true } },
+          units: hasUnitFilter
+            ? { where: unitWhere, select: { status: true } }
+            : { select: { status: true } },
         },
       },
     },
@@ -663,7 +682,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   })
 
   // มีตัวกรองอยู่ = ซ่อนประเภทที่ไม่มีสินค้าเข้าเงื่อนไข ไม่ให้รกจอ
-  const filtered = vendorId
+  const hasFilter = vendorId || customerSerials
+  const filtered = hasFilter
     ? rows
         .map((r) => {
           const products = r.products.filter((p) => p.inStock + p.out > 0)
@@ -868,7 +888,6 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   }
 
   // ── หา serials ที่ผ่าน customerId filter (ถ้ามี) ──
-  // ต้อง query ก่อน构建 rows เพื่อ filter serials ให้ตรงกับหน้าเว็บ
   let customerSerials: Set<string> | null = null
   if (filters.customerId && allUnitSerials.length > 0) {
     const matched = await prisma.scanLog.findMany({
@@ -885,7 +904,11 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
 
   const rows: StockReportDetailedRow[] = categories.map((c) => {
     const products: StockReportDetailedProduct[] = c.products.map((p) => {
-      const inStock = p.units.filter((u) => u.status === 'IN_STOCK').length
+      // ถ้ามี customerId filter ให้ count เฉพาะ serial ที่เกี่ยวข้องกับลูกค้า
+      const countedUnits = customerSerials
+        ? p.units.filter((u) => customerSerials!.has(u.serial))
+        : p.units
+      const inStock = countedUnits.filter((u) => u.status === 'IN_STOCK').length
       // ถ้ามี customerId filter ให้แสดงเฉพาะ serial ที่เคยเบิกให้ลูกค้ารายนี้
       const unitsToShow = customerSerials
         ? p.units.filter((u) => customerSerials!.has(u.serial))
@@ -904,7 +927,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         name: p.name,
         brand: p.brand,
         inStock,
-        out: p.units.length - inStock,
+        out: countedUnits.length - inStock,
         serials,
       }
     })
@@ -917,7 +940,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
     }
   })
 
-  const filtered = vendorId
+  const hasFilter = vendorId || customerSerials
+  const filtered = hasFilter
     ? rows
         .map((r) => {
           const products = r.products.filter((p) => p.inStock + p.out > 0)

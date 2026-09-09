@@ -33,7 +33,6 @@ function render(content: Content[]): Promise<Buffer> {
       meta: { fontSize: 8, color: '#64748b', margin: [0, 0, 0, 10] },
       section: { fontSize: 11, bold: true, margin: [0, 12, 0, 4] },
       productHeader: { fontSize: 9, bold: true, color: '#1e293b', margin: [0, 4, 0, 2] },
-      historySection: { fontSize: 9, bold: true, color: '#475569', margin: [8, 8, 0, 2] },
       th: { bold: true, fillColor: '#f1f5f9' },
       empty: { color: '#64748b', italics: true },
     },
@@ -130,26 +129,6 @@ export function stockToPdf(report: StockReport, meta: ExportMeta): Promise<Buffe
 }
 
 const STATUS_LABEL: Record<string, string> = { IN_STOCK: 'ในคลัง', OUT: 'เบิกแล้ว' }
-const SCAN_TYPE_LABEL: Record<string, string> = { IN: 'รับเข้า', OUT: 'เบิกออก', AUDIT: 'ตรวจนับ' }
-const SCAN_RESULT_LABEL: Record<string, string> = {
-  CREATED: 'สร้างใหม่',
-  RETURNED: 'รับกลับ',
-  DUPLICATE: 'ซ้ำ',
-  PRODUCT_MISMATCH: 'สินค้าไม่ตรง',
-  OK: 'สำเร็จ',
-  ALREADY_OUT: 'เบิกแล้ว',
-  UNKNOWN_SERIAL: 'ไม่รู้จัก',
-  NOT_IN_SCOPE: 'นอกรอบ',
-  FOUND_BUT_OUT: 'เจอแต่เบิกแล้ว',
-  MISSING: 'ของหาย',
-}
-const OUT_REASON_LABEL: Record<string, string> = {
-  SALE: 'ขาย',
-  INTERNAL_USE: 'ใช้ภายใน',
-  DAMAGED: 'ชำรุด',
-  RETURN_SUPPLIER: 'ส่งคืน',
-  OTHER: 'อื่นๆ',
-}
 
 function thaiDateTimeShort(iso: string | null): string {
   if (!iso) return '-'
@@ -188,7 +167,6 @@ export function stockDetailedToPdf(report: StockReportDetailed, meta: ExportMeta
     }
 
     for (const p of category.products) {
-      // ── 1. Product Header ──
       const headerParts = [
         `${p.sku} · ${p.name}`,
         p.brand ? ` (${p.brand})` : '',
@@ -197,19 +175,17 @@ export function stockDetailedToPdf(report: StockReportDetailed, meta: ExportMeta
       content.push({
         text: headerParts,
         style: 'productHeader',
-        margin: [8, 6, 0, 2] as [number, number, number, number],
       })
 
       if (p.serials.length === 0) {
         content.push({
           text: 'ไม่มี Serial Tracking',
           style: 'empty',
-          margin: [16, 0, 0, 4] as [number, number, number, number],
+          margin: [8, 0, 0, 4] as [number, number, number, number],
         })
         continue
       }
 
-      // ── 2. Serial Summary Table (one row per serial, no history) ──
       const serialBody: TableCell[][] = [
         [th('Serial'), th('สถานะ'), th('วันที่รับเข้า'), th('วันที่เบิกออก'), th('ผู้จำหน่าย'), th('ผู้ซื้อ / ลูกค้า')],
       ]
@@ -236,61 +212,12 @@ export function stockDetailedToPdf(report: StockReportDetailed, meta: ExportMeta
       content.push({
         table: {
           headerRows: 1,
-          widths: [80, 50, 95, 95, 70, '*'],
+          widths: [110, 45, 100, 100, 80, '*'],
           body: serialBody,
         },
         layout: TABLE_LAYOUT,
-        margin: [8, 0, 0, 4] as [number, number, number, number],
+        margin: [8, 0, 0, 6] as [number, number, number, number],
       })
-
-      // ── 3. Transaction History (separate section, grouped by serial) ──
-      const serialsWithHistory = p.serials.filter((s) => s.history.length > 0)
-      if (serialsWithHistory.length > 0) {
-        content.push({
-          text: 'ประวัติการเคลื่อนไหว',
-          style: 'historySection',
-          margin: [8, 8, 0, 4] as [number, number, number, number],
-        })
-
-        for (const s of serialsWithHistory) {
-          // Serial sub-header
-          content.push({
-            text: `Serial: ${s.serial}`,
-            bold: true,
-            margin: [16, 4, 0, 2] as [number, number, number, number],
-          })
-
-          const historyBody: TableCell[][] = [
-            [th('วันที่'), th('รายการ'), th('ผลลัพธ์'), th('ผู้ซื้อ / ลูกค้า'), th('ผู้ทำรายการ'), th('หมายเหตุ')],
-          ]
-
-          for (const h of s.history) {
-            const detail = [
-              h.reason ? `(${OUT_REASON_LABEL[h.reason] ?? h.reason})` : '',
-              h.note ?? '',
-            ].filter(Boolean).join(' ')
-
-            historyBody.push([
-              thaiDateTimeShort(h.at),
-              SCAN_TYPE_LABEL[h.type] ?? h.type,
-              SCAN_RESULT_LABEL[h.result] ?? h.result,
-              h.customerName ?? '-',
-              h.userName,
-              detail || '-',
-            ])
-          }
-
-          content.push({
-            table: {
-              headerRows: 1,
-              widths: [95, 60, 60, '*', 70, '*'],
-              body: historyBody,
-            },
-            layout: TABLE_LAYOUT,
-            margin: [20, 0, 0, 6] as [number, number, number, number],
-          })
-        }
-      }
     }
   }
 

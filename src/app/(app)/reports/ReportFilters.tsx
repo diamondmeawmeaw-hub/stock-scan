@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TIME_PERIOD_OPTIONS, type TimePeriod } from '@/lib/date-range'
 
 type Values = {
@@ -29,6 +29,73 @@ function toISO(display: string): string {
   if (!match) return ''
   const [, d, m, y] = match
   return `${y}-${m}-${d}`
+}
+
+function DatePicker({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder = 'dd/mm/yyyy',
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (iso: string) => void
+  placeholder?: string
+}) {
+  const hiddenRef = useRef<HTMLInputElement>(null)
+  const [display, setDisplay] = useState(toDisplay(value))
+
+  function handleOpenPicker() {
+    try {
+      hiddenRef.current?.showPicker()
+    } catch {
+      // showPicker() blocked by browser — user can still type
+    }
+  }
+
+  function handleTextChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const text = e.target.value
+    setDisplay(text)
+    const iso = toISO(text)
+    if (iso) onChange(iso)
+  }
+
+  function handleCalendarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const iso = e.target.value
+    onChange(iso)
+    setDisplay(toDisplay(iso))
+  }
+
+  return (
+    <div>
+      <label className="label" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          ref={hiddenRef}
+          type="date"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          value={value}
+          onChange={handleCalendarChange}
+        />
+        <input
+          id={id}
+          data-testid={id}
+          type="text"
+          placeholder={placeholder}
+          className={`${fieldClass} pr-8`}
+          value={display}
+          onFocus={handleOpenPicker}
+          onChange={handleTextChange}
+        />
+      </div>
+    </div>
+  )
 }
 
 export function ReportFilters({
@@ -130,7 +197,7 @@ export function ReportFilters({
 
       <div>
         <label className="label" htmlFor="filter-customer">
-          ผู้ซื้อ
+          ลูกค้า
         </label>
         <select
           id="filter-customer"
@@ -139,7 +206,7 @@ export function ReportFilters({
           value={form.customerId}
           onChange={(e) => setForm({ ...form, customerId: e.target.value })}
         >
-          <option value="">ทุกผู้ซื้อ</option>
+          <option value="">ทั้งหมด</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
@@ -191,34 +258,18 @@ export function ReportFilters({
 
       {view === 'movement' && (
         <>
-          <div>
-            <label className="label" htmlFor="filter-from">
-              ตั้งแต่วันที่
-            </label>
-            <input
-              id="filter-from"
-              data-testid="filter-from"
-              type="text"
-              placeholder="dd/mm/yyyy"
-              className={fieldClass}
-              value={toDisplay(form.from)}
-              onChange={(e) => setForm({ ...form, from: toISO(e.target.value) })}
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="filter-to">
-              ถึงวันที่
-            </label>
-            <input
-              id="filter-to"
-              data-testid="filter-to"
-              type="text"
-              placeholder="dd/mm/yyyy"
-              className={fieldClass}
-              value={toDisplay(form.to)}
-              onChange={(e) => setForm({ ...form, to: toISO(e.target.value) })}
-            />
-          </div>
+          <DatePicker
+            id="filter-from"
+            label="ตั้งแต่วันที่"
+            value={form.from}
+            onChange={(iso) => setForm({ ...form, from: iso })}
+          />
+          <DatePicker
+            id="filter-to"
+            label="ถึงวันที่"
+            value={form.to}
+            onChange={(iso) => setForm({ ...form, to: iso })}
+          />
         </>
       )}
 

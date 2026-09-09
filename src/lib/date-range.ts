@@ -32,28 +32,34 @@ export function shiftDays(date: string, days: number): string {
 
 export type TimePeriod = '7d' | '30d' | '6m' | '1y' | 'all'
 
-/** แปลง TimePeriod option เป็นช่วงวันที่ (from/to) ตามเวลาไทย */
+/**
+ * แปลง TimePeriod option เป็นช่วงวันที่ (from/to) ตามเวลาไทย
+ *
+ * ใช้ todayInThailand() เพื่อให้ได้วันที่ปัจจุบันตามเวลาไทยจริง
+ * จากนั้นคำนวณย้อนหลังด้วย shiftDays() แล้วแปลงเป็น Date ด้วย dayRange()
+ * เพื่อให้ timezone offset +07:00 ถูกต้อง (ไม่ขึ้นกับ timezone ของเครื่อง server)
+ */
 export function timePeriodRange(period: TimePeriod): { from: Date; to: Date } | null {
   if (period === 'all') return null
-  const now = new Date()
-  const nowInThai = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
-  const to = new Date(nowInThai.getFullYear(), nowInThai.getMonth(), nowInThai.getDate(), 23, 59, 59, 999)
-  const from = new Date(nowInThai)
+  const today = todayInThailand()
+  let from: string
   switch (period) {
     case '7d':
-      from.setDate(from.getDate() - 7)
+      from = shiftDays(today, -7)
       break
     case '30d':
-      from.setDate(from.getDate() - 30)
+      from = shiftDays(today, -30)
       break
     case '6m':
-      from.setMonth(from.getMonth() - 6)
+      from = shiftDays(today, -183)
       break
     case '1y':
-      from.setFullYear(from.getFullYear() - 1)
+      from = shiftDays(today, -365)
       break
+    default:
+      return null
   }
-  return { from, to }
+  return dayRange(from, today)
 }
 
 export const TIME_PERIOD_OPTIONS: { value: TimePeriod; label: string }[] = [
