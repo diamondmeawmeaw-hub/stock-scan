@@ -910,9 +910,10 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         : p.units
       const inStock = countedUnits.filter((u) => u.status === 'IN_STOCK').length
       // ถ้ามี customerId filter ให้แสดงเฉพาะ serial ที่เคยเบิกให้ลูกค้ารายนี้
+      // แสดงเฉพาะ serial ที่ยังอยู่ในคลัง (IN_STOCK)
       const unitsToShow = customerSerials
-        ? p.units.filter((u) => customerSerials!.has(u.serial))
-        : p.units
+        ? p.units.filter((u) => customerSerials!.has(u.serial) && u.status === 'IN_STOCK')
+        : p.units.filter((u) => u.status === 'IN_STOCK')
       const serials: SerialWithHistory[] = unitsToShow.map((u) => ({
         serial: u.serial,
         status: u.status,

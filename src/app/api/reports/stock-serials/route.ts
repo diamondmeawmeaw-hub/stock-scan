@@ -55,10 +55,11 @@ export async function GET(request: Request) {
       return { serials: [], product: null }
     }
 
-    // Get units for this product with vendor info
+    // Get units for this product with vendor info — เฉพาะที่ยังอยู่ในคลัง
     const units = await prisma.serialUnit.findMany({
       where: {
         productId: input.productId,
+        status: 'IN_STOCK',
         ...(input.vendorId ? { vendorId: input.vendorId } : {}),
       },
       include: {

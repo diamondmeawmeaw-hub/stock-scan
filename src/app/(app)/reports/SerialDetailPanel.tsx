@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 
 type SerialDetail = {
   serial: string
-  status: string
   receivedAt: string | null
   releasedAt: string | null
   vendorName: string | null
@@ -124,7 +123,6 @@ export function SerialDetailPanel({ productId, filters }: Props) {
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
-              <th className="px-4 py-2 font-medium">สถานะ</th>
               <th className="px-4 py-2 font-medium">วันที่รับเข้า</th>
               <th className="px-4 py-2 font-medium">วันที่เบิกออก</th>
               <th className="px-4 py-2 font-medium">ผู้ซื้อ</th>
@@ -134,9 +132,6 @@ export function SerialDetailPanel({ productId, filters }: Props) {
             {data.serials.map((s) => (
               <tr key={s.serial} data-testid="serial-row">
                 <td className="px-4 py-2 font-mono text-slate-700">{s.serial}</td>
-                <td className="px-4 py-2">
-                  <StatusBadge status={s.status} />
-                </td>
                 <td className="px-4 py-2 text-slate-600">
                   {s.receivedAt ? formatThaiDate(s.receivedAt) : '-'}
                 </td>
@@ -152,30 +147,6 @@ export function SerialDetailPanel({ productId, filters }: Props) {
         </table>
       </div>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'IN_STOCK') {
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        ในคลัง
-      </span>
-    )
-  }
-
-  if (status === 'OUT') {
-    return (
-      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
-        เบิกแล้ว
-      </span>
-    )
-  }
-
-  return (
-    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-      {status}
-    </span>
   )
 }
 
