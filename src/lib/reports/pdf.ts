@@ -1,6 +1,6 @@
 import PdfPrinter from 'pdfmake'
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { MovementDetailReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, OutReportDetailed, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 import { SARABUN_BOLD_BASE64, SARABUN_REGULAR_BASE64 } from './sarabun-font'
 
@@ -281,6 +281,87 @@ export function movementDetailedToPdf(report: MovementDetailReport, meta: Export
       ],
     },
     layout: TABLE_LAYOUT,
+  })
+
+  return render(content)
+}
+
+// ─────────────────────── รายงานสินค้าเบิกออก (PDF) ───────────────────────
+
+export function outDetailedToPdf(report: OutReportDetailed, meta: ExportMeta): Promise<Buffer> {
+  const content: Content[] = header(
+    'รายงานสินค้าเบิกออก (รายละเอียด)',
+    `เบิกออกรวม ${report.grandTotalOut.toLocaleString('th-TH')} ชิ้น`,
+    meta
+  )
+
+  if (report.categories.length === 0) {
+    content.push({ text: 'ไม่พบสินค้าตามเงื่อนไขที่เลือก', style: 'empty' })
+    return render(content)
+  }
+
+  for (const category of report.categories) {
+    content.push({
+      text: `${category.categoryName} (${category.categoryCode}) · เบิกออกรวม ${category.totalOut} ชิ้น`,
+      style: 'section',
+    })
+
+    if (category.products.length === 0) {
+      content.push({ text: 'ยังไม่มีสินค้าในประเภทนี้', style: 'empty' })
+      continue
+    }
+
+    for (const p of category.products) {
+      const headerParts = [
+        `${p.sku} · ${p.name}`,
+        p.brand ? ` (${p.brand})` : '',
+        ` · เบิกออก ${p.out}`,
+      ].join('')
+      content.push({ text: headerParts, style: 'productHeader' })
+
+      if (p.serials.length === 0) {
+        content.push({
+          text: 'ไม่มี Serial ที่เบิกออก',
+          style: 'empty',
+          margin: [8, 0, 0, 4] as [number, number, number, number],
+        })
+        continue
+      }
+
+      const serialBody: TableCell[][] = [
+        [th('Serial'), th('วันที่รับเข้า'), th('วันที่เบิกออก'), th('ผู้จำหน่าย'), th('ผู้ซื้อ / ลูกค้า')],
+      ]
+
+      for (const s of p.serials) {
+        const buyer = s.history
+          .filter((h) => h.type === 'OUT' && h.customerName)
+          .pop()?.customerName ?? null
+
+        serialBody.push([
+          { text: s.serial, font: 'Sarabun' },
+          thaiDateTimeShort(s.receivedAt),
+          thaiDateTimeShort(s.releasedAt),
+          s.vendorName ?? '-',
+          buyer ?? '-',
+        ])
+      }
+
+      content.push({
+        table: {
+          headerRows: 1,
+          widths: [110, 100, 100, 80, '*'],
+          body: serialBody,
+        },
+        layout: TABLE_LAYOUT,
+        margin: [8, 0, 0, 6] as [number, number, number, number],
+      })
+    }
+  }
+
+  content.push({
+    text: `รวมทั้งหมด ${report.grandTotalOut.toLocaleString('th-TH')} ชิ้น`,
+    style: 'section',
+    alignment: 'right',
   })
 
   return render(content)

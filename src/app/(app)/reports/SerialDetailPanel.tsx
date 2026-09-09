@@ -39,9 +39,10 @@ type Props = {
     customerId: string
     timePeriod: string
   }
+  serialMode?: 'IN_STOCK' | 'OUT'
 }
 
-export function SerialDetailPanel({ productId, filters }: Props) {
+export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' }: Props) {
   const [data, setData] = useState<SerialDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +56,7 @@ export function SerialDetailPanel({ productId, filters }: Props) {
 
       const params = new URLSearchParams()
       params.set('productId', productId)
+      params.set('status', serialMode)
       if (filters.categoryId) params.set('categoryId', filters.categoryId)
       if (filters.brand) params.set('brand', filters.brand)
       if (filters.vendorId) params.set('vendorId', filters.vendorId)
@@ -78,7 +80,7 @@ export function SerialDetailPanel({ productId, filters }: Props) {
 
     load()
     return () => { cancelled = true }
-  }, [productId, filters])
+  }, [productId, filters, serialMode])
 
   if (loading) {
     return (

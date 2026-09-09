@@ -703,6 +703,158 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   }
 }
 
+// ─────────────────────── รายงานสินค้าเบิกออก (สำหรับ Tab เบิกออกแล้ว) ───────────────────────
+
+export type OutReportRow = {
+  categoryId: string
+  categoryCode: string
+  categoryName: string
+  products: {
+    productId: string
+    sku: string
+    name: string
+    brand: string | null
+    out: number
+  }[]
+  totalOut: number
+}
+
+export async function buildOutReport(filters: StockReportFilters = {}): Promise<{
+  categories: OutReportRow[]
+  grandTotalOut: number
+}> {
+  const where = productFilter(filters)
+  const vendorId = filters.vendorId || null
+
+  // ── หา productIds ที่ผ่าน timePeriod filter ──
+  let timePeriodProductIds: Set<string> | null = null
+  if (filters.timePeriod && filters.timePeriod !== 'all') {
+    const { timePeriodRange } = await import('./date-range')
+    const range = timePeriodRange(filters.timePeriod)
+    if (range) {
+      const [scanLogGrouped, receivedGrouped] = await Promise.all([
+        prisma.scanLog.groupBy({
+          by: ['productId'],
+          where: {
+            accepted: true,
+            createdAt: { gte: range.from, lte: range.to },
+            productId: { not: null },
+          },
+        }),
+        prisma.serialUnit.groupBy({
+          by: ['productId'],
+          where: {
+            receivedAt: { gte: range.from, lte: range.to },
+          },
+        }),
+      ])
+      timePeriodProductIds = new Set([
+        ...scanLogGrouped.map((g) => g.productId!),
+        ...receivedGrouped.map((g) => g.productId),
+      ])
+      if (timePeriodProductIds.size === 0) {
+        return { categories: [], grandTotalOut: 0 }
+      }
+    }
+  }
+
+  // ── หา productIds ที่ผ่าน customerId filter ──
+  let customerProductIds: Set<string> | null = null
+  if (filters.customerId) {
+    const grouped = await prisma.scanLog.groupBy({
+      by: ['productId'],
+      where: {
+        accepted: true,
+        type: 'OUT',
+        customerId: filters.customerId,
+        productId: { not: null },
+      },
+    })
+    customerProductIds = new Set(grouped.map((g) => g.productId!))
+    if (customerProductIds.size === 0) {
+      return { categories: [], grandTotalOut: 0 }
+    }
+  }
+
+  // ── รวม productId constraints เข้ากับ product filter ──
+  const additionalAnd: Prisma.ProductWhereInput[] = []
+  if (timePeriodProductIds) {
+    additionalAnd.push({ id: { in: [...timePeriodProductIds] } })
+  }
+  if (customerProductIds) {
+    additionalAnd.push({ id: { in: [...customerProductIds] } })
+  }
+  const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
+    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    : where
+
+  // ── หา serials ที่ตรงกับ customerId filter ──
+  let customerSerials: Set<string> | null = null
+  if (filters.customerId) {
+    const matched = await prisma.scanLog.findMany({
+      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      select: { serial: true },
+      distinct: ['serial'],
+    })
+    customerSerials = new Set(matched.map((l) => l.serial))
+  }
+
+  // ── ดึงเฉพาะ serial ที่เบิกออกแล้ว ──
+  const unitWhere: Prisma.SerialUnitWhereInput = {
+    status: 'OUT',
+    ...(vendorId ? { vendorId } : {}),
+    ...(customerSerials ? { serial: { in: [...customerSerials] } } : {}),
+  }
+
+  const categories = await prisma.category.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      products: {
+        where: finalWhere,
+        orderBy: { name: 'asc' },
+        include: {
+          units: { where: unitWhere, select: { status: true } },
+        },
+      },
+    },
+  })
+
+  const rows: OutReportRow[] = categories.map((c) => {
+    const products = c.products
+      .filter((p) => p.units.length > 0)
+      .map((p) => ({
+        productId: p.id,
+        sku: p.sku,
+        name: p.name,
+        brand: p.brand,
+        out: p.units.length,
+      }))
+    return {
+      categoryId: c.id,
+      categoryCode: c.code,
+      categoryName: c.name,
+      products,
+      totalOut: products.reduce((sum, p) => sum + p.out, 0),
+    }
+  })
+
+  const hasFilter = vendorId || customerSerials
+  const filtered = hasFilter
+    ? rows
+        .map((r) => {
+          const products = r.products.filter((p) => p.out > 0)
+          return { ...r, products, totalOut: products.reduce((sum, p) => sum + p.out, 0) }
+        })
+        .filter((r) => r.products.length > 0)
+    : rows
+  const visible = filtered.filter((r) => r.products.length > 0)
+
+  return {
+    categories: visible,
+    grandTotalOut: visible.reduce((sum, r) => sum + r.totalOut, 0),
+  }
+}
+
 /** รายการแบรนด์ที่มีอยู่จริงในระบบ - ใช้เติม dropdown ตัวกรอง */
 export async function listBrands(): Promise<string[]> {
   const rows = await prisma.product.findMany({
@@ -959,6 +1111,195 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   return {
     categories: visible,
     grandTotalInStock: visible.reduce((sum, r) => sum + r.totalInStock, 0),
+  }
+}
+
+// ─────────────────────── รายงานสินค้าเบิกออกแบบละเอียด (สำหรับ Export) ───────────────────────
+
+export type OutReportDetailedProduct = {
+  productId: string
+  sku: string
+  name: string
+  brand: string | null
+  out: number
+  serials: SerialWithHistory[]
+}
+
+export type OutReportDetailedRow = {
+  categoryId: string
+  categoryCode: string
+  categoryName: string
+  products: OutReportDetailedProduct[]
+  totalOut: number
+}
+
+export type OutReportDetailed = {
+  categories: OutReportDetailedRow[]
+  grandTotalOut: number
+}
+
+/**
+ * รายงานสินค้าเบิกออกแบบละเอียด - ใช้สำหรับ Export Excel/PDF
+ * แสดงเฉพาะ Serial ที่มีสถานะเบิกออกแล้ว (OUT)
+ */
+export async function buildOutReportDetailed(filters: StockReportFilters = {}): Promise<OutReportDetailed> {
+  const where = productFilter(filters)
+  const vendorId = filters.vendorId || null
+
+  // ── หา productIds ที่ผ่าน timePeriod filter ──
+  let timePeriodProductIds: Set<string> | null = null
+  if (filters.timePeriod && filters.timePeriod !== 'all') {
+    const { timePeriodRange } = await import('./date-range')
+    const range = timePeriodRange(filters.timePeriod)
+    if (range) {
+      const [scanLogGrouped, receivedGrouped] = await Promise.all([
+        prisma.scanLog.groupBy({
+          by: ['productId'],
+          where: {
+            accepted: true,
+            createdAt: { gte: range.from, lte: range.to },
+            productId: { not: null },
+          },
+        }),
+        prisma.serialUnit.groupBy({
+          by: ['productId'],
+          where: {
+            receivedAt: { gte: range.from, lte: range.to },
+          },
+        }),
+      ])
+      timePeriodProductIds = new Set([
+        ...scanLogGrouped.map((g) => g.productId!),
+        ...receivedGrouped.map((g) => g.productId),
+      ])
+      if (timePeriodProductIds.size === 0) {
+        return { categories: [], grandTotalOut: 0 }
+      }
+    }
+  }
+
+  // ── หา productIds ที่ผ่าน customerId filter ──
+  let customerProductIds: Set<string> | null = null
+  if (filters.customerId) {
+    const grouped = await prisma.scanLog.groupBy({
+      by: ['productId'],
+      where: {
+        accepted: true,
+        type: 'OUT',
+        customerId: filters.customerId,
+        productId: { not: null },
+      },
+    })
+    customerProductIds = new Set(grouped.map((g) => g.productId!))
+    if (customerProductIds.size === 0) {
+      return { categories: [], grandTotalOut: 0 }
+    }
+  }
+
+  // ── รวม productId constraints ──
+  const additionalAnd: Prisma.ProductWhereInput[] = []
+  if (timePeriodProductIds) additionalAnd.push({ id: { in: [...timePeriodProductIds] } })
+  if (customerProductIds) additionalAnd.push({ id: { in: [...customerProductIds] } })
+  const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
+    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    : where
+
+  // ── หา serials ที่ตรงกับ customerId filter ──
+  let customerSerials: Set<string> | null = null
+  if (filters.customerId) {
+    const matched = await prisma.scanLog.findMany({
+      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      select: { serial: true },
+      distinct: ['serial'],
+    })
+    customerSerials = new Set(matched.map((l) => l.serial))
+  }
+
+  // ── ดึงเฉพาะ serial ที่เบิกออกแล้ว ──
+  const unitWhere: Prisma.SerialUnitWhereInput = {
+    status: 'OUT',
+    ...(vendorId ? { vendorId } : {}),
+    ...(customerSerials ? { serial: { in: [...customerSerials] } } : {}),
+  }
+
+  const categories = await prisma.category.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      products: {
+        where: finalWhere,
+        orderBy: { name: 'asc' },
+        include: {
+          units: {
+            where: unitWhere,
+            include: { vendor: { select: { name: true } } },
+          },
+        },
+      },
+    },
+  })
+
+  // ── ดึง ScanLog ทั้งหมดของ serial ที่เกี่ยวข้อง ──
+  const allUnitSerials = categories.flatMap((c) =>
+    c.products.flatMap((p) => p.units.map((u) => u.serial))
+  )
+
+  const { timePeriodRange } = await import('./date-range')
+  const timeRange = (filters.timePeriod && filters.timePeriod !== 'all')
+    ? timePeriodRange(filters.timePeriod)
+    : null
+
+  const allLogs = allUnitSerials.length > 0
+    ? await prisma.scanLog.findMany({
+        where: {
+          serial: { in: allUnitSerials },
+          accepted: true,
+          ...(timeRange ? { createdAt: { gte: timeRange.from, lte: timeRange.to } } : {}),
+          ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        },
+        orderBy: { createdAt: 'asc' },
+        include: scanLogInclude,
+      })
+    : []
+
+  const logsBySerial = new Map<string, ScanLogWithRelations[]>()
+  for (const log of allLogs) {
+    const list = logsBySerial.get(log.serial) ?? []
+    list.push(log)
+    logsBySerial.set(log.serial, list)
+  }
+
+  const rows: OutReportDetailedRow[] = categories
+    .filter((c) => c.products.length > 0)
+    .map((c) => {
+      const products: OutReportDetailedProduct[] = c.products
+        .filter((p) => p.units.length > 0)
+        .map((p) => ({
+          productId: p.id,
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          out: p.units.length,
+          serials: p.units.map((u) => ({
+            serial: u.serial,
+            status: u.status,
+            receivedAt: u.receivedAt?.toISOString() ?? null,
+            releasedAt: u.releasedAt?.toISOString() ?? null,
+            vendorName: u.vendor?.name ?? null,
+        history: (logsBySerial.get(u.serial) ?? []).map(toHistoryEntry),
+      })),
+    }))
+    return {
+      categoryId: c.id,
+      categoryCode: c.code,
+      categoryName: c.name,
+      products,
+      totalOut: products.reduce((sum, p) => sum + p.out, 0),
+    }
+  })
+
+  return {
+    categories: rows,
+    grandTotalOut: rows.reduce((sum, r) => sum + r.totalOut, 0),
   }
 }
 

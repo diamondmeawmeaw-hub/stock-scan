@@ -110,7 +110,7 @@ export function ReportFilters({
   brands: string[]
   vendors: { id: string; code: string; name: string }[]
   customers: { id: string; code: string; name: string }[]
-  view: 'stock' | 'movement'
+  view: 'stock' | 'movement' | 'out'
   values: Values
 }) {
   const router = useRouter()
@@ -215,7 +215,7 @@ export function ReportFilters({
         </select>
       </div>
 
-      {view === 'stock' && (
+      {(view === 'stock' || view === 'out') && (
         <div>
           <label className="label" htmlFor="filter-time-period">
             ช่วงเวลา

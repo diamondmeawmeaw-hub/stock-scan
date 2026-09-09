@@ -3,10 +3,10 @@ import { fileRoute } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { dayRange, todayInThailand, type TimePeriod } from '@/lib/date-range'
-import { buildMovementDetail, buildStockReportDetailed } from '@/lib/scan-service'
+import { buildMovementDetail, buildOutReportDetailed, buildStockReportDetailed } from '@/lib/scan-service'
 import type { ExportMeta } from '@/lib/reports/common'
-import { movementDetailedToExcel, stockDetailedToExcel } from '@/lib/reports/excel'
-import { movementDetailedToPdf, stockDetailedToPdf } from '@/lib/reports/pdf'
+import { movementDetailedToExcel, outDetailedToExcel, stockDetailedToExcel } from '@/lib/reports/excel'
+import { movementDetailedToPdf, outDetailedToPdf, stockDetailedToPdf } from '@/lib/reports/pdf'
 
 // pdfmake/exceljs ต้องรันบน Node ไม่ใช่ Edge runtime
 export const runtime = 'nodejs'
@@ -15,7 +15,7 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวั�
 
 const querySchema = z
   .object({
-    view: z.enum(['stock', 'movement'], { message: 'ประเภทรายงานต้องเป็น stock หรือ movement' }),
+    view: z.enum(['stock', 'movement', 'out'], { message: 'ประเภทรายงานต้องเป็น stock, movement, หรือ out' }),
     format: z.enum(['xlsx', 'pdf'], { message: 'รูปแบบไฟล์ต้องเป็น xlsx หรือ pdf' }),
     categoryId: z.string().nullable(),
     brand: z.string().nullable(),
@@ -55,6 +55,8 @@ export async function GET(request: Request) {
     const [buffer, title] =
       input.view === 'stock'
         ? await buildStock(input as typeof input & { view: 'stock' }, input.format)
+        : input.view === 'out'
+        ? await buildOut(input as typeof input & { view: 'out' }, input.format)
         : await buildMovement(input as typeof input & { view: 'movement' }, input.format)
 
     const filename = `${title}-${todayInThailand()}.${input.format}`
@@ -86,6 +88,26 @@ async function buildStock(
   const buffer =
     format === 'xlsx' ? await stockDetailedToExcel(report, meta) : await stockDetailedToPdf(report, meta)
   return [buffer, 'ยอดคงเหลือ']
+}
+
+async function buildOut(
+  input: Awaited<ReturnType<typeof querySchema.parse>> & { view: 'out' },
+  format: 'xlsx' | 'pdf'
+): Promise<[Buffer, string]> {
+  const timePeriod = (input.timePeriod || '30d') as TimePeriod
+  const filters = {
+    categoryId: input.categoryId,
+    brand: input.brand,
+    vendorId: input.vendorId,
+    q: input.q,
+    customerId: input.customerId,
+    timePeriod,
+  }
+  const meta = await describeStockFilters(filters)
+  const report = await buildOutReportDetailed(filters)
+  const buffer =
+    format === 'xlsx' ? await outDetailedToExcel(report, meta) : await outDetailedToPdf(report, meta)
+  return [buffer, 'สินค้าเบิกออก']
 }
 
 async function buildMovement(

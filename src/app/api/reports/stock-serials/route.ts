@@ -14,6 +14,7 @@ const querySchema = z.object({
   q: z.string().nullable(),
   customerId: z.string().nullable(),
   timePeriod: z.string().nullable(),
+  status: z.enum(['IN_STOCK', 'OUT']).default('IN_STOCK'),
 })
 
 export async function GET(request: Request) {
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
       q: params.get('q'),
       customerId: params.get('customerId'),
       timePeriod: params.get('timePeriod'),
+      status: params.get('status') ?? 'IN_STOCK',
     })
 
     const filters: StockReportFilters = {
@@ -55,11 +57,11 @@ export async function GET(request: Request) {
       return { serials: [], product: null }
     }
 
-    // Get units for this product with vendor info — เฉพาะที่ยังอยู่ในคลัง
+    // Get units for this product with vendor info — ตาม status ที่ระบุ
     const units = await prisma.serialUnit.findMany({
       where: {
         productId: input.productId,
-        status: 'IN_STOCK',
+        status: input.status,
         ...(input.vendorId ? { vendorId: input.vendorId } : {}),
       },
       include: {

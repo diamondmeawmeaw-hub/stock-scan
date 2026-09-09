@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import type { MovementDetailReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, OutReportDetailed, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 
 type StockReport = { categories: StockReportRow[]; grandTotalInStock: number }
@@ -316,6 +316,91 @@ export async function movementDetailedToExcel(report: MovementDetailReport, meta
 
   const total = sheet.addRow(['', '', '', '', '', '', 'รวม', `รับเข้า ${report.totalIn} · เบิกออก ${report.totalOut}`])
   total.font = { bold: true }
+
+  return toBuffer(wb)
+}
+
+// ─────────────────────── รายงานสินค้าเบิกออก (Excel) ───────────────────────
+
+export async function outDetailedToExcel(report: OutReportDetailed, meta: ExportMeta): Promise<Buffer> {
+  const wb = newWorkbook()
+  const sheet = wb.addWorksheet('สินค้าเบิกออก-ละเอียด')
+  sheet.columns = [
+    { width: 14 },  // A: ประเภท/SKU
+    { width: 18 },  // B: Serial
+    { width: 10 },  // C: สถานะ
+    { width: 18 },  // D: วันที่รับเข้า
+    { width: 18 },  // E: วันที่เบิกออก
+    { width: 14 },  // F: ผู้จำหน่าย
+    { width: 14 },  // G: ผู้ซื้อ
+  ]
+
+  writeTitle(
+    sheet,
+    'รายงานสินค้าเบิกออก (รายละเอียด)',
+    `เบิกออกรวม ${report.grandTotalOut.toLocaleString('th-TH')} ชิ้น`,
+    meta
+  )
+
+  if (report.categories.length === 0) {
+    sheet.addRow(['ไม่พบสินค้าตามเงื่อนไขที่เลือก'])
+    return toBuffer(wb)
+  }
+
+  for (const category of report.categories) {
+    const headingRow = sheet.addRow([
+      `${category.categoryName} (${category.categoryCode}) · เบิกออกรวม ${category.totalOut} ชิ้น`,
+    ])
+    headingRow.font = { bold: true, size: 12 }
+    sheet.mergeCells(headingRow.number, 1, headingRow.number, 7)
+
+    if (category.products.length === 0) {
+      sheet.addRow(['ยังไม่มีสินค้าในประเภทนี้'])
+      sheet.addRow([])
+      continue
+    }
+
+    for (const p of category.products) {
+      const productRow = sheet.addRow([p.sku, p.name, p.brand ?? '-', '', p.out])
+      productRow.font = { bold: true }
+      productRow.eachCell((cell) => { cell.fill = DETAIL_HEADER_FILL })
+
+      if (p.serials.length === 0) {
+        sheet.addRow(['', '', '', '', '', '', 'ไม่มี Serial ที่เบิกออก'])
+      } else {
+        const serialHeader = sheet.addRow(['', 'Serial', 'สถานะ', 'วันที่รับเข้า', 'วันที่เบิกออก', 'ผู้จำหน่าย', 'ผู้ซื้อ'])
+        serialHeader.font = { bold: true, size: 9 }
+        serialHeader.eachCell((cell, colNumber) => {
+          if (colNumber >= 2 && colNumber <= 7) cell.fill = SERIAL_HEADER_FILL
+        })
+
+        for (const s of p.serials) {
+          const buyer = s.history
+            .filter((h) => h.type === 'OUT' && h.customerName)
+            .pop()?.customerName ?? null
+
+          sheet.addRow([
+            '',
+            s.serial,
+            STATUS_LABEL[s.status] ?? s.status,
+            thaiDateTimeShort(s.receivedAt),
+            thaiDateTimeShort(s.releasedAt),
+            s.vendorName ?? '-',
+            buyer ?? '-',
+          ])
+        }
+      }
+
+      sheet.addRow([])
+    }
+
+    const total = sheet.addRow([`รวม ${category.categoryName}`, '', '', '', category.totalOut])
+    total.font = { bold: true }
+    sheet.addRow([])
+  }
+
+  const grand = sheet.addRow(['รวมทั้งหมด', '', '', '', report.grandTotalOut])
+  grand.font = { bold: true }
 
   return toBuffer(wb)
 }

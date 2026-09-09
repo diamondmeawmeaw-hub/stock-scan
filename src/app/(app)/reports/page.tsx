@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { dayRange, shiftDays, todayInThailand, type TimePeriod } from '@/lib/date-range'
-import { buildMovementDetail, buildStockReport, listBrands, listCustomers, listVendors } from '@/lib/scan-service'
+import { buildMovementDetail, buildOutReport, buildStockReport, listBrands, listCustomers, listVendors } from '@/lib/scan-service'
 import { ReportFilters } from './ReportFilters'
 import { StockView } from './StockView'
 
@@ -18,7 +18,8 @@ function one(params: Record<string, string | string[] | undefined>, key: string)
 
 export default async function ReportsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
-  const view = one(params, 'view') === 'movement' ? 'movement' : 'stock'
+  const viewParam = one(params, 'view')
+  const view = viewParam === 'movement' ? 'movement' : viewParam === 'out' ? 'out' : 'stock'
   const categoryId = one(params, 'categoryId')
   const brand = one(params, 'brand')
   const vendorId = one(params, 'vendorId')
@@ -35,6 +36,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
   // Stock filters include timePeriod; Movement filters do NOT include timePeriod
   const stockFilters = { categoryId, brand, vendorId, q, customerId, timePeriod }
+  const outFilters = { categoryId, brand, vendorId, q, customerId, timePeriod }
   const movementFilters = { categoryId, brand, vendorId, q, customerId }
 
   const [categories, brands, vendors, customers] = await Promise.all([
@@ -55,7 +57,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
       })}`
     }
     return `/api/reports/export?${queryString({
-      ...stockFilters,
+      ...(view === 'out' ? outFilters : stockFilters),
       view,
       format,
     })}`
@@ -95,6 +97,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
             active={view === 'movement'}
             label="ความเคลื่อนไหว"
             testId="tab-movement"
+          />
+          <Tab
+            href={{ ...outFilters, view: 'out' }}
+            active={view === 'out'}
+            label="เบิกออกแล้ว"
+            testId="tab-out"
           />
         </nav>
 
@@ -138,6 +146,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
       {view === 'stock' ? (
         <StockViewWithFilters stockFilters={stockFilters} />
+      ) : view === 'out' ? (
+        <OutViewWithFilters outFilters={outFilters} />
       ) : (
         <MovementView filters={movementFilters} from={start} to={end} />
       )}
@@ -188,6 +198,34 @@ async function StockViewWithFilters({ stockFilters }: { stockFilters: StockViewF
       grandTotalInStock={grandTotalInStock}
       filters={stockFilters}
       snapshotAt={new Date().toISOString()}
+    />
+  )
+}
+
+async function OutViewWithFilters({ outFilters }: { outFilters: StockViewFilters }) {
+  const { categories, grandTotalOut } = await buildOutReport(outFilters)
+
+  return (
+    <StockView
+      categories={categories.map((c) => ({
+        categoryId: c.categoryId,
+        categoryCode: c.categoryCode,
+        categoryName: c.categoryName,
+        products: c.products.map((p) => ({
+          productId: p.productId,
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          inStock: 0,
+          out: p.out,
+        })),
+        totalInStock: 0,
+      }))}
+      grandTotalInStock={grandTotalOut}
+      filters={outFilters}
+      snapshotAt={new Date().toISOString()}
+      serialMode="OUT"
+      summaryLabel="เบิกออกรวม"
     />
   )
 }

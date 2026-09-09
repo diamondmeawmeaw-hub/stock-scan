@@ -16,13 +16,15 @@ type StockViewProps = {
     timePeriod: string
   }
   snapshotAt: string
+  serialMode?: 'IN_STOCK' | 'OUT'
+  summaryLabel?: string
 }
 
 function formatThaiDateTime(iso: string): string {
   return new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
 }
 
-export function StockView({ categories, grandTotalInStock, filters, snapshotAt }: StockViewProps) {
+export function StockView({ categories, grandTotalInStock, filters, snapshotAt, serialMode, summaryLabel }: StockViewProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
@@ -30,7 +32,7 @@ export function StockView({ categories, grandTotalInStock, filters, snapshotAt }
           ณ {formatThaiDateTime(snapshotAt)}
         </span>
         <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800">
-          รวม
+          {summaryLabel ?? 'รวม'}
           <b className="tabular-nums text-sky-900" data-testid="grand-total">
             {grandTotalInStock.toLocaleString('th-TH')}
           </b>
@@ -48,7 +50,7 @@ export function StockView({ categories, grandTotalInStock, filters, snapshotAt }
       )}
 
       {categories.map((c) => (
-        <CategorySection key={c.categoryId} category={c} filters={filters} />
+        <CategorySection key={c.categoryId} category={c} filters={filters} serialMode={serialMode} />
       ))}
     </div>
   )
@@ -57,11 +59,14 @@ export function StockView({ categories, grandTotalInStock, filters, snapshotAt }
 function CategorySection({
   category,
   filters,
+  serialMode,
 }: {
   category: StockReportRow
   filters: StockViewProps['filters']
+  serialMode?: 'IN_STOCK' | 'OUT'
 }) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
+  const isOut = serialMode === 'OUT'
 
   function toggleExpand(productId: string) {
     setExpandedProducts((prev) => {
@@ -85,7 +90,8 @@ function CategorySection({
           {category.categoryName} <span className="text-slate-400">({category.categoryCode})</span>
         </h2>
         <span className="text-sm text-slate-600">
-          คงเหลือรวม <b className="text-slate-900">{category.totalInStock}</b> ชิ้น
+          {isOut ? 'เบิกออกรวม' : 'คงเหลือรวม'}{' '}
+          <b className="text-slate-900">{isOut ? category.totalInStock : category.totalInStock}</b> ชิ้น
         </span>
       </div>
       {category.products.length === 0 ? (
@@ -98,8 +104,14 @@ function CategorySection({
                 <th className="px-4 py-2 font-medium">SKU</th>
                 <th className="px-4 py-2 font-medium">สินค้า</th>
                 <th className="px-4 py-2 font-medium">แบรนด์</th>
-                <th className="px-4 py-2 text-right font-medium">คงเหลือ</th>
-                <th className="px-4 py-2 text-right font-medium">เบิกออกไปแล้ว</th>
+                {isOut ? (
+                  <th className="px-4 py-2 text-right font-medium">เบิกออก</th>
+                ) : (
+                  <>
+                    <th className="px-4 py-2 text-right font-medium">คงเหลือ</th>
+                    <th className="px-4 py-2 text-right font-medium">เบิกออกไปแล้ว</th>
+                  </>
+                )}
                 <th className="px-4 py-2 text-center font-medium">Serial</th>
               </tr>
             </thead>
@@ -112,10 +124,18 @@ function CategorySection({
                       <td className="px-4 py-2 font-mono text-slate-700">{p.sku}</td>
                       <td className="px-4 py-2">{p.name}</td>
                       <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
-                      <td className="px-4 py-2 text-right font-medium tabular-nums">
-                        {p.inStock}
-                      </td>
-                      <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
+                      {isOut ? (
+                        <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700">
+                          {p.out}
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2 text-right font-medium tabular-nums">
+                            {p.inStock}
+                          </td>
+                          <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
+                        </>
+                      )}
                       <td className="px-4 py-2 text-center">
                         <button
                           onClick={() => toggleExpand(p.productId)}
@@ -129,10 +149,11 @@ function CategorySection({
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={6} className="p-0">
+                        <td colSpan={isOut ? 5 : 6} className="p-0">
                           <SerialDetailPanel
                             productId={p.productId}
                             filters={filters}
+                            serialMode={serialMode}
                           />
                         </td>
                       </tr>
