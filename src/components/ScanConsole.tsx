@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { normalizeSerial } from '@/lib/scan-rules'
 
 export type ScanOutcomeLike = {
   accepted: boolean
@@ -11,6 +12,13 @@ export type ScanOutcomeLike = {
   productInStock?: number
   unitId?: string | null
   scanLogId?: string | null
+  /**
+   * snapshot ค่าตอนยิง (scan-in แบบ pending-confirm) - ตอนกดยืนยันใช้ค่านี้รายชิ้น
+   * แทนค่าปัจจุบันบนฟอร์ม เพื่อกันยิงของ A แล้วเผลอเปลี่ยนฟอร์มเป็น B ก่อนกดยืนยัน
+   */
+  productId?: string | null
+  vendorId?: string | null
+  note?: string | null
 }
 
 export type FeedItem = ScanOutcomeLike & { key: number; at: Date }
@@ -53,6 +61,9 @@ export function ScanConsole({
   label = 'ยิงบาร์โค้ด / serial',
   soundEnabled = true,
   hideFeed = false,
+  rejectDuplicateInFeed = false,
+  duplicateMessage,
+  onFeedChange,
 }: {
   onScan: (serial: string) => Promise<ScanOutcomeLike>
   onDelete?: (item: FeedItem) => Promise<void> | void
@@ -62,11 +73,22 @@ export function ScanConsole({
   label?: string
   soundEnabled?: boolean
   hideFeed?: boolean
+  /** true = ถ้า serial นี้อยู่ในรายการรอบันทึกแล้ว ให้ปฏิเสธนับ rejected + โชว์ alert แดง โดยไม่เพิ่มแถวซ้ำ */
+  rejectDuplicateInFeed?: boolean
+  duplicateMessage?: (serial: string) => string
+  /** แจ้ง parent ทุกครั้งที่รายการรอบันทึกเปลี่ยน - ใช้โชว์คำเตือน/ล็อกฟอร์ม */
+  onFeedChange?: (items: FeedItem[]) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const queueRef = useRef<string[]>([])
   const drainingRef = useRef(false)
   const keyRef = useRef(0)
+  /** serial (normalize แล้ว) ที่ค้างอยู่ใน feed ตอนนี้ - อัปเดตทันทีตอนรับ/ลบ เพื่อกันยิงเบิ้ลรัวๆ หลุด */
+  const pendingKeysRef = useRef<Set<string>>(new Set())
+  /** สำเนา feed ล่าสุดสำหรับเช็คตอนลบ (อ่านใน event ที่ render นิ่งแล้วจึงตรงเสมอ) */
+  const feedRef = useRef<FeedItem[]>([])
+  /** นับครั้งที่ปฏิเสธเพราะซ้ำในรอบันทึก - เก็บแยกเพราะรายการพวกนี้ไม่เข้า feed แต่ต้องคงตัวเลข rejected ไว้แม้หลังกดยืนยัน */
+  const dupRejectedRef = useRef(0)
 
   const [value, setValue] = useState('')
   const [feed, setFeed] = useState<FeedItem[]>([])
@@ -74,6 +96,17 @@ export function ScanConsole({
   const [stats, setStats] = useState({ accepted: 0, rejected: 0 })
   const [confirming, setConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [duplicateAlert, setDuplicateAlert] = useState<string | null>(null)
+
+  function toPendingKey(raw: string): string {
+    const normalized = normalizeSerial(raw ?? '')
+    return normalized || raw.trim().toUpperCase()
+  }
+
+  useEffect(() => {
+    feedRef.current = feed
+    onFeedChange?.(feed)
+  }, [feed, onFeedChange])
 
   const removeFromFeed = useCallback(
     (key: number) => {
@@ -88,11 +121,21 @@ export function ScanConsole({
         await onDelete(item)
       }
       removeFromFeed(item.key)
+      // ลบออกจากรายการรอบันทึกแล้ว เปิดให้ยิง serial นี้ใหม่ได้ (ถ้าไม่มีแถวอื่นใช้ serial เดียวกันค้างอยู่)
+      if (rejectDuplicateInFeed) {
+        const key = toPendingKey(item.serial)
+        const stillThere = feedRef.current.some(
+          (f) => f.key !== item.key && toPendingKey(f.serial) === key
+        )
+        if (!stillThere) pendingKeysRef.current.delete(key)
+      }
       setStats((current) => item.accepted
         ? { ...current, accepted: Math.max(0, current.accepted - 1) }
         : { ...current, rejected: Math.max(0, current.rejected - 1) })
     },
-    [onDelete, removeFromFeed]
+    // toPendingKey เป็น pure (normalize อย่างเดียว) จึงไม่ต้องใส่ใน deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onDelete, removeFromFeed, rejectDuplicateInFeed]
   )
 
   async function confirmFeed() {
@@ -104,14 +147,21 @@ export function ScanConsole({
       if (outcomes) {
         setStats({
           accepted: outcomes.filter((outcome) => outcome.accepted).length,
-          rejected: outcomes.filter((outcome) => !outcome.accepted).length,
+          // รายการที่ถูกปฏิเสธเพราะซ้ำในรอบันทึกไม่ได้เข้า feed จึงบวกกลับเข้าไปไม่ให้ตัวเลขหาย
+          rejected: outcomes.filter((outcome) => !outcome.accepted).length + dupRejectedRef.current,
         })
-        setFeed((prev) => prev
+        const next = feedRef.current
           .map((item) => {
             const outcome = outcomes.find((candidate) => candidate.serial === item.serial)
             return outcome ? { ...item, ...outcome } : item
           })
-          .filter((item) => item.result === 'ERROR' || item.accepted === false))
+          .filter((item) => item.result === 'ERROR' || item.accepted === false)
+        feedRef.current = next
+        setFeed(next)
+        // sync ชุดกันซ้ำให้ตรงกับแถวที่เหลืออยู่จริง (ตัวที่บันทึกสำเร็จหลุดไปแล้ว ยิงใหม่ได้ตามปกติ)
+        pendingKeysRef.current = new Set(
+          next.map((item) => toPendingKey(item.serial)).filter((key) => key.length > 0)
+        )
       }
     } catch (error) {
       setConfirmError(error instanceof Error ? error.message : 'ยืนยันบันทึกไม่สำเร็จ')
@@ -128,6 +178,22 @@ export function ScanConsole({
       while (queueRef.current.length > 0) {
         const serial = queueRef.current.shift()!
         setPending(queueRef.current.length + 1)
+        // กันยิง serial เดิมซ้ำขณะที่ยังค้างอยู่ในรายการรอบันทึก (เทียบแบบ normalize แล้ว ตัวเล็ก/ช่องว่างถือว่าตัวเดียวกัน)
+        if (rejectDuplicateInFeed) {
+          const key = toPendingKey(serial)
+          if (key && pendingKeysRef.current.has(key)) {
+            const message = duplicateMessage
+              ? duplicateMessage(key)
+              : `Serial ${key} สแกนซ้ำในรายการรอบันทึก!`
+            setDuplicateAlert(message)
+            setStats((s) => ({ ...s, rejected: s.rejected + 1 }))
+            dupRejectedRef.current += 1
+            if (soundEnabled) beep(false)
+            continue
+          }
+          // จองคีย์ไว้ก่อนเรียก onScan ทันที ยิงเบิ้ลรัวๆ จะได้ไม่หลุดรอดช่วงรอผล
+          if (key) pendingKeysRef.current.add(key)
+        }
         let outcome: ScanOutcomeLike
         try {
           outcome = await onScan(serial)
@@ -139,18 +205,25 @@ export function ScanConsole({
             serial,
           }
         }
+        // รับไม่ผ่าน = ไม่ได้เข้ารายการรอบันทึก คืนคีย์ที่จองไว้
+        if (rejectDuplicateInFeed && !outcome.accepted) {
+          pendingKeysRef.current.delete(toPendingKey(serial))
+        }
         keyRef.current += 1
         setFeed((prev) => [{ ...outcome, key: keyRef.current, at: new Date() }, ...prev].slice(0, 200))
         setStats((s) =>
           outcome.accepted ? { ...s, accepted: s.accepted + 1 } : { ...s, rejected: s.rejected + 1 }
         )
+        if (outcome.accepted) setDuplicateAlert(null)
         if (soundEnabled) beep(outcome.accepted)
       }
     } finally {
       drainingRef.current = false
       setPending(0)
     }
-  }, [onScan, soundEnabled])
+    // toPendingKey เป็น pure จึงไม่ใส่ใน deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onScan, soundEnabled, rejectDuplicateInFeed, duplicateMessage])
 
   function submitCurrent() {
     const serial = value.trim()
@@ -232,6 +305,26 @@ export function ScanConsole({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {duplicateAlert && (
+        <div
+          data-testid="scan-duplicate-alert"
+          role="alert"
+          className="rounded-xl border-2 border-red-300 bg-red-50 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-lg font-medium text-red-700">✕ {duplicateAlert}</span>
+            <button
+              type="button"
+              aria-label="ปิดการแจ้งเตือน"
+              onClick={() => setDuplicateAlert(null)}
+              className="ml-auto rounded-lg px-2 py-1 text-sm font-medium text-red-600 transition hover:bg-red-100"
+            >
+              ปิด
+            </button>
+          </div>
         </div>
       )}
 
