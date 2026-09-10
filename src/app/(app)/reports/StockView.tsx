@@ -67,6 +67,11 @@ function CategorySection({
 }) {
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
   const isOut = serialMode === 'OUT'
+  // view=out: upstream ส่ง totalInStock มาเป็น 0 (ดู page.tsx OutViewWithFilters)
+  // จึงต้องรวมจากยอดเบิกออกของแต่ละสินค้าแทน ไม่ใช่ยอดคงเหลือ
+  const categoryTotal = isOut
+    ? category.products.reduce((sum, p) => sum + p.out, 0)
+    : category.totalInStock
 
   function toggleExpand(productId: string) {
     setExpandedProducts((prev) => {
@@ -91,7 +96,7 @@ function CategorySection({
         </h2>
         <span className="text-sm text-slate-600">
           {isOut ? 'เบิกออกรวม' : 'คงเหลือรวม'}{' '}
-          <b className="text-slate-900">{isOut ? category.totalInStock : category.totalInStock}</b> ชิ้น
+          <b className="text-slate-900">{categoryTotal}</b> ชิ้น
         </span>
       </div>
       {category.products.length === 0 ? (

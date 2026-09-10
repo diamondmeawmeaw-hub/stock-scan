@@ -219,7 +219,7 @@ async function OutViewWithFilters({ outFilters }: { outFilters: StockViewFilters
           inStock: 0,
           out: p.out,
         })),
-        totalInStock: 0,
+        totalInStock: c.totalOut,
       }))}
       grandTotalInStock={grandTotalOut}
       filters={outFilters}
