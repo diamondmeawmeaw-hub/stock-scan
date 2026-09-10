@@ -13,7 +13,9 @@ export function AuditSessionClient({
   initialReport: AuditReport
 }) {
   const [report, setReport] = useState(initialReport)
-  const [applyAdjustments, setApplyAdjustments] = useState(true)
+  // ค่าเริ่มต้นไม่ปรับสต็อก - กันกดปิดรอบเพลินๆ แล้วของหายโดนตัดออกจากคลังโดยไม่ตั้งใจ
+  // ใครจะปรับจริงให้ติ๊กเอง
+  const [applyAdjustments, setApplyAdjustments] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

@@ -625,7 +625,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
     additionalAnd.push({ id: { in: [...customerProductIds] } })
   }
   const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
-    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    ? { AND: [where, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
 
   // ── หา serials ที่ตรงกับ customerId filter ──
@@ -785,7 +785,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
     additionalAnd.push({ id: { in: [...customerProductIds] } })
   }
   const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
-    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    ? { AND: [where, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
 
   // ── หา serials ที่ตรงกับ customerId filter ──
@@ -987,7 +987,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
     additionalAnd.push({ id: { in: [...customerProductIds] } })
   }
   const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
-    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    ? { AND: [where, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
 
   const categories = await prisma.category.findMany({
@@ -1201,7 +1201,7 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
   if (timePeriodProductIds) additionalAnd.push({ id: { in: [...timePeriodProductIds] } })
   if (customerProductIds) additionalAnd.push({ id: { in: [...customerProductIds] } })
   const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
-    ? { AND: [where ? { AND: [where, ...additionalAnd] } : undefined, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
+    ? { AND: [where, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
 
   // ── หา serials ที่ตรงกับ customerId filter ──
