@@ -34,14 +34,25 @@ function errorResponse(err: unknown): NextResponse {
   if (isPrismaUniqueError(err)) {
     return NextResponse.json({ error: 'ข้อมูลซ้ำกับที่มีอยู่แล้ว' }, { status: 409 })
   }
+  if (prismaErrorCode(err) === 'P2025') {
+    return NextResponse.json({ error: 'ไม่พบข้อมูลที่ต้องการแก้ไขหรือลบ' }, { status: 404 })
+  }
+  if (prismaErrorCode(err) === 'P2023') {
+    return NextResponse.json({ error: 'รูปแบบข้อมูลไม่ถูกต้อง' }, { status: 400 })
+  }
   console.error('[api] unhandled error', err)
   return NextResponse.json({ error: 'เกิดข้อผิดพลาดในระบบ' }, { status: 500 })
 }
 
 function isPrismaUniqueError(err: unknown): boolean {
-  return (
-    typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002'
-  )
+  return prismaErrorCode(err) === 'P2002'
+}
+
+/** ดึงรหัส error ของ Prisma (P2002/P2025/...) ถ้าไม่ใช่ error จาก Prisma คืน null */
+function prismaErrorCode(err: unknown): string | null {
+  if (typeof err !== 'object' || err === null) return null
+  const code = (err as { code?: unknown }).code
+  return typeof code === 'string' ? code : null
 }
 
 export async function readJson(request: Request): Promise<unknown> {
