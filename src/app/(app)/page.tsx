@@ -4,9 +4,22 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const [inStock, out, productCount, categoryCount, openSession, recentScans] = await Promise.all([
+  const [serialInStock, serialOut, qtyInStock, qtyOut, productCount, categoryCount, openSession, recentScans] = await Promise.all([
     prisma.serialUnit.count({ where: { status: 'IN_STOCK' } }),
     prisma.serialUnit.count({ where: { status: 'OUT' } }),
+    prisma.product.aggregate({
+      where: { trackingType: 'QUANTITY' },
+      _sum: { stockQty: true },
+    }),
+    prisma.scanLog.groupBy({
+      by: ['type'],
+      where: {
+        accepted: true,
+        type: 'OUT',
+        product: { trackingType: 'QUANTITY' },
+      },
+      _sum: { quantity: true },
+    }),
     prisma.product.count(),
     prisma.category.count(),
     prisma.auditSession.findFirst({ where: { status: 'OPEN' }, include: { category: true } }),
@@ -16,6 +29,8 @@ export default async function HomePage() {
       include: { user: { select: { displayName: true } }, product: true },
     }),
   ])
+  const inStock = serialInStock + (qtyInStock._sum.stockQty ?? 0)
+  const out = serialOut + (qtyOut.find((g) => g.type === 'OUT')?._sum.quantity ?? 0)
 
   const now = new Date()
   const todayText = now.toLocaleDateString('th-TH', {
@@ -127,7 +142,9 @@ export default async function HomePage() {
                       <td className="px-4 py-2">
                         <TypeBadge type={log.type} />
                       </td>
-                      <td className="px-4 py-2 font-mono text-slate-800">{log.serial}</td>
+                      <td className="px-4 py-2 font-mono text-slate-800">
+                        {log.serial ?? (log.quantity > 1 ? `× ${log.quantity}` : '—')}
+                      </td>
                       <td className="px-4 py-2 text-slate-600">{log.product?.name ?? '-'}</td>
                       <td className="px-4 py-2 text-slate-600">{log.user.displayName}</td>
                       <td

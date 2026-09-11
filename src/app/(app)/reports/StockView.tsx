@@ -123,11 +123,19 @@ function CategorySection({
             <tbody className="divide-y divide-slate-100">
               {category.products.map((p) => {
                 const isExpanded = expandedProducts.has(p.productId)
+                const isQty = p.trackingType === 'QUANTITY'
                 return (
                   <Fragment key={p.productId}>
                     <tr>
                       <td className="px-4 py-2 font-mono text-slate-700">{p.sku}</td>
-                      <td className="px-4 py-2">{p.name}</td>
+                      <td className="px-4 py-2">
+                        {p.name}
+                        {isQty && (
+                          <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                            จำนวน{p.unitLabel ? ` (${p.unitLabel})` : ''}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
                       {isOut ? (
                         <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700">
@@ -142,14 +150,18 @@ function CategorySection({
                         </>
                       )}
                       <td className="px-4 py-2 text-center">
-                        <button
-                          onClick={() => toggleExpand(p.productId)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-sky-600 transition hover:bg-sky-50 hover:text-sky-700"
-                          data-testid={`expand-${p.sku}`}
-                        >
-                          <ChevronIcon expanded={isExpanded} />
-                          {isExpanded ? 'ซ่อน Serial' : 'ดู Serial'}
-                        </button>
+                        {isQty ? (
+                          <span className="text-xs text-slate-400">—</span>
+                        ) : (
+                          <button
+                            onClick={() => toggleExpand(p.productId)}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-sky-600 transition hover:bg-sky-50 hover:text-sky-700"
+                            data-testid={`expand-${p.sku}`}
+                          >
+                            <ChevronIcon expanded={isExpanded} />
+                            {isExpanded ? 'ซ่อน Serial' : 'ดู Serial'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                     {isExpanded && (

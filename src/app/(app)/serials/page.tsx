@@ -369,12 +369,19 @@ function ScanLogSection({
                     {thaiDateTime(row.at)}
                   </td>
                   <td className="px-4 py-2">
-                    <Link
-                      href={`/serials?serial=${encodeURIComponent(row.serial)}`}
-                      className="font-mono font-medium text-sky-700 underline underline-offset-2 hover:text-sky-800"
-                    >
-                      {row.serial}
-                    </Link>
+                    {row.serial ? (
+                      <Link
+                        href={`/serials?serial=${encodeURIComponent(row.serial)}`}
+                        className="font-mono font-medium text-sky-700 underline underline-offset-2 hover:text-sky-800"
+                      >
+                        {row.serial}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-500">
+                        {row.productName ?? '-'}
+                        {row.quantity > 1 ? ` × ${row.quantity}` : ''}
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2">
                     {TYPE_LABEL[row.type]}

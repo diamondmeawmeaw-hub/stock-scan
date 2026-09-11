@@ -5,6 +5,7 @@ import {
   decideScanOut,
   diffAudit,
   normalizeSerial,
+  validateQuantity,
   validateSerial,
   type UnitSnapshot,
 } from '@/lib/scan-rules'
@@ -190,5 +191,27 @@ describe('diffAudit', () => {
     const diff = diffAudit({ expectedUnitIds: [], scannedUnitIds: ['x', 'y'] })
     expect(diff.surplusUnitIds.sort()).toEqual(['x', 'y'])
     expect(diff.expectedCount).toBe(0)
+  })
+})
+
+describe('validateQuantity', () => {
+  it('จำนวนเต็มบวกใช้ได้', () => {
+    expect(validateQuantity(1)).toEqual({ ok: true, quantity: 1 })
+    expect(validateQuantity(999999)).toEqual({ ok: true, quantity: 999999 })
+  })
+
+  it('รับ string ตัวเลขได้ (ค่าจากฟอร์ม)', () => {
+    expect(validateQuantity('10')).toEqual({ ok: true, quantity: 10 })
+  })
+
+  it('0 / ติดลบ / ทศนิยม / ไม่ใช่ตัวเลข -> ไม่ผ่าน', () => {
+    for (const bad of [0, -1, 1.5, 'abc', '', null, undefined, NaN]) {
+      const res = validateQuantity(bad)
+      expect(res.ok).toBe(false)
+    }
+  })
+
+  it('เกินเพดาน -> ไม่ผ่าน', () => {
+    expect(validateQuantity(1000000).ok).toBe(false)
   })
 })

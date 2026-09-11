@@ -20,6 +20,12 @@ enum UnitStatus {
   OUT // เบิกออกไปแล้ว
 }
 
+/// สินค้านับสต็อก 2 แบบ: รายชิ้นตาม serial หรือนับเป็นจำนวน (ตู้แร็ค, รางไฟ, ...)
+enum TrackingType {
+  SERIAL // 1 serial = 1 ชิ้น (AP, Switch, กล้อง)
+  QUANTITY // เก็บเป็นจำนวน กรอกตัวเลข (ตู้แร็ค, รางไฟ)
+}
+
 enum ScanType {
   IN
   OUT
@@ -98,6 +104,12 @@ model Product {
   brand      String?
   note       String?
   categoryId String
+  /// นับสต็อกแบบราย serial หรือแบบจำนวน - เปลี่ยนได้เฉพาะตอนยังไม่มีของ/ประวัติ
+  trackingType TrackingType @default(SERIAL)
+  /// ยอดคงเหลือสำหรับสินค้าแบบ QUANTITY (สินค้าแบบ SERIAL นับจาก SerialUnit แทน)
+  stockQty Int @default(0)
+  /// หน่วยนับสำหรับสินค้าแบบ QUANTITY เช่น อัน, เมตร, กล่อง
+  unitLabel String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -146,9 +158,12 @@ model SerialUnit {
 }
 
 /// บันทึกทุกครั้งที่มีการยิงสแกน (สำเร็จหรือไม่ก็เก็บ) ใช้ย้อนรอยว่าใครทำอะไรเมื่อไหร่
+/// รายการของสินค้าแบบ QUANTITY ไม่มี serial (serial = null) แต่มี quantity เป็นจำนวนที่ขยับ
 model ScanLog {
   id             String     @id @default(cuid())
-  serial         String
+  serial         String?
+  /// จำนวนที่ขยับในรายการนี้ - ของ SERIAL = 1 เสมอ, ของ QUANTITY = จำนวนที่กรอก
+  quantity       Int        @default(1)
   type           ScanType
   result         ScanResult
   accepted       Boolean // ระบบรับรายการนี้หรือปฏิเสธ

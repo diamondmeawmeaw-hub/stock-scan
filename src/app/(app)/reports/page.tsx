@@ -216,6 +216,8 @@ async function OutViewWithFilters({ outFilters }: { outFilters: StockViewFilters
           sku: p.sku,
           name: p.name,
           brand: p.brand,
+          trackingType: p.trackingType,
+          unitLabel: p.unitLabel,
           inStock: 0,
           out: p.out,
         })),
@@ -303,7 +305,9 @@ async function MovementView({
                         {SCAN_TYPE_LABEL[r.type] ?? r.type}
                       </span>
                     </td>
-                    <td className="px-4 py-2 font-mono text-slate-700">{r.serial}</td>
+                    <td className="px-4 py-2 font-mono text-slate-700">
+                      {r.serial ?? (r.quantity > 1 ? `× ${r.quantity}` : '—')}
+                    </td>
                     <td className="px-4 py-2">
                       <span className="text-slate-700">{r.productName}</span>
                       <span className="ml-1 text-xs text-slate-400">{r.sku}</span>

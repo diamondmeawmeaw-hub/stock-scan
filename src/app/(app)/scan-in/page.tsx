@@ -24,7 +24,7 @@ export default async function ScanInPage() {
       <div>
         <h1 className="text-xl font-semibold">รับเข้าสต็อก</h1>
         <p className="text-sm text-slate-500">
-          เลือกสินค้าก่อน แล้วยิง serial ต่อกันได้เรื่อยๆ ทุกตัวจะผูกกับสินค้าที่เลือกไว้
+          สินค้าแบบรายชิ้น: เลือกสินค้าแล้ว ยิง serial ต่อกันได้เรื่อยๆ · สินค้าแบบจำนวน: เลือกสินค้าแล้วกรอกจำนวน
         </p>
       </div>
       <ScanInClient
@@ -34,7 +34,9 @@ export default async function ScanInPage() {
           sku: p.sku,
           name: p.name,
           categoryName: p.category.name,
-          inStock: p._count.units,
+          trackingType: p.trackingType,
+          unitLabel: p.unitLabel,
+          inStock: p.trackingType === 'QUANTITY' ? p.stockQty : p._count.units,
         }))}
       />
     </div>

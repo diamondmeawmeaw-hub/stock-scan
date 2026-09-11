@@ -99,7 +99,7 @@ export async function GET(request: Request) {
           }),
         ])
         filteredSerials = new Set([
-          ...scanLogs.map((l) => l.serial),
+          ...scanLogs.map((l) => l.serial).filter((s): s is string => !!s),
           ...receivedUnits.map((u) => u.serial),
         ])
       }
@@ -115,7 +115,9 @@ export async function GET(request: Request) {
         },
         select: { serial: true },
       })
-      const customerSerials = new Set(logs.map((l) => l.serial))
+      const customerSerials = new Set(
+        logs.map((l) => l.serial).filter((s): s is string => !!s)
+      )
       filteredSerials = filteredSerials
         ? new Set([...filteredSerials].filter((s) => customerSerials.has(s)))
         : customerSerials
@@ -145,6 +147,7 @@ export async function GET(request: Request) {
     // Group logs by serial and find latest OUT log for each serial
     const logsBySerial = new Map<string, typeof logs>()
     for (const log of logs) {
+      if (!log.serial) continue
       const list = logsBySerial.get(log.serial) ?? []
       list.push(log)
       logsBySerial.set(log.serial, list)

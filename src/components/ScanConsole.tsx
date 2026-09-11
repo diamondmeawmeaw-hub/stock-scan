@@ -168,6 +168,8 @@ export function ScanConsole({
     }
     finally {
       setConfirming(false)
+      // ยืนยันเสร็จแล้วดึงโฟกัสกลับช่องสแกนทันที จะได้ยิงล็อตต่อไปได้เลยไม่ต้องคลิก
+      inputRef.current?.focus()
     }
   }
 
@@ -262,6 +264,12 @@ export function ScanConsole({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
+              // Ctrl+Enter = ยืนยันบันทึกรายการที่รออยู่ (ไม่ต้องปล่อยมือจากคีย์บอร์ดไปจับเมาส์)
+              if ((e.ctrlKey || e.metaKey) && onConfirm && feed.length > 0 && !confirming) {
+                e.preventDefault()
+                void confirmFeed()
+                return
+              }
               e.preventDefault()
               submitCurrent()
             }
@@ -319,7 +327,10 @@ export function ScanConsole({
             <button
               type="button"
               aria-label="ปิดการแจ้งเตือน"
-              onClick={() => setDuplicateAlert(null)}
+              onClick={() => {
+                setDuplicateAlert(null)
+                inputRef.current?.focus()
+              }}
               className="ml-auto rounded-lg px-2 py-1 text-sm font-medium text-red-600 transition hover:bg-red-100"
             >
               ปิด
@@ -342,8 +353,9 @@ export function ScanConsole({
                 disabled={confirming || feed.length === 0}
                 onClick={() => void confirmFeed()}
                 data-testid="confirm-scan"
+                title="หรือกด Ctrl+Enter ขณะอยู่ในช่องสแกน"
               >
-                {confirming ? 'กำลังบันทึก...' : `ยืนยันบันทึก ${feed.length} รายการ`}
+                {confirming ? 'กำลังบันทึก...' : `ยืนยันบันทึก ${feed.length} รายการ (Ctrl+Enter)`}
               </button>
             </div>
           )}

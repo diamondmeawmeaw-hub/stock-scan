@@ -123,6 +123,15 @@ export function AuditSessionClient({
         <ScanConsole onScan={onScan} label="ยิง serial ของจริงในคลัง" />
       )}
 
+      {(report.quantityLines.length > 0 || !closed) && (
+        <QuantityAuditSection
+          lines={report.quantityLines}
+          closed={closed}
+          sessionId={sessionId}
+          onCounted={scheduleRefresh}
+        />
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <UnitTable
           title="ของหาย (ระบบว่ามี แต่ยิงไม่เจอ)"
@@ -153,6 +162,118 @@ export function AuditSessionClient({
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+function QuantityAuditSection({
+  lines,
+  closed,
+  sessionId,
+  onCounted,
+}: {
+  lines: AuditReport['quantityLines']
+  closed: boolean
+  sessionId: string
+  onCounted: () => void
+}) {
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  if (lines.length === 0) return null
+
+  async function submit(productId: string) {
+    const raw = values[productId] ?? ''
+    if (raw.trim() === '' || busyId) return
+    setBusyId(productId)
+    setError(null)
+    try {
+      await api(`/api/audit/sessions/${sessionId}/quantity`, {
+        method: 'POST',
+        body: JSON.stringify({ productId, counted: Number(raw) }),
+      })
+      // บันทึกแล้วล้างช่อง กันกรอกซ้ำโดยไม่ตั้งใจ (ยอดที่บันทึกดูได้ในคอลัมน์ "นับได้")
+      setValues((v) => ({ ...v, [productId]: '' }))
+      onCounted()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'บันทึกยอดนับไม่สำเร็จ')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="card overflow-hidden" data-testid="quantity-audit">
+      <h2 className="border-b border-slate-200 px-4 py-3 font-medium">
+        สินค้านับจำนวน ({lines.length}) — กรอกยอดที่นับได้จริง
+      </h2>
+      {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-4 py-2 font-medium">สินค้า</th>
+              <th className="px-4 py-2 text-right font-medium">ระบบว่ามี</th>
+              <th className="px-4 py-2 text-right font-medium">นับได้</th>
+              <th className="px-4 py-2 text-right font-medium">ผลต่าง</th>
+              {!closed && <th className="px-4 py-2 font-medium">กรอกยอดนับ</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {lines.map((l) => {
+              const diff = l.counted === null ? null : l.counted - l.expected
+              return (
+                <tr key={l.productId}>
+                  <td className="px-4 py-2">
+                    {l.productName} <span className="text-slate-400">({l.sku})</span>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">{l.expected}</td>
+                  <td className="px-4 py-2 text-right font-medium tabular-nums">
+                    {l.counted ?? '-'}
+                  </td>
+                  <td
+                    className={`px-4 py-2 text-right font-medium tabular-nums ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  >
+                    {diff === null ? '-' : diff > 0 ? `+${diff}` : `${diff}`}
+                  </td>
+                  {!closed && (
+                    <td className="px-4 py-2">
+                      <form
+                        className="flex gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          void submit(l.productId)
+                        }}
+                      >
+                        <input
+                          className="field w-24"
+                          inputMode="numeric"
+                          type="number"
+                          min={0}
+                          step={1}
+                          placeholder={l.unitLabel ?? 'จำนวน'}
+                          value={values[l.productId] ?? ''}
+                          onChange={(e) =>
+                            setValues((v) => ({ ...v, [l.productId]: e.target.value }))
+                          }
+                        />
+                        <button
+                          className="btn-primary shrink-0"
+                          disabled={busyId === l.productId}
+                          data-testid={`count-${l.sku}`}
+                        >
+                          บันทึก
+                        </button>
+                      </form>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

@@ -12,6 +12,8 @@ type Product = {
   note: string | null
   categoryId: string
   categoryName: string
+  trackingType: 'SERIAL' | 'QUANTITY'
+  unitLabel: string | null
   inStock: number
 }
 
@@ -28,8 +30,22 @@ export function ProductsClient({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ sku: '', name: '', brand: '', categoryId: categories[0]?.id ?? '' })
-  const [edit, setEdit] = useState({ sku: '', name: '', brand: '', categoryId: '' })
+  const [form, setForm] = useState({
+    sku: '',
+    name: '',
+    brand: '',
+    categoryId: categories[0]?.id ?? '',
+    trackingType: 'SERIAL',
+    unitLabel: 'ชิ้น',
+  })
+  const [edit, setEdit] = useState({
+    sku: '',
+    name: '',
+    brand: '',
+    categoryId: '',
+    trackingType: 'SERIAL',
+    unitLabel: '',
+  })
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true)
@@ -47,8 +63,21 @@ export function ProductsClient({
   const create = (e: React.FormEvent) => {
     e.preventDefault()
     void run(async () => {
-      await api('/api/products', { method: 'POST', body: JSON.stringify(form) })
-      setForm({ sku: '', name: '', brand: '', categoryId: categories[0]?.id ?? '' })
+      await api('/api/products', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          unitLabel: form.trackingType === 'QUANTITY' ? form.unitLabel.trim() || 'ชิ้น' : null,
+        }),
+      })
+      setForm({
+        sku: '',
+        name: '',
+        brand: '',
+        categoryId: categories[0]?.id ?? '',
+        trackingType: 'SERIAL',
+        unitLabel: 'ชิ้น',
+      })
     })
   }
 
@@ -57,7 +86,7 @@ export function ProductsClient({
       <div>
         <h1 className="text-xl font-semibold">สินค้า</h1>
         <p className="text-sm text-slate-500">
-          สินค้า 1 รายการมี serial ได้หลายชิ้น · {products.length} รายการ
+          แบบรายชิ้นยิง serial ทีละชิ้น · แบบจำนวนกรอกตัวเลข · {products.length} รายการ
         </p>
       </div>
 
@@ -122,6 +151,33 @@ export function ProductsClient({
             </button>
           </div>
         </div>
+        <div>
+          <label className="label" htmlFor="tracking">
+            วิธีนับสต็อก
+          </label>
+          <select
+            id="tracking"
+            className="field"
+            value={form.trackingType}
+            onChange={(e) => setForm({ ...form, trackingType: e.target.value })}
+          >
+            <option value="SERIAL">รายชิ้น (ยิง serial)</option>
+            <option value="QUANTITY">นับจำนวน (กรอกตัวเลข)</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="unit">
+            หน่วยนับ
+          </label>
+          <input
+            id="unit"
+            className="field"
+            placeholder="ชิ้น / อัน / เมตร"
+            disabled={form.trackingType !== 'QUANTITY'}
+            value={form.unitLabel}
+            onChange={(e) => setForm({ ...form, unitLabel: e.target.value })}
+          />
+        </div>
       </form>
 
       <div className="card overflow-hidden">
@@ -132,6 +188,7 @@ export function ProductsClient({
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
               <th className="px-4 py-2 font-medium">แบรนด์</th>
               <th className="px-4 py-2 font-medium">ประเภทของ</th>
+              <th className="px-4 py-2 font-medium">วิธีนับ</th>
               <th className="px-4 py-2 font-medium">คงเหลือ</th>
               <th className="px-4 py-2" />
             </tr>
@@ -139,7 +196,7 @@ export function ProductsClient({
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-slate-500">
                   ยังไม่มีสินค้า
                 </td>
               </tr>
@@ -181,6 +238,24 @@ export function ProductsClient({
                       ))}
                     </select>
                   </td>
+                  <td className="px-4 py-2">
+                    <select
+                      className="field"
+                      value={edit.trackingType}
+                      onChange={(e) => setEdit({ ...edit, trackingType: e.target.value })}
+                    >
+                      <option value="SERIAL">รายชิ้น</option>
+                      <option value="QUANTITY">จำนวน</option>
+                    </select>
+                    {edit.trackingType === 'QUANTITY' && (
+                      <input
+                        className="field mt-1"
+                        placeholder="หน่วยนับ"
+                        value={edit.unitLabel}
+                        onChange={(e) => setEdit({ ...edit, unitLabel: e.target.value })}
+                      />
+                    )}
+                  </td>
                   <td className="px-4 py-2">{p.inStock}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
@@ -209,13 +284,36 @@ export function ProductsClient({
                   <td className="px-4 py-2">{p.name}</td>
                   <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
                   <td className="px-4 py-2 text-slate-600">{p.categoryName}</td>
-                  <td className="px-4 py-2">{p.inStock}</td>
+                  <td className="px-4 py-2">
+                    {p.trackingType === 'QUANTITY' ? (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                        จำนวน{p.unitLabel ? ` (${p.unitLabel})` : ''}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700">
+                        รายชิ้น
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {p.inStock}
+                    {p.trackingType === 'QUANTITY' && (
+                      <span className="ml-1 text-xs text-slate-500">{p.unitLabel ?? ''}</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-ghost mr-2"
                       onClick={() => {
                         setEditingId(p.id)
-                        setEdit({ sku: p.sku, name: p.name, brand: p.brand ?? '', categoryId: p.categoryId })
+                        setEdit({
+                          sku: p.sku,
+                          name: p.name,
+                          brand: p.brand ?? '',
+                          categoryId: p.categoryId,
+                          trackingType: p.trackingType,
+                          unitLabel: p.unitLabel ?? '',
+                        })
                       }}
                     >
                       แก้ไข

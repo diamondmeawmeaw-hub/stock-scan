@@ -26,7 +26,9 @@ export default async function ProductsPage() {
         note: p.note,
         categoryId: p.categoryId,
         categoryName: p.category.name,
-        inStock: p._count.units,
+        trackingType: p.trackingType,
+        unitLabel: p.unitLabel,
+        inStock: p.trackingType === 'QUANTITY' ? p.stockQty : p._count.units,
       }))}
     />
   )

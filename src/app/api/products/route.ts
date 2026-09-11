@@ -9,6 +9,8 @@ const createSchema = z.object({
   brand: z.string().trim().max(80).optional().nullable(),
   categoryId: z.string().min(1, 'เลือกประเภทของ'),
   note: z.string().trim().max(500).optional().nullable(),
+  trackingType: z.enum(['SERIAL', 'QUANTITY']).default('SERIAL'),
+  unitLabel: z.string().trim().max(20).optional().nullable(),
 })
 
 export async function GET(request: Request) {
@@ -32,7 +34,9 @@ export async function GET(request: Request) {
         note: p.note,
         categoryId: p.categoryId,
         categoryName: p.category.name,
-        inStock: p._count.units,
+        trackingType: p.trackingType,
+        unitLabel: p.unitLabel,
+        inStock: p.trackingType === 'QUANTITY' ? p.stockQty : p._count.units,
       })),
     }
   })
@@ -42,7 +46,14 @@ export async function POST(request: Request) {
   return route(async () => {
     await requireUser()
     const data = createSchema.parse(await readJson(request))
-    const product = await prisma.product.create({ data })
+    const product = await prisma.product.create({
+      data: {
+        ...data,
+        // สินค้านับจำนวนที่ไม่ได้ระบุหน่วยนับ ใช้ "ชิ้น" เป็นค่าเริ่มต้น
+        unitLabel:
+          data.trackingType === 'QUANTITY' ? (data.unitLabel?.trim() || 'ชิ้น') : null,
+      },
+    })
     return { product }
   })
 }

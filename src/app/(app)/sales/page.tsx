@@ -115,12 +115,18 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                       {log.customer ? `${log.customer.code} · ${log.customer.name}` : '-'}
                     </td>
                     <td className="px-4 py-2">
-                      <Link
-                        className="font-mono text-sky-700 underline"
-                        href={`/serials?serial=${encodeURIComponent(log.serial)}`}
-                      >
-                        {log.serial}
-                      </Link>
+                      {log.serial ? (
+                        <Link
+                          className="font-mono text-sky-700 underline"
+                          href={`/serials?serial=${encodeURIComponent(log.serial)}`}
+                        >
+                          {log.serial}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-500">
+                          {log.product?.name ?? '-'} × {log.quantity}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2">{log.product?.name ?? '-'}</td>
                     <td className="px-4 py-2">{log.user.displayName}</td>

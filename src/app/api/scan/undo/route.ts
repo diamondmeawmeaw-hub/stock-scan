@@ -15,12 +15,15 @@ export async function POST(request: Request) {
 
     const log = await prisma.scanLog.findUnique({
       where: { id: body.scanLogId },
-      include: { unit: true },
+      include: { unit: true, product: { select: { trackingType: true } } },
     })
 
     if (!log) throw new HttpError(404, 'ไม่พบบันทึกการสแกนนี้')
     if (log.type !== 'IN') throw new HttpError(400, 'ยกเลิกได้เฉพาะการรับเข้าสต็อก')
     if (!log.accepted) throw new HttpError(400, 'รายการนี้ถูกปฏิเสธไปแล้ว ไม่ต้องยกเลิก')
+    if (!log.unitId) {
+      throw new HttpError(400, 'รายการนับจำนวนยกเลิกไม่ได้ - ให้เบิกออกเพื่อปรับยอดแทน')
+    }
 
     await prisma.$transaction(async (tx) => {
       if (log.result === 'CREATED' && log.unitId) {

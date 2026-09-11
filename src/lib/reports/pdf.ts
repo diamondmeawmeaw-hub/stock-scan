@@ -271,7 +271,7 @@ export function movementDetailedToPdf(report: MovementDetailReport, meta: Export
           return [
             thaiDateTimeShort(r.at),
             { text: SCAN_TYPE_LABEL[r.type] ?? r.type, color: typeColor, bold: true },
-            { text: r.serial, font: 'Sarabun' },
+            { text: r.serial ?? (r.quantity > 1 ? `× ${r.quantity}` : '—'), font: 'Sarabun' },
             r.productName,
             r.customerName ?? '-',
             r.userName,

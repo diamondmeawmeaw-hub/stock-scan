@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { api } from '@/lib/client'
 
@@ -9,6 +10,8 @@ type ProductOption = {
   sku: string
   name: string
   categoryName: string
+  trackingType: 'SERIAL' | 'QUANTITY'
+  unitLabel: string | null
   inStock: number
 }
 
@@ -24,6 +27,11 @@ export function ScanInClient({
   const [productId, setProductId] = useState('')
   const [vendorId, setVendorId] = useState('')
   const [note, setNote] = useState('')
+  // ฟอร์มกรอกจำนวนสำหรับสินค้าแบบ QUANTITY
+  const [qty, setQty] = useState('')
+  const [qtyBusy, setQtyBusy] = useState(false)
+  const [qtyMessage, setQtyMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const router = useRouter()
   // สรุปของค้าง confirm ไว้เตือนตอนเปลี่ยนสินค้า (มาจาก feed ใน ScanConsole)
   const [pendingInfo, setPendingInfo] = useState<{
     count: number
@@ -130,6 +138,16 @@ export function ScanInClient({
     })
   }, [])
 
+  // กันเผลอเปลี่ยนหน้า/ปิดแท็บทั้งที่ยังมีของรอ confirm (ของจะไม่เข้าคลัง)
+  useEffect(() => {
+    if (pendingInfo.count === 0) return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [pendingInfo.count])
+
   // เปลี่ยนสินค้าทั้งที่มีของค้าง = ของใหม่จะไปอีกสินค้า ถามก่อนกันเผลอ
   function handleProductChange(next: string) {
     if (
@@ -144,6 +162,42 @@ export function ScanInClient({
       if (!ok) return
     }
     setProductId(next)
+    setQtyMessage(null)
+  }
+
+  const isQuantity = selected?.trackingType === 'QUANTITY'
+
+  async function submitQuantity(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selected || qtyBusy) return
+    const amount = Number(qty)
+    setQtyBusy(true)
+    setQtyMessage(null)
+    try {
+      const res = await api<{
+        message: string
+        productInStock: number
+        quantity: number
+      }>('/api/quantity/in', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: selected.id,
+          quantity: amount,
+          vendorId: vendorId || null,
+          note: note || null,
+        }),
+      })
+      setQtyMessage({ ok: true, text: res.message })
+      setQty('')
+      router.refresh()
+    } catch (error) {
+      setQtyMessage({
+        ok: false,
+        text: error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ',
+      })
+    } finally {
+      setQtyBusy(false)
+    }
   }
 
   return (
@@ -173,7 +227,8 @@ export function ScanInClient({
           </select>
           {selected && (
             <p className="mt-1 text-xs text-slate-500">
-              ตอนนี้ในคลังมี {selected.inStock} ชิ้น
+              ตอนนี้ในคลังมี {selected.inStock} {selected.trackingType === 'QUANTITY' ? (selected.unitLabel ?? 'ชิ้น') : 'ชิ้น'}
+              {selected.trackingType === 'QUANTITY' ? ' (สินค้านับจำนวน)' : ''}
             </p>
           )}
         </div>
@@ -225,16 +280,53 @@ export function ScanInClient({
         </div>
       )}
 
-      <ScanConsole
-        onScan={onScan}
-        onDelete={onDelete}
-        onConfirm={onConfirm}
-        onFeedChange={handleFeedChange}
-        disabled={!productId}
-        disabledHint="เลือกสินค้าก่อนถึงจะยิงได้"
-        label={selected ? `ยิง serial ของ ${selected.name}` : 'ยิงบาร์โค้ด / serial'}
-        rejectDuplicateInFeed
-      />
+      {isQuantity && selected ? (
+        <form onSubmit={submitQuantity} className="card space-y-3 p-4" data-testid="quantity-in-form">
+          <div>
+            <label className="label" htmlFor="qty">
+              จำนวนที่รับเข้า ({selected.unitLabel ?? 'ชิ้น'})
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="qty"
+                data-testid="quantity-input"
+                className="field"
+                inputMode="numeric"
+                type="number"
+                min={1}
+                max={999999}
+                step={1}
+                required
+                placeholder="เช่น 10"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
+              <button className="btn-primary shrink-0" disabled={qtyBusy}>
+                {qtyBusy ? 'กำลังบันทึก…' : 'รับเข้า'}
+              </button>
+            </div>
+          </div>
+          {qtyMessage && (
+            <p
+              data-testid="quantity-message"
+              className={`rounded-lg px-3 py-2 text-sm ${qtyMessage.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+            >
+              {qtyMessage.text}
+            </p>
+          )}
+        </form>
+      ) : (
+        <ScanConsole
+          onScan={onScan}
+          onDelete={onDelete}
+          onConfirm={onConfirm}
+          onFeedChange={handleFeedChange}
+          disabled={!productId}
+          disabledHint="เลือกสินค้าก่อนถึงจะยิงได้"
+          label={selected ? `ยิง serial ของ ${selected.name}` : 'ยิงบาร์โค้ด / serial'}
+          rejectDuplicateInFeed
+        />
+      )}
     </div>
   )
 }

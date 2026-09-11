@@ -186,7 +186,13 @@ export async function stockDetailedToExcel(report: StockReportDetailed, meta: Ex
     for (const p of category.products) {
       // Product row: A=sku, B=name, C=brand, D=inStock, E=out
       const productRow = sheet.addRow([
-        p.sku, p.name, p.brand ?? '-', p.inStock, p.out,
+        p.sku,
+        p.trackingType === 'QUANTITY'
+          ? `${p.name} (นับจำนวน${p.unitLabel ? ` · ${p.unitLabel}` : ''})`
+          : p.name,
+        p.brand ?? '-',
+        p.inStock,
+        p.out,
       ])
       productRow.font = { bold: true }
       productRow.eachCell((cell) => {
@@ -194,7 +200,15 @@ export async function stockDetailedToExcel(report: StockReportDetailed, meta: Ex
       })
 
       if (p.serials.length === 0) {
-        const noSerialRow = sheet.addRow(['', '', '', '', '', '', 'ไม่มี Serial Tracking'])
+        const noSerialRow = sheet.addRow([
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          p.trackingType === 'QUANTITY' ? 'สินค้านับจำนวน (ดูยอดคงเหลือด้านบน)' : 'ไม่มี Serial Tracking',
+        ])
         noSerialRow.getCell(7).font = { italic: true, color: { argb: 'FF64748B' } }
       } else {
         // Serial header: B=Serial, C=สถานะ, D=รับเข้า, E=เบิกออก, F=ผู้จำหน่าย, G=ผู้ซื้อ
@@ -305,7 +319,7 @@ export async function movementDetailedToExcel(report: MovementDetailReport, meta
     sheet.addRow([
       thaiDateTimeShort(r.at),
       SCAN_TYPE_LABEL[r.type] ?? r.type,
-      r.serial,
+      r.serial ?? (r.quantity > 1 ? `× ${r.quantity}` : '-'),
       r.productName,
       r.sku,
       r.customerName ?? '-',

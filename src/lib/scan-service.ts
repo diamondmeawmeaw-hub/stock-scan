@@ -2,11 +2,13 @@ import { Prisma } from '@prisma/client'
 import { HttpError } from './auth'
 import { prisma } from './prisma'
 import {
+  QUANTITY_MAX,
   decideAuditScan,
   decideScanIn,
   decideScanOut,
   diffAudit,
   normalizeSerial,
+  validateQuantity,
   validateSerial,
   type ScanResultCode,
   type UnitSnapshot,
@@ -20,8 +22,18 @@ export type ScanOutcome = {
   accepted: boolean
   result: ScanResultCode
   message: string
+  /** serial ที่ยิง - รายการของสินค้าแบบ QUANTITY ไม่มี serial จะเป็น sku แทนไว้โชว์บนจอ */
   serial: string
-  product: { id: string; sku: string; name: string; categoryName: string } | null
+  /** จำนวนที่ขยับในรายการนี้ (สินค้าแบบ QUANTITY) - ของ SERIAL เป็น 1 เสมอ */
+  quantity?: number
+  product: {
+    id: string
+    sku: string
+    name: string
+    categoryName: string
+    trackingType?: 'SERIAL' | 'QUANTITY'
+    unitLabel?: string | null
+  } | null
   unitId: string | null
   scanLogId: string | null
   /** จำนวนคงเหลือของสินค้าตัวนี้หลังสแกน - ใช้โชว์บนหน้าจอสแกน */
@@ -59,6 +71,14 @@ async function lockSerial(tx: Prisma.TransactionClient, serial: string): Promise
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${serial}))`
 }
 
+/**
+ * ล็อกระดับสินค้าแบบ QUANTITY - กันสองคนกรอกจำนวนของตัวเดียวกันพร้อมกันแล้วยอดหาย
+ * (อ่าน stockQty เก่าพร้อมกันแล้วบวกทับกัน) ปลดเองเมื่อ transaction จบเหมือน lockSerial
+ */
+async function lockProduct(tx: Prisma.TransactionClient, productId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('qty:' || ${productId}))`
+}
+
 /** serial ที่รูปแบบผิดตั้งแต่แรก - ตีกลับโดยไม่บันทึกลง ScanLog เพื่อไม่ให้ log เต็มไปด้วยขยะ */
 function rejectedOutcome(serial: string, message: string): ScanOutcome {
   return {
@@ -90,6 +110,9 @@ export async function scanIn(input: {
     include: { category: true },
   })
   if (!product) throw new HttpError(400, 'ไม่พบสินค้าที่เลือกไว้')
+  if (product.trackingType === 'QUANTITY') {
+    throw new HttpError(400, `สินค้า "${product.name}" นับเป็นจำนวน ให้กรอกจำนวนแทนการยิง serial`)
+  }
 
   const vendorId = input.vendorId ?? null
   if (vendorId) {
@@ -103,6 +126,8 @@ export async function scanIn(input: {
     sku: product.sku,
     name: product.name,
     categoryName: product.category.name,
+    trackingType: product.trackingType,
+    unitLabel: product.unitLabel,
   }
 
   const outcome = await prisma.$transaction(async (tx) => {
@@ -193,6 +218,12 @@ export async function scanOut(input: {
   const outcome = await prisma.$transaction(async (tx) => {
     await lockSerial(tx, serial)
     const unit = await tx.serialUnit.findUnique({ where: { serial }, include: unitInclude })
+    if (unit?.product.trackingType === 'QUANTITY') {
+      throw new HttpError(
+        400,
+        `สินค้า "${unit.product.name}" นับเป็นจำนวน ให้เลือกสินค้าแล้วกรอกจำนวนแทนการยิง serial`
+      )
+    }
     const decision = decideScanOut(toSnapshot(unit))
     const now = new Date()
 
@@ -230,6 +261,8 @@ export async function scanOut(input: {
             sku: unit.product.sku,
             name: unit.product.name,
             categoryName: unit.product.category.name,
+            trackingType: unit.product.trackingType,
+            unitLabel: unit.product.unitLabel,
           }
         : null,
       unitId: unit?.id ?? null,
@@ -242,10 +275,234 @@ export async function scanOut(input: {
 
 async function withStockCount(outcome: ScanOutcome): Promise<ScanOutcome> {
   if (!outcome.product) return outcome
+  const product = await prisma.product.findUnique({
+    where: { id: outcome.product.id },
+    select: { trackingType: true, stockQty: true },
+  })
+  if (product?.trackingType === 'QUANTITY') {
+    return { ...outcome, productInStock: product.stockQty }
+  }
   const productInStock = await prisma.serialUnit.count({
     where: { productId: outcome.product.id, status: 'IN_STOCK' },
   })
   return { ...outcome, productInStock }
+}
+
+// ────────────────────────────── สินค้านับจำนวน (ไม่มี serial) ──────────────────────────────
+
+export type QuantityOutcome = {
+  accepted: boolean
+  result: 'OK'
+  message: string
+  quantity: number
+  product: {
+    id: string
+    sku: string
+    name: string
+    categoryName: string
+    trackingType: 'QUANTITY'
+    unitLabel: string | null
+  }
+  scanLogId: string | null
+  /** จำนวนคงเหลือของสินค้าตัวนี้หลังทำรายการ */
+  productInStock: number
+}
+
+async function resolveQuantityVendor(vendorId: string | null | undefined): Promise<string | null> {
+  const id = vendorId ?? null
+  if (!id) return null
+  const vendor = await prisma.vendor.findUnique({ where: { id } })
+  if (!vendor) throw new HttpError(400, 'ไม่พบผู้จำหน่ายที่เลือกไว้')
+  if (!vendor.active) throw new HttpError(400, `ผู้จำหน่าย "${vendor.name}" ถูกปิดใช้งานอยู่`)
+  return id
+}
+
+async function resolveQuantityCustomer(
+  customerId: string | null | undefined,
+  reason: OutReasonCode
+): Promise<string | null> {
+  if (reason !== 'SALE') return null
+  if (!customerId) return null
+  const customer = await prisma.customer.findUnique({ where: { id: customerId } })
+  if (!customer || !customer.active) {
+    throw new HttpError(400, 'ไม่พบลูกค้าที่เลือกหรือถูกปิดใช้งานแล้ว')
+  }
+  return customer.id
+}
+
+function toQuantityProductInfo(product: {
+  id: string
+  sku: string
+  name: string
+  unitLabel: string | null
+  category: { name: string }
+}): QuantityOutcome['product'] {
+  return {
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    categoryName: product.category.name,
+    trackingType: 'QUANTITY',
+    unitLabel: product.unitLabel,
+  }
+}
+
+/** รับเข้าสต็อกแบบกรอกจำนวน - สำหรับสินค้า trackingType QUANTITY เท่านั้น */
+export async function quantityIn(input: {
+  productId: string
+  rawQuantity: unknown
+  userId: string
+  vendorId?: string | null
+  note?: string | null
+}): Promise<QuantityOutcome> {
+  const check = validateQuantity(input.rawQuantity)
+  if (!check.ok) throw new HttpError(400, check.message)
+  const quantity = check.quantity
+
+  const product = await prisma.product.findUnique({
+    where: { id: input.productId },
+    include: { category: true },
+  })
+  if (!product) throw new HttpError(400, 'ไม่พบสินค้าที่เลือกไว้')
+  if (product.trackingType !== 'QUANTITY') {
+    throw new HttpError(400, `สินค้า "${product.name}" นับเป็นรายชิ้น ให้ยิง serial แทนการกรอกจำนวน`)
+  }
+  const vendorId = await resolveQuantityVendor(input.vendorId)
+
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockProduct(tx, product.id)
+    const updated = await tx.product.update({
+      where: { id: product.id },
+      data: { stockQty: { increment: quantity } },
+      select: { stockQty: true },
+    })
+    const log = await tx.scanLog.create({
+      data: {
+        serial: null,
+        quantity,
+        type: 'IN',
+        result: 'OK',
+        accepted: true,
+        message: `รับเข้า ${quantity} ${product.unitLabel ?? 'ชิ้น'}`,
+        note: input.note ?? null,
+        userId: input.userId,
+        productId: product.id,
+        unitId: null,
+        vendorId,
+      },
+    })
+    return { productInStock: updated.stockQty, scanLogId: log.id }
+  })
+
+  return {
+    accepted: true,
+    result: 'OK',
+    message: `รับเข้า ${product.name} ${quantity} ${product.unitLabel ?? 'ชิ้น'} (คงเหลือ ${outcome.productInStock})`,
+    quantity,
+    product: toQuantityProductInfo(product),
+    scanLogId: outcome.scanLogId,
+    productInStock: outcome.productInStock,
+  }
+}
+
+/**
+ * เบิกออกแบบกรอกจำนวน - ถ้าของในคลังไม่พอจะปฏิเสธทั้งรายการ (ไม่ติดลบ)
+ * ถ้าสินค้าหมด (เหลือ 0) หน้าบ้านจะไม่ให้เลือกอยู่แล้ว ที่นี่กันซ้ำอีกชั้น
+ */
+export async function quantityOut(input: {
+  productId: string
+  rawQuantity: unknown
+  userId: string
+  reason: OutReasonCode
+  note?: string | null
+  customerId?: string | null
+}): Promise<QuantityOutcome> {
+  const check = validateQuantity(input.rawQuantity)
+  if (!check.ok) throw new HttpError(400, check.message)
+  const quantity = check.quantity
+
+  const product = await prisma.product.findUnique({
+    where: { id: input.productId },
+    include: { category: true },
+  })
+  if (!product) throw new HttpError(400, 'ไม่พบสินค้าที่เลือกไว้')
+  if (product.trackingType !== 'QUANTITY') {
+    throw new HttpError(400, `สินค้า "${product.name}" นับเป็นรายชิ้น ให้ยิง serial แทนการกรอกจำนวน`)
+  }
+  const customerId = await resolveQuantityCustomer(input.customerId, input.reason)
+
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockProduct(tx, product.id)
+    const current = await tx.product.findUnique({
+      where: { id: product.id },
+      select: { stockQty: true },
+    })
+    const available = current?.stockQty ?? 0
+    if (available < quantity) {
+      throw new HttpError(
+        400,
+        `คงเหลือไม่พอ - "${product.name}" เหลือ ${available} ${product.unitLabel ?? 'ชิ้น'} แต่จะเบิก ${quantity}`
+      )
+    }
+    const updated = await tx.product.update({
+      where: { id: product.id },
+      data: { stockQty: { decrement: quantity } },
+      select: { stockQty: true },
+    })
+    const log = await tx.scanLog.create({
+      data: {
+        serial: null,
+        quantity,
+        type: 'OUT',
+        result: 'OK',
+        accepted: true,
+        message: `เบิกออก ${quantity} ${product.unitLabel ?? 'ชิ้น'}`,
+        reason: input.reason,
+        note: input.note ?? null,
+        userId: input.userId,
+        productId: product.id,
+        unitId: null,
+        customerId,
+      },
+    })
+    return { productInStock: updated.stockQty, scanLogId: log.id }
+  })
+
+  return {
+    accepted: true,
+    result: 'OK',
+    message: `เบิกออก ${product.name} ${quantity} ${product.unitLabel ?? 'ชิ้น'} (คงเหลือ ${outcome.productInStock})`,
+    quantity,
+    product: toQuantityProductInfo(product),
+    scanLogId: outcome.scanLogId,
+    productInStock: outcome.productInStock,
+  }
+}
+
+/** สินค้าแบบ QUANTITY ที่ยังพอมีให้เบิก - ใช้เติม dropdown หน้าเบิกออก */
+export async function listQuantityProducts(): Promise<
+  {
+    id: string
+    sku: string
+    name: string
+    categoryName: string
+    unitLabel: string | null
+    inStock: number
+  }[]
+> {
+  const products = await prisma.product.findMany({
+    where: { trackingType: 'QUANTITY' },
+    orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+    include: { category: true },
+  })
+  return products.map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    name: p.name,
+    categoryName: p.category.name,
+    unitLabel: p.unitLabel,
+    inStock: p.stockQty,
+  }))
 }
 
 // ────────────────────────────── ตรวจนับสต็อก ──────────────────────────────
@@ -294,6 +551,12 @@ export async function auditScan(input: {
   return prisma.$transaction(async (tx) => {
     await lockSerial(tx, serial)
     const unit = await tx.serialUnit.findUnique({ where: { serial }, include: unitInclude })
+    if (unit?.product.trackingType === 'QUANTITY') {
+      throw new HttpError(
+        400,
+        `สินค้า "${unit.product.name}" นับเป็นจำนวน ให้กรอกยอดนับแทนการยิง serial`
+      )
+    }
     const alreadyScanned =
       (await tx.scanLog.count({
         where: { auditSessionId: session.id, serial, accepted: true },
@@ -333,6 +596,8 @@ export async function auditScan(input: {
             sku: unit.product.sku,
             name: unit.product.name,
             categoryName: unit.product.category.name,
+            trackingType: unit.product.trackingType,
+            unitLabel: unit.product.unitLabel,
           }
         : null,
       unitId: unit?.id ?? null,
@@ -341,12 +606,92 @@ export async function auditScan(input: {
   })
 }
 
+/**
+ * กรอกยอดนับของสินค้านับจำนวนในรอบตรวจนับ - นับซ้ำได้ ยึดครั้งล่าสุด
+ * ยอดนับ 0 ได้ (ของหมดพอดี) แต่ต้องเป็นจำนวนเต็มไม่ติดลบ
+ */
+export async function auditQuantityCount(input: {
+  sessionId: string
+  productId: string
+  rawCounted: unknown
+  userId: string
+}): Promise<QuantityAuditLine> {
+  const session = await prisma.auditSession.findUnique({ where: { id: input.sessionId } })
+  if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+  if (session.status !== 'OPEN') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
+
+  const counted = input.rawCounted
+  const countedQty =
+    typeof counted === 'string' && counted.trim() !== '' ? Number(counted) : counted
+  if (typeof countedQty !== 'number' || !Number.isInteger(countedQty) || countedQty < 0) {
+    throw new HttpError(400, 'ยอดนับต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป')
+  }
+  if (countedQty > QUANTITY_MAX) {
+    throw new HttpError(400, `ยอดนับต่อครั้งไม่เกิน ${QUANTITY_MAX}`)
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id: input.productId },
+    include: { category: true },
+  })
+  if (!product) throw new HttpError(400, 'ไม่พบสินค้าที่เลือกไว้')
+  if (product.trackingType !== 'QUANTITY') {
+    throw new HttpError(400, `สินค้า "${product.name}" นับเป็นรายชิ้น ให้ยิง serial แทนการกรอกยอด`)
+  }
+  if (session.categoryId && product.categoryId !== session.categoryId) {
+    throw new HttpError(400, 'สินค้านี้อยู่นอกประเภทของที่กำลังนับรอบนี้')
+  }
+
+  const at = new Date()
+  await prisma.$transaction(async (tx) => {
+    await lockProduct(tx, product.id)
+    await tx.scanLog.create({
+      data: {
+        serial: null,
+        quantity: countedQty,
+        type: 'AUDIT',
+        result: 'OK',
+        accepted: true,
+        message: `นับได้ ${countedQty} ${product.unitLabel ?? 'ชิ้น'} (ระบบมี ${product.stockQty})`,
+        userId: input.userId,
+        productId: product.id,
+        unitId: null,
+        auditSessionId: session.id,
+      },
+    })
+  })
+
+  return {
+    productId: product.id,
+    sku: product.sku,
+    productName: product.name,
+    categoryName: product.category.name,
+    unitLabel: product.unitLabel,
+    expected: product.stockQty,
+    counted: countedQty,
+    countedAt: at.toISOString(),
+  }
+}
+
 export type AuditUnitRow = {
   unitId: string
   serial: string
   sku: string
   productName: string
   categoryName: string
+}
+
+export type QuantityAuditLine = {
+  productId: string
+  sku: string
+  productName: string
+  categoryName: string
+  unitLabel: string | null
+  /** ยอดที่ระบบเชื่อว่ามีตอนเปิดดูรายงาน */
+  expected: number
+  /** ยอดที่นับได้จริง (รอบที่ยังไม่ได้นับ = null) */
+  counted: number | null
+  countedAt: string | null
 }
 
 export type AuditReport = {
@@ -363,6 +708,8 @@ export type AuditReport = {
   missing: AuditUnitRow[] // ของหาย: ระบบว่ามีแต่ยิงไม่เจอ
   surplus: AuditUnitRow[] // ของเกิน: ยิงเจอแต่ระบบว่าเบิกออกไปแล้ว
   unknownSerials: { serial: string; scannedAt: string }[] // ยิงแล้วระบบไม่รู้จัก
+  /** สินค้านับจำนวนในขอบเขตรอบนี้ - กรอกยอดนับเทียบกับยอดระบบ */
+  quantityLines: QuantityAuditLine[]
 }
 
 /** คำนวณผลรอบตรวจนับ (รอบที่ปิดแล้วจะคืน snapshot ที่เก็บไว้) */
@@ -374,7 +721,9 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
   if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
 
   if (session.status === 'CLOSED' && session.report) {
-    return session.report as unknown as AuditReport
+    // รายงานเก่าที่ปิดก่อนมีระบบนับจำนวนจะไม่มี quantityLines - เติมค่าเริ่มต้นกัน UI พัง
+    const cached = session.report as unknown as AuditReport
+    return { ...cached, quantityLines: cached.quantityLines ?? [] }
   }
 
   const expectedUnits = await prisma.serialUnit.findMany({
@@ -421,6 +770,49 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     distinct: ['serial'],
   })
 
+  // ── สินค้านับจำนวนในขอบเขตรอบนี้ + ยอดนับล่าสุดของแต่ละตัว ──
+  // บันทึกยอดนับเป็น ScanLog AUDIT ที่ serial=null (แยกจาก log ยิง serial ที่ quantity=1)
+  const quantityProducts = await prisma.product.findMany({
+    where: {
+      trackingType: 'QUANTITY',
+      ...(session.categoryId ? { categoryId: session.categoryId } : {}),
+    },
+    include: { category: true },
+    orderBy: { name: 'asc' },
+  })
+  const quantityCountLogs =
+    quantityProducts.length > 0
+      ? await prisma.scanLog.findMany({
+          where: {
+            auditSessionId: session.id,
+            type: 'AUDIT',
+            accepted: true,
+            serial: null,
+            productId: { in: quantityProducts.map((p) => p.id) },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : []
+  const latestCountByProduct = new Map<string, (typeof quantityCountLogs)[number]>()
+  for (const log of quantityCountLogs) {
+    if (log.productId && !latestCountByProduct.has(log.productId)) {
+      latestCountByProduct.set(log.productId, log)
+    }
+  }
+  const quantityLines: QuantityAuditLine[] = quantityProducts.map((p) => {
+    const latest = latestCountByProduct.get(p.id)
+    return {
+      productId: p.id,
+      sku: p.sku,
+      productName: p.name,
+      categoryName: p.category.name,
+      unitLabel: p.unitLabel,
+      expected: p.stockQty,
+      counted: latest?.quantity ?? null,
+      countedAt: latest?.createdAt.toISOString() ?? null,
+    }
+  })
+
   return {
     sessionId: session.id,
     name: session.name,
@@ -435,9 +827,10 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     missing: diff.missingUnitIds.map(toRow).sort(sortRows),
     surplus: diff.surplusUnitIds.map(toRow).sort(sortRows),
     unknownSerials: unknownLogs.map((l) => ({
-      serial: l.serial,
+      serial: l.serial ?? '',
       scannedAt: l.createdAt.toISOString(),
     })),
+    quantityLines,
   }
 }
 
@@ -496,6 +889,14 @@ export async function closeAuditSession(input: {
           data: { status: 'IN_STOCK', receivedAt: closedAt, releasedAt: null },
         })
       }
+      // ของนับจำนวน: ตั้งยอดตามที่นับได้จริง (log ยอดนับมีอยู่แล้วตอนกรอก ไม่ต้องเขียนซ้ำ)
+      const countedLines = report.quantityLines.filter((l) => l.counted !== null)
+      for (const line of countedLines) {
+        await tx.product.update({
+          where: { id: line.productId },
+          data: { stockQty: line.counted! },
+        })
+      }
     }
 
     await tx.auditSession.update({
@@ -535,6 +936,8 @@ export type StockReportRow = {
     sku: string
     name: string
     brand: string | null
+    trackingType: 'SERIAL' | 'QUANTITY'
+    unitLabel: string | null
     inStock: number
     out: number
   }[]
@@ -556,6 +959,29 @@ function productFilter(filters: StockReportFilters): Prisma.ProductWhereInput | 
     })
   }
   return and.length > 0 ? { AND: and } : undefined
+}
+
+/**
+ * ยอดเบิกออกสะสมของสินค้านับจำนวน (รวม quantity ไม่ได้นับแถว)
+ * สินค้าแบบ SERIAL มี quantity=1 ทุกแถวจึงใช้ยอดนี้ได้เหมือนกัน แต่รายงานเดิมนับจาก SerialUnit อยู่แล้ว
+ */
+async function sumOutQuantity(
+  productIds: string[],
+  opts: { vendorId?: string | null; customerId?: string | null } = {}
+): Promise<Map<string, number>> {
+  if (productIds.length === 0) return new Map()
+  const grouped = await prisma.scanLog.groupBy({
+    by: ['productId'],
+    where: {
+      accepted: true,
+      type: 'OUT',
+      productId: { in: productIds },
+      ...(opts.vendorId ? { vendorId: opts.vendorId } : {}),
+      ...(opts.customerId ? { customerId: opts.customerId } : {}),
+    },
+    _sum: { quantity: true },
+  })
+  return new Map(grouped.map((g) => [g.productId!, g._sum.quantity ?? 0]))
 }
 
 export async function buildStockReport(filters: StockReportFilters = {}): Promise<{
@@ -636,7 +1062,9 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
       select: { serial: true },
       distinct: ['serial'],
     })
-    customerSerials = new Set(matched.map((l) => l.serial))
+    customerSerials = new Set(
+      matched.map((l) => l.serial).filter((s): s is string => !!s)
+    )
   }
 
   const unitWhere: Prisma.SerialUnitWhereInput = {
@@ -660,14 +1088,40 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
     },
   })
 
+  // ── ยอดเบิกออกสะสมของสินค้านับจำนวน (กรอง vendor/customer ตามตัวกรองที่เลือก) ──
+  const quantityIds = categories.flatMap((c) =>
+    c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
+  )
+  const outQty = await sumOutQuantity(quantityIds, {
+    vendorId,
+    customerId: filters.customerId,
+  })
+
   const rows: StockReportRow[] = categories.map((c) => {
     const products = c.products.map((p) => {
+      if (p.trackingType === 'QUANTITY') {
+        const out = outQty.get(p.id) ?? 0
+        // กรองตามลูกค้า = ดูว่าเคยขายอะไรให้ลูกค้ารายนี้บ้าง ยอดคงเหลือไม่เกี่ยว
+        const inStock = customerSerials ? 0 : p.stockQty
+        return {
+          productId: p.id,
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          trackingType: 'QUANTITY' as const,
+          unitLabel: p.unitLabel,
+          inStock,
+          out,
+        }
+      }
       const inStock = p.units.filter((u) => u.status === 'IN_STOCK').length
       return {
         productId: p.id,
         sku: p.sku,
         name: p.name,
         brand: p.brand,
+        trackingType: 'SERIAL' as const,
+        unitLabel: null,
         inStock,
         out: p.units.length - inStock,
       }
@@ -714,6 +1168,8 @@ export type OutReportRow = {
     sku: string
     name: string
     brand: string | null
+    trackingType: 'SERIAL' | 'QUANTITY'
+    unitLabel: string | null
     out: number
   }[]
   totalOut: number
@@ -796,7 +1252,9 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
       select: { serial: true },
       distinct: ['serial'],
     })
-    customerSerials = new Set(matched.map((l) => l.serial))
+    customerSerials = new Set(
+      matched.map((l) => l.serial).filter((s): s is string => !!s)
+    )
   }
 
   // ── ดึงเฉพาะ serial ที่เบิกออกแล้ว ──
@@ -819,16 +1277,40 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
     },
   })
 
+  // ── ยอดเบิกออกสะสมของสินค้านับจำนวน (รวม quantity) ──
+  const outQuantityIds = categories.flatMap((c) =>
+    c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
+  )
+  const outQtySums = await sumOutQuantity(outQuantityIds, {
+    vendorId,
+    customerId: filters.customerId,
+  })
+
   const rows: OutReportRow[] = categories.map((c) => {
     const products = c.products
-      .filter((p) => p.units.length > 0)
-      .map((p) => ({
-        productId: p.id,
-        sku: p.sku,
-        name: p.name,
-        brand: p.brand,
-        out: p.units.length,
-      }))
+      .map((p) => {
+        if (p.trackingType === 'QUANTITY') {
+          return {
+            productId: p.id,
+            sku: p.sku,
+            name: p.name,
+            brand: p.brand,
+            trackingType: 'QUANTITY' as const,
+            unitLabel: p.unitLabel,
+            out: outQtySums.get(p.id) ?? 0,
+          }
+        }
+        return {
+          productId: p.id,
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          trackingType: 'SERIAL' as const,
+          unitLabel: null,
+          out: p.units.length,
+        }
+      })
+      .filter((p) => p.out > 0)
     return {
       categoryId: c.id,
       categoryCode: c.code,
@@ -900,6 +1382,8 @@ export type StockReportDetailedProduct = {
   sku: string
   name: string
   brand: string | null
+  trackingType: 'SERIAL' | 'QUANTITY'
+  unitLabel: string | null
   inStock: number
   out: number
   serials: SerialWithHistory[]
@@ -1034,6 +1518,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   // จัดกลุ่ม log ตาม serial
   const logsBySerial = new Map<string, ScanLogWithRelations[]>()
   for (const log of allLogs) {
+    if (!log.serial) continue // รายการของสินค้านับจำนวนไม่มี serial
     const list = logsBySerial.get(log.serial) ?? []
     list.push(log)
     logsBySerial.set(log.serial, list)
@@ -1051,11 +1536,37 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
       },
       select: { serial: true },
     })
-    customerSerials = new Set(matched.map((l) => l.serial))
+    customerSerials = new Set(
+      matched.map((l) => l.serial).filter((s): s is string => !!s)
+    )
   }
+
+  // ── ยอดเบิกออกสะสมของสินค้านับจำนวน (สินค้าแบบนี้ไม่มี serials ให้โชว์) ──
+  const detailedQtyIds = categories.flatMap((c) =>
+    c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
+  )
+  const detailedOutQty = await sumOutQuantity(detailedQtyIds, {
+    vendorId,
+    customerId: filters.customerId,
+  })
 
   const rows: StockReportDetailedRow[] = categories.map((c) => {
     const products: StockReportDetailedProduct[] = c.products.map((p) => {
+      if (p.trackingType === 'QUANTITY') {
+        const out = detailedOutQty.get(p.id) ?? 0
+        const inStock = customerSerials ? 0 : p.stockQty
+        return {
+          productId: p.id,
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          trackingType: 'QUANTITY' as const,
+          unitLabel: p.unitLabel,
+          inStock,
+          out,
+          serials: [],
+        }
+      }
       // ถ้ามี customerId filter ให้ count เฉพาะ serial ที่เกี่ยวข้องกับลูกค้า
       const countedUnits = customerSerials
         ? p.units.filter((u) => customerSerials!.has(u.serial))
@@ -1079,6 +1590,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         sku: p.sku,
         name: p.name,
         brand: p.brand,
+        trackingType: 'SERIAL' as const,
+        unitLabel: null,
         inStock,
         out: countedUnits.length - inStock,
         serials,
@@ -1121,6 +1634,8 @@ export type OutReportDetailedProduct = {
   sku: string
   name: string
   brand: string | null
+  trackingType: 'SERIAL' | 'QUANTITY'
+  unitLabel: string | null
   out: number
   serials: SerialWithHistory[]
 }
@@ -1212,7 +1727,9 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
       select: { serial: true },
       distinct: ['serial'],
     })
-    customerSerials = new Set(matched.map((l) => l.serial))
+    customerSerials = new Set(
+      matched.map((l) => l.serial).filter((s): s is string => !!s)
+    )
   }
 
   // ── ดึงเฉพาะ serial ที่เบิกออกแล้ว ──
@@ -1263,31 +1780,57 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
 
   const logsBySerial = new Map<string, ScanLogWithRelations[]>()
   for (const log of allLogs) {
+    if (!log.serial) continue // รายการของสินค้านับจำนวนไม่มี serial
     const list = logsBySerial.get(log.serial) ?? []
     list.push(log)
     logsBySerial.set(log.serial, list)
   }
 
+  // ── ยอดเบิกออกสะสมของสินค้านับจำนวน (รวม quantity) ──
+  const outDetailedQtyIds = categories.flatMap((c) =>
+    c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
+  )
+  const outDetailedQtySums = await sumOutQuantity(outDetailedQtyIds, {
+    vendorId,
+    customerId: filters.customerId,
+  })
+
   const rows: OutReportDetailedRow[] = categories
     .filter((c) => c.products.length > 0)
     .map((c) => {
       const products: OutReportDetailedProduct[] = c.products
-        .filter((p) => p.units.length > 0)
-        .map((p) => ({
-          productId: p.id,
-          sku: p.sku,
-          name: p.name,
-          brand: p.brand,
-          out: p.units.length,
-          serials: p.units.map((u) => ({
-            serial: u.serial,
-            status: u.status,
-            receivedAt: u.receivedAt?.toISOString() ?? null,
-            releasedAt: u.releasedAt?.toISOString() ?? null,
-            vendorName: u.vendor?.name ?? null,
-        history: (logsBySerial.get(u.serial) ?? []).map(toHistoryEntry),
-      })),
-    }))
+        .map((p) => {
+          if (p.trackingType === 'QUANTITY') {
+            return {
+              productId: p.id,
+              sku: p.sku,
+              name: p.name,
+              brand: p.brand,
+              trackingType: 'QUANTITY' as const,
+              unitLabel: p.unitLabel,
+              out: outDetailedQtySums.get(p.id) ?? 0,
+              serials: [],
+            }
+          }
+          return {
+            productId: p.id,
+            sku: p.sku,
+            name: p.name,
+            brand: p.brand,
+            trackingType: 'SERIAL' as const,
+            unitLabel: null,
+            out: p.units.length,
+            serials: p.units.map((u) => ({
+              serial: u.serial,
+              status: u.status,
+              receivedAt: u.receivedAt?.toISOString() ?? null,
+              releasedAt: u.releasedAt?.toISOString() ?? null,
+              vendorName: u.vendor?.name ?? null,
+              history: (logsBySerial.get(u.serial) ?? []).map(toHistoryEntry),
+            })),
+          }
+        })
+        .filter((p) => p.out > 0)
     return {
       categoryId: c.id,
       categoryCode: c.code,
@@ -1469,7 +2012,7 @@ export type ScanLogFilters = {
 }
 
 export type ScanLogPage = {
-  rows: (SerialHistoryEntry & { serial: string })[]
+  rows: (SerialHistoryEntry & { serial: string | null; quantity: number })[]
   total: number
   page: number
   pageSize: number
@@ -1516,7 +2059,7 @@ export async function listScanLogs(filters: ScanLogFilters = {}): Promise<ScanLo
   })
 
   return {
-    rows: logs.map((l) => ({ ...toHistoryEntry(l), serial: l.serial })),
+    rows: logs.map((l) => ({ ...toHistoryEntry(l), serial: l.serial, quantity: l.quantity })),
     total,
     page,
     pageSize: SCAN_LOG_PAGE_SIZE,
@@ -1573,7 +2116,7 @@ export async function buildMovementReport(
       ...(input.vendorId ? { vendorId: input.vendorId } : {}),
       ...(product ? { product } : {}),
     },
-    _count: { _all: true },
+    _sum: { quantity: true },
   })
 
   const productIds = [...new Set(grouped.map((g) => g.productId!))]
@@ -1591,8 +2134,8 @@ export async function buildMovementReport(
         name: p.name,
         brand: p.brand,
         categoryName: p.category.name,
-        inCount: forProduct.find((g) => g.type === 'IN')?._count._all ?? 0,
-        outCount: forProduct.find((g) => g.type === 'OUT')?._count._all ?? 0,
+        inCount: forProduct.find((g) => g.type === 'IN')?._sum.quantity ?? 0,
+        outCount: forProduct.find((g) => g.type === 'OUT')?._sum.quantity ?? 0,
       }
     })
     .sort(
@@ -1614,7 +2157,9 @@ export async function buildMovementReport(
 export type MovementDetailRow = {
   id: string
   at: string
-  serial: string
+  /** serial ที่ยิง - รายการของสินค้านับจำนวนไม่มี serial (null) ให้ดู quantity แทน */
+  serial: string | null
+  quantity: number
   type: 'IN' | 'OUT' | 'AUDIT'
   result: string
   message: string | null
@@ -1665,6 +2210,7 @@ export async function buildMovementDetail(
     id: l.id,
     at: l.createdAt.toISOString(),
     serial: l.serial,
+    quantity: l.quantity,
     type: l.type as 'IN' | 'OUT' | 'AUDIT',
     result: l.result,
     message: l.message,
@@ -1678,8 +2224,8 @@ export async function buildMovementDetail(
     customerName: l.customer ? `${l.customer.code} · ${l.customer.name}` : null,
   }))
 
-  const totalIn = rows.filter((r) => r.type === 'IN').length
-  const totalOut = rows.filter((r) => r.type === 'OUT').length
+  const totalIn = rows.filter((r) => r.type === 'IN').reduce((sum, r) => sum + r.quantity, 0)
+  const totalOut = rows.filter((r) => r.type === 'OUT').reduce((sum, r) => sum + r.quantity, 0)
 
   return {
     from: input.from.toISOString(),
