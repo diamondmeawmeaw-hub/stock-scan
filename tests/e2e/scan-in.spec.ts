@@ -186,4 +186,33 @@ test.describe('รับเข้าสต็อก (scan-in)', () => {
     await selectProduct(page, 'IT-MON')
     await expect(page.getByText('ตอนนี้ในคลังมี 3 ชิ้น')).toBeVisible()
   })
+
+  test('มีของค้างแล้วสลับข้ามชนิดสินค้า -> โดนบล็อก ของในคิวไม่หาย', async ({
+    data,
+    page,
+  }) => {
+    await prisma.product.create({
+      data: {
+        sku: 'RK-U1-001',
+        name: 'ตู้แร็ค U1',
+        categoryId: data.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+      },
+    })
+    await page.reload()
+
+    await selectProduct(page, 'IT-NB')
+    await scanBurst(page, ['NB-6001', 'NB-6002'])
+    await expect(scanFeedRows(page)).toHaveCount(2)
+
+    // สำคัญ: ต้องกดยอมรับ dialog เอง ไม่งั้น Playwright ปัดตกแล้วสวิตช์ไม่เกิด เทสจะผ่านหลอก
+    page.once('dialog', (d) => void d.accept())
+    await selectProduct(page, 'RK-U1')
+
+    // โดนบล็อก: คิว 2 ชิ้นยังอยู่ครบ แถบเหลืองยังโชว์ ไม่หลุดไปฟอร์มกรอกจำนวน
+    await expect(scanFeedRows(page)).toHaveCount(2)
+    await expect(page.getByTestId('pending-notice')).toBeVisible()
+    await expect(page.getByTestId('quantity-in-form')).toHaveCount(0)
+  })
 })

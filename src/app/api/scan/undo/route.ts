@@ -24,8 +24,24 @@ export async function POST(request: Request) {
     if (!log.unitId) {
       throw new HttpError(400, 'รายการนับจำนวนยกเลิกไม่ได้ - ให้เบิกออกเพื่อปรับยอดแทน')
     }
+    // รองรับแค่ 2 แบบที่ย้อนกลับได้อย่างปลอดภัย - ชนิดอื่นตอบ error ชัดเจน
+    // (เดิมตกทะลุไปตอบ success ทั้งที่ไม่ได้ทำอะไร)
+    if (log.result !== 'CREATED' && log.result !== 'RETURNED') {
+      throw new HttpError(400, 'รายการนี้ยกเลิกไม่ได้ - ยกเลิกได้เฉพาะรับเข้าใหม่หรือรับคืนเท่านั้น')
+    }
 
     await prisma.$transaction(async (tx) => {
+      // อ่านสถานะล่าสุดใน transaction - กันเคสของเปลี่ยนมือไปแล้ว
+      // (เช่น รับเข้า -> เบิกออกไปขาย -> มากดลบแถวรับเข้า จะลบของที่ขายไปแล้วทิ้ง)
+      const unit = await tx.serialUnit.findUnique({ where: { id: log.unitId! } })
+      if (!unit) throw new HttpError(404, 'ไม่พบของชิ้นนี้ในระบบแล้ว')
+      if (unit.status !== 'IN_STOCK') {
+        throw new HttpError(
+          409,
+          'ของชิ้นนี้เปลี่ยนสถานะไปแล้ว (อาจถูกเบิกออก) รีเฟรชดูก่อนแล้วทำรายการใหม่'
+        )
+      }
+
       if (log.result === 'CREATED' && log.unitId) {
         // สร้าง log ยกเลิกก่อนลบ unit เพื่อไม่ให้ foreign key error
         await tx.scanLog.create({
@@ -46,6 +62,12 @@ export async function POST(request: Request) {
         await tx.serialUnit.update({
           where: { id: log.unitId },
           data: { status: 'OUT', receivedAt: null, releasedAt: new Date(), lastScanAt: new Date() },
+        })
+
+        // ปลดสายโยงคืนของ - ไม่งั้นรายการเบิกเดิมถูกตราว่าคืนไปแล้วถาวร ทั้งที่เพิ่งยกเลิกการคืน
+        await tx.scanLog.update({
+          where: { id: log.id },
+          data: { reversesId: null },
         })
 
         await tx.scanLog.create({

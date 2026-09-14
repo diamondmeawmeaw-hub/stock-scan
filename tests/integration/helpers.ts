@@ -9,9 +9,10 @@ import { POST as loginRoute } from '@/app/api/auth/login/route'
 export { prisma }
 
 // route handler ของ Next ประกาศ params เจาะจง (เช่น Promise<{ id: string }>)
-// ฝั่งเทสส่ง params เป็น Record ทั่วไป จึงต้องรับแบบกว้างไว้
-type RouteContext = { params: Promise<any> }
-type Handler = (request: Request, context: RouteContext) => Promise<Response>
+// ฝั่งเทสส่ง params เป็น Record ทั่วไป จึงรับ context แบบกว้างไว้ (any เฉพาะจุดนี้จุดเดียว)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TestRouteContext = { params: Promise<any> }
+export type Handler = (request: Request, context: TestRouteContext) => Promise<Response>
 
 export type JsonResponse<T = any> = { status: number; body: T }
 

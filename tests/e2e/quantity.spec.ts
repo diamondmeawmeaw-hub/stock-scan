@@ -13,7 +13,7 @@ test.describe('สินค้านับจำนวน (quantity)', () => {
     await page.locator('#sku').fill('RK-E2E-9U')
     await page.locator('#name').fill('ตู้แร็ค E2E')
     await page.locator('#tracking').selectOption('QUANTITY')
-    await page.locator('#unit').fill('ตู้')
+    await page.getByTestId('unit-select').selectOption('ตู้')
     await page.getByRole('button', { name: 'เพิ่ม' }).click()
     await expect(page.getByText('RK-E2E-9U')).toBeVisible()
 

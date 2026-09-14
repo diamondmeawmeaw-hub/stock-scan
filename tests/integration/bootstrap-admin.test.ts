@@ -14,20 +14,26 @@ const execFileAsync = promisify(execFile)
 const SCRIPT = path.resolve(process.cwd(), 'prisma/bootstrap-admin.ts')
 
 async function runBootstrap(env: Record<string, string | undefined>) {
+  // 1) Node แปลง env ที่เป็น undefined เป็นสตริง "undefined" (9 ตัวอักษร ผ่านเช็คความยาว!)
+  //    จึงต้องลบ key ทิ้งจริงๆ ไม่ใช่ตั้งเป็น undefined
+  // 2) tsx โหลด .env เองใน child process (dotenv ไม่ override ค่าที่มีอยู่แล้ว)
+  //    เลยต้องเซ็ต ADMIN_PASSWORD เป็นสตริงว่างเมื่อต้องการจำลอง "ไม่ตั้งค่า"
+  //    (ลบ key อย่างเดียวไม่พอ เพราะ .env มี ADMIN_PASSWORD อยู่)
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    DATABASE_URL: process.env.DATABASE_URL,
+  }
+  for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'ADMIN_DISPLAY_NAME'] as const) {
+    if (env[key] === undefined) {
+      if (key === 'ADMIN_PASSWORD') childEnv[key] = ''
+      else delete childEnv[key]
+    } else childEnv[key] = env[key]
+  }
   try {
     const { stdout } = await execFileAsync(
       process.execPath,
       [path.resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs'), SCRIPT],
-      {
-        env: {
-          ...process.env,
-          DATABASE_URL: process.env.DATABASE_URL,
-          ADMIN_USERNAME: undefined,
-          ADMIN_PASSWORD: undefined,
-          ADMIN_DISPLAY_NAME: undefined,
-          ...env,
-        } as NodeJS.ProcessEnv,
-      }
+      { env: childEnv }
     )
     return { code: 0, output: stdout }
   } catch (err: any) {

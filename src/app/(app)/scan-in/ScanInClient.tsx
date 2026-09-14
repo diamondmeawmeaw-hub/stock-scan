@@ -141,6 +141,19 @@ export function ScanInClient({
 
   // เปลี่ยนสินค้าทั้งที่มีของค้าง = ของใหม่จะไปอีกสินค้า ถามก่อนกันเผลอ
   function handleProductChange(next: string) {
+    if (next === productId) return
+    const nextProduct = products.find((p) => p.id === next) ?? null
+    // สลับข้ามชนิด (รายชิ้น <-> นับจำนวน) จะถอด ScanConsole ทิ้ง ของที่ยิงค้างไว้หายหมด
+    // แถมแถบเหลืองกับ beforeunload จะค้างหลอก - บล็อกไว้ก่อน ให้ยืนยัน/ลบของค้างให้เสร็จก่อน
+    if (
+      pendingInfo.count > 0 &&
+      (selected?.trackingType ?? 'SERIAL') !== (nextProduct?.trackingType ?? 'SERIAL')
+    ) {
+      window.alert(
+        `ยังมี ${pendingInfo.count} รายการรอ confirm อยู่ - กดยืนยันบันทึกหรือลบออกก่อน แล้วค่อยเปลี่ยนชนิดสินค้า (ไม่งั้นของที่ยิงค้างไว้จะหาย)`
+      )
+      return
+    }
     if (
       next !== productId &&
       pendingInfo.count > 0 &&

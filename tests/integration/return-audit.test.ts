@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { POST as returnRoute } from '@/app/api/scan/return/route'
+import { POST as scanInRoute } from '@/app/api/scan/in/route'
 import { POST as scanOutRoute } from '@/app/api/scan/out/route'
+import { POST as undoRoute } from '@/app/api/scan/undo/route'
 import { POST as qtyOutRoute } from '@/app/api/quantity/out/route'
 import { DELETE as deleteAuditRoute } from '@/app/api/audit/sessions/[id]/route'
 import type { ScanOutcome } from '@/lib/scan-service'
@@ -138,6 +140,74 @@ describe('POST /api/scan/return (คืนของที่เบิกผิ�
   async function stockOf() {
     return (await prisma.product.findUniqueOrThrow({ where: { id: rackId } })).stockQty
   }
+})
+
+describe('POST /api/scan/undo (กันลบผิดตัว)', () => {
+  beforeEach(async () => {
+    fx = await seedFixtures()
+    await giveStock(fx.products.notebook.id, ['NB0001', 'NB0002'])
+  })
+
+  async function scanOutNotebook(serial: string) {
+    const res = await postJson<ScanOutcome>(scanOutRoute, { serial, reason: 'SALE' })
+    expect(res.status).toBe(200)
+    return res.body.scanLogId!
+  }
+
+  it('รับเข้า -> เบิกออกไปแล้ว -> มากดลบแถวรับเข้า = 409 ของไม่หาย', async () => {
+    const inRes = await postJson<ScanOutcome>(scanInRoute, {
+      serial: 'NB0099',
+      productId: fx.products.notebook.id,
+    })
+    expect(inRes.status).toBe(200)
+
+    // ของเปลี่ยนมือไปแล้ว (เบิกออกขาย)
+    expect(
+      (await postJson(scanOutRoute, { serial: 'NB0099', reason: 'SALE' })).status
+    ).toBe(200)
+
+    // มากดลบแถวรับเข้าทีหลังต้องโดนบล็อก ไม่ใช่ลบ unit ทิ้ง
+    const undoRes = await postJson(undoRoute, { scanLogId: inRes.body.scanLogId })
+    expect(undoRes.status).toBe(409)
+    expect((await prisma.serialUnit.findUnique({ where: { serial: 'NB0099' } }))?.status).toBe(
+      'OUT'
+    )
+  })
+
+  it('ยกเลิกการคืนของ -> สายโยงหลุด เบิกรายการเดิมคืนได้อีกรอบ', async () => {
+    const outLogId = await scanOutNotebook('NB0001')
+    const retRes = await postJson<ScanOutcome>(returnRoute, { scanLogId: outLogId })
+    expect(retRes.status).toBe(200)
+
+    // เปลี่ยนใจยกเลิกการคืน: ของกลับเป็น OUT และรายการเบิกเดิมต้องคืนได้อีก
+    const undoRes = await postJson(undoRoute, { scanLogId: retRes.body.scanLogId })
+    expect(undoRes.status).toBe(200)
+    expect((await prisma.serialUnit.findUnique({ where: { serial: 'NB0001' } }))?.status).toBe(
+      'OUT'
+    )
+
+    const retAgain = await postJson(returnRoute, { scanLogId: outLogId })
+    expect(retAgain.status).toBe(200)
+    expect((await prisma.serialUnit.findUnique({ where: { serial: 'NB0001' } }))?.status).toBe(
+      'IN_STOCK'
+    )
+  })
+
+  it('รายการที่ยกเลิกไม่ได้ (ไม่ใช่รับเข้าใหม่/รับคืน) -> 400 ไม่ใช่ success ปลอม', async () => {
+    const fakeLog = await prisma.scanLog.create({
+      data: {
+        serial: 'NB0001',
+        type: 'IN',
+        result: 'OK',
+        accepted: true,
+        userId: fx.user.id,
+        productId: fx.products.notebook.id,
+        unitId: (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0001' } })).id,
+      },
+    })
+    const res = await postJson(undoRoute, { scanLogId: fakeLog.id })
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('DELETE /api/audit/sessions/[id] (ลบรอบที่เปิดผิด)', () => {
