@@ -3,11 +3,26 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 
+/** จำแค่ชื่อผู้ใช้ในเครื่องนี้ - ไม่เก็บรหัส ปลอดภัยเท่าเดิม */
+const REMEMBER_KEY = 'stock-scan-username'
+
+function rememberedUsername(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(REMEMBER_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(rememberedUsername)
   const [password, setPassword] = useState('')
+  // จำแค่ชื่อผู้ใช้ในเครื่องนี้ (ไม่เก็บรหัส) - เปิดไว้เป็นค่าเริ่มต้น
+  const [remember, setRemember] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -25,6 +40,15 @@ function LoginForm() {
       if (!res.ok) {
         setError(data.error ?? 'เข้าสู่ระบบไม่สำเร็จ')
         return
+      }
+      try {
+        if (remember && username.trim()) {
+          window.localStorage.setItem(REMEMBER_KEY, username.trim())
+        } else {
+          window.localStorage.removeItem(REMEMBER_KEY)
+        }
+      } catch {
+        /* จำไม่ได้ก็ช่าง เข้าระบบได้ก็พอ */
       }
       router.replace(params.get('next') || '/')
       router.refresh()
@@ -59,16 +83,37 @@ function LoginForm() {
           <label className="label" htmlFor="password">
             รหัสผ่าน
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            className="field"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="relative">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              className="field pr-12"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              aria-pressed={showPassword}
+              data-testid="toggle-password"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute top-1/2 right-2 -translate-y-1/2 rounded px-1.5 py-0.5 text-sm text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              {showPassword ? 'ซ่อน' : 'แสดง'}
+            </button>
+          </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            data-testid="remember-username"
+          />
+          จำชื่อผู้ใช้ในเครื่องนี้
+        </label>
       </div>
 
       {error && (

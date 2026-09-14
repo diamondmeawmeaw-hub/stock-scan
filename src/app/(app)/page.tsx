@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const [serialInStock, serialOut, qtyInStock, qtyOut, productCount, categoryCount, openSession, recentScans] = await Promise.all([
+  const [serialInStock, serialOut, qtyInStock, qtyOut, qtyReturned, productCount, categoryCount, openSession, recentScans] = await Promise.all([
     prisma.serialUnit.count({ where: { status: 'IN_STOCK' } }),
     prisma.serialUnit.count({ where: { status: 'OUT' } }),
     prisma.product.aggregate({
@@ -20,6 +20,17 @@ export default async function HomePage() {
       },
       _sum: { quantity: true },
     }),
+    // ยอดคืนของที่เบิกผิด (ของนับจำนวน) - เอาไปหักออกจากยอดเบิก ไม่งั้นกดคืนแล้วตัวเลขค้าง
+    prisma.scanLog.groupBy({
+      by: ['type'],
+      where: {
+        accepted: true,
+        type: 'IN',
+        result: 'RETURNED',
+        product: { trackingType: 'QUANTITY' },
+      },
+      _sum: { quantity: true },
+    }),
     prisma.product.count(),
     prisma.category.count(),
     prisma.auditSession.findFirst({ where: { status: 'OPEN' }, include: { category: true } }),
@@ -30,7 +41,9 @@ export default async function HomePage() {
     }),
   ])
   const inStock = serialInStock + (qtyInStock._sum.stockQty ?? 0)
-  const out = serialOut + (qtyOut.find((g) => g.type === 'OUT')?._sum.quantity ?? 0)
+  const qtyOutSum = qtyOut.find((g) => g.type === 'OUT')?._sum.quantity ?? 0
+  const qtyReturnedSum = qtyReturned.find((g) => g.type === 'IN')?._sum.quantity ?? 0
+  const out = serialOut + Math.max(0, qtyOutSum - qtyReturnedSum)
 
   const now = new Date()
   const todayText = now.toLocaleDateString('th-TH', {
@@ -89,6 +102,41 @@ export default async function HomePage() {
             >
               ไปที่รอบตรวจนับ
             </Link>
+          </div>
+        )}
+
+        {productCount === 0 && (
+          <div
+            className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm"
+            data-testid="onboarding-guide"
+          >
+            <h2 className="font-semibold text-slate-900">เริ่มต้นใช้งาน 3 ขั้น</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              คลังยังว่างอยู่ ทำตามนี้แล้วเริ่มยิงสแกนได้เลย (กล่องนี้จะหายไปเองเมื่อมีสินค้า)
+            </p>
+            <ol className="mt-3 space-y-2">
+              <OnboardingStep
+                n="1"
+                title="เพิ่มประเภทของ"
+                desc="เช่น อุปกรณ์เน็ตเวิร์ค กล้อง สายแลน"
+                href="/categories"
+                done={categoryCount > 0}
+              />
+              <OnboardingStep
+                n="2"
+                title="เพิ่มสินค้า"
+                desc="กรอก SKU / ชื่อ / แบรนด์ แล้วเลือกวิธีนับ (รายชิ้นหรือจำนวน)"
+                href="/products"
+                done={false}
+              />
+              <OnboardingStep
+                n="3"
+                title="รับเข้าสต็อก"
+                desc="เลือกสินค้าแล้วยิงบาร์โค้ดได้เลย"
+                href="/scan-in"
+                done={false}
+              />
+            </ol>
           </div>
         )}
 
@@ -183,6 +231,42 @@ function TypeBadge({ type }: { type: keyof typeof TYPE_LABELS }) {
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[type]}`}>
       {TYPE_LABELS[type]}
     </span>
+  )
+}
+
+function OnboardingStep({
+  n,
+  title,
+  desc,
+  href,
+  done,
+}: {
+  n: string
+  title: string
+  desc: string
+  href: string
+  done: boolean
+}) {
+  return (
+    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+          done ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'
+        }`}
+      >
+        {done ? '✓' : n}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-slate-900">{title}</span>
+        <span className="block truncate text-xs text-slate-500">{desc}</span>
+      </span>
+      <Link
+        href={href}
+        className="shrink-0 rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-sky-700"
+      >
+        ไปทำ
+      </Link>
+    </li>
   )
 }
 

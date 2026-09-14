@@ -9,6 +9,7 @@ import {
 } from '@/lib/scan-service'
 import { dayRange } from '@/lib/date-range'
 import { OUT_REASON_LABELS } from '@/lib/scan-rules'
+import { ReturnButton } from '@/components/ReturnButton'
 import { SerialSearchForm } from './SerialSearchForm'
 import { ScanLogFilters } from './ScanLogFilters'
 
@@ -146,6 +147,22 @@ function SerialResult({
           </div>
         </div>
 
+        {/* ของนับจำนวน (ตู้แร็ค/สายแลน/รางไฟ) ไม่มี serial รายชิ้น ค้นตรงนี้ยังไงก็ไม่เจอ */}
+        <div
+          className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm"
+          data-testid="quantity-hint"
+        >
+          <p className="text-sm text-sky-900">
+            หาของนับจำนวนอยู่หรือเปล่า? ของแบบตู้แร็ค/สายแลนค้นด้วย serial ไม่เจอ
+          </p>
+          <Link
+            href={`/reports?q=${encodeURIComponent(detail.serial)}`}
+            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
+          >
+            ไปดูรายงานคงเหลือ
+          </Link>
+        </div>
+
         {suggestions.length > 0 && (
           <div
             className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm"
@@ -267,6 +284,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                 <th className="px-4 py-2 font-medium">ลูกค้า</th>
                 <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
                 <th className="px-4 py-2 font-medium">ผู้สแกน</th>
+                <th className="px-4 py-2 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -298,6 +316,14 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                       .join(' · ') || '-'}
                   </td>
                   <td className="px-4 py-2 text-slate-600">{h.userName}</td>
+                  <td className="px-4 py-2 text-right">
+                    {h.type === 'OUT' && h.accepted && h.result === 'OK' && !h.reversed && (
+                      <ReturnButton scanLogId={h.id} />
+                    )}
+                    {h.reversed && (
+                      <span className="text-xs text-slate-400">คืนแล้ว</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -356,6 +382,7 @@ function ScanLogSection({
                 <th className="px-4 py-2 font-medium">ผล</th>
                 <th className="px-4 py-2 font-medium">เหตุผล / หมายเหตุ</th>
                 <th className="px-4 py-2 font-medium">ผู้สแกน</th>
+                <th className="px-4 py-2 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -407,6 +434,14 @@ function ScanLogSection({
                       .join(' · ') || '-'}
                   </td>
                   <td className="px-4 py-2 text-slate-600">{row.userName}</td>
+                  <td className="px-4 py-2 text-right">
+                    {row.type === 'OUT' && row.accepted && row.result === 'OK' && !row.reversed && (
+                      <ReturnButton scanLogId={row.id} />
+                    )}
+                    {row.reversed && (
+                      <span className="text-xs text-slate-400">คืนแล้ว</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

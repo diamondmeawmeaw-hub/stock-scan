@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type ScanOutcomeLike } from '@/components/ScanConsole'
+import { ProductPicker } from '@/components/ProductPicker'
 import { OUT_REASONS, api } from '@/lib/client'
 
 type CustomerOption = { id: string; code: string; name: string }
@@ -34,16 +35,6 @@ export function ScanOutClient({
   const [qty, setQty] = useState('')
   const [qtyBusy, setQtyBusy] = useState(false)
   const [qtyMessage, setQtyMessage] = useState<{ ok: boolean; text: string } | null>(null)
-
-  const groupedQty = useMemo(() => {
-    const map = new Map<string, QuantityProductOption[]>()
-    for (const p of quantityProducts) {
-      const list = map.get(p.categoryName) ?? []
-      list.push(p)
-      map.set(p.categoryName, list)
-    }
-    return [...map.entries()]
-  }, [quantityProducts])
 
   const selectedQty = quantityProducts.find((p) => p.id === qtyProductId) ?? null
   const maxQty = selectedQty?.inStock ?? 0
@@ -178,31 +169,26 @@ export function ScanOutClient({
       ) : (
         <form onSubmit={submitQuantity} className="card space-y-3 p-4" data-testid="quantity-out-form">
           <div>
-            <label className="label" htmlFor="qty-product">
+            <label className="label" htmlFor="quantity-product-select">
               สินค้าที่จะเบิกออก
             </label>
-            <select
-              id="qty-product"
-              data-testid="quantity-product-select"
-              className="field"
+            <ProductPicker
+              testid="quantity-product-select"
+              options={quantityProducts.map((p) => ({
+                id: p.id,
+                sku: p.sku,
+                name: p.name,
+                categoryName: p.categoryName,
+                stockText: `เหลือ ${p.inStock} ${p.unitLabel ?? 'ชิ้น'}`,
+                disabled: p.inStock <= 0,
+                disabledHint: '— หมด',
+              }))}
               value={qtyProductId}
-              onChange={(e) => {
-                setQtyProductId(e.target.value)
+              onChange={(id) => {
+                setQtyProductId(id)
                 setQtyMessage(null)
               }}
-            >
-              <option value="">— เลือกสินค้า —</option>
-              {groupedQty.map(([categoryName, list]) => (
-                <optgroup key={categoryName} label={categoryName}>
-                  {list.map((p) => (
-                    <option key={p.id} value={p.id} disabled={p.inStock <= 0}>
-                      {p.sku} · {p.name} (เหลือ {p.inStock} {p.unitLabel ?? 'ชิ้น'})
-                      {p.inStock <= 0 ? ' — หมด' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            />
             {quantityProducts.length === 0 && (
               <p className="mt-1 text-xs text-slate-500">
                 ยังไม่มีสินค้าแบบนับจำนวน — สร้างได้ที่หน้าสินค้า

@@ -227,6 +227,32 @@ export async function scanOut(input: {
     const decision = decideScanOut(toSnapshot(unit))
     const now = new Date()
 
+    // เบิกซ้ำ -> บอกไปด้วยว่าเบิกไปเมื่อไหร่ ให้ใคร จะได้ตามของถูก
+    let message = decision.message
+    if (decision.result === 'ALREADY_OUT') {
+      const lastOut = await tx.scanLog.findFirst({
+        where: { serial, type: 'OUT', accepted: true, result: 'OK' },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { displayName: true } },
+          customer: { select: { code: true, name: true } },
+        },
+      })
+      if (lastOut) {
+        const when = lastOut.createdAt.toLocaleString('th-TH', {
+          timeZone: 'Asia/Bangkok',
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        const who = lastOut.customer
+          ? `${lastOut.customer.code} · ${lastOut.customer.name}`
+          : lastOut.user.displayName
+        message = `ของชิ้นนี้ถูกเบิกออกไปแล้ว (เบิกไปเมื่อ ${when} ให้ ${who})`
+      }
+    }
+
     if (decision.accepted && unit) {
       await tx.serialUnit.update({
         where: { id: unit.id },
@@ -240,7 +266,7 @@ export async function scanOut(input: {
         type: 'OUT',
         result: decision.result,
         accepted: decision.accepted,
-        message: decision.message,
+        message,
         reason: input.reason,
         note: input.note ?? null,
         userId: input.userId,
@@ -253,7 +279,7 @@ export async function scanOut(input: {
     return {
       accepted: decision.accepted,
       result: decision.result,
-      message: decision.message,
+      message,
       serial,
       product: unit
         ? {
@@ -505,6 +531,144 @@ export async function listQuantityProducts(): Promise<
   }))
 }
 
+// ────────────────────────────── คืนของที่เบิกผิด ──────────────────────────────
+
+/**
+ * คืนของที่เบิกออกไปแล้วกลับเข้าคลัง (ยิงเบิกผิดตัว เบิกเกิน ฯลฯ)
+ *
+ * ผูก log คืนกับ log เบิกเดิม (reversesId) - 1 รายการเบิกคืนได้ครั้งเดียว กันกดคืนซ้ำ
+ * ต่างจากการยิงรับเข้าคืนเองตรงที่ประวัติโยงกัน ดูย้อนได้ว่า "ออกผิดแล้วคืน"
+ */
+export async function returnOut(input: {
+  scanLogId: string
+  userId: string
+  note?: string | null
+}): Promise<ScanOutcome> {
+  const original = await prisma.scanLog.findUnique({
+    where: { id: input.scanLogId },
+    include: {
+      product: { include: { category: true } },
+      reversedBy: { select: { id: true } },
+    },
+  })
+  if (!original) throw new HttpError(404, 'ไม่พบบันทึกการเบิกนี้')
+  if (original.type !== 'OUT' || !original.accepted || original.result !== 'OK') {
+    throw new HttpError(400, 'คืนได้เฉพาะรายการเบิกออกที่สำเร็จเท่านั้น')
+  }
+  if (original.reversedBy) throw new HttpError(409, 'รายการนี้ถูกคืนเข้าคลังไปแล้ว')
+  if (!original.product) throw new HttpError(400, 'รายการนี้ไม่ผูกกับสินค้า คืนไม่ได้')
+
+  const product = original.product
+  const qty = original.quantity
+  const now = new Date()
+
+  // กันกดคืนพร้อมกันสองเครื่อง - เช็กซ้ำใน transaction ว่ารอยคืนนี้ยังว่างอยู่
+  async function assertNotReturned(tx: Prisma.TransactionClient): Promise<void> {
+    const dup = await tx.scanLog.findUnique({
+      where: { reversesId: original!.id },
+      select: { id: true },
+    })
+    if (dup) throw new HttpError(409, 'รายการนี้ถูกคืนเข้าคลังไปแล้ว')
+  }
+
+  if (product.trackingType === 'QUANTITY') {
+    const outcome = await prisma.$transaction(async (tx) => {
+      await lockProduct(tx, product.id)
+      await assertNotReturned(tx)
+      const updated = await tx.product.update({
+        where: { id: product.id },
+        data: { stockQty: { increment: qty } },
+        select: { stockQty: true },
+      })
+      const log = await tx.scanLog.create({
+        data: {
+          serial: null,
+          quantity: qty,
+          type: 'IN',
+          result: 'RETURNED',
+          accepted: true,
+          message: `คืนของที่เบิกผิด ${qty} ${product.unitLabel ?? 'ชิ้น'}`,
+          note: input.note ?? null,
+          userId: input.userId,
+          productId: product.id,
+          unitId: null,
+          reversesId: original.id,
+        },
+      })
+      return { productInStock: updated.stockQty, scanLogId: log.id }
+    })
+    return {
+      accepted: true,
+      result: 'RETURNED',
+      message: `คืน ${product.name} ${qty} ${product.unitLabel ?? 'ชิ้น'} เข้าคลังแล้ว (คงเหลือ ${outcome.productInStock})`,
+      serial: product.sku,
+      quantity: qty,
+      product: {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        categoryName: product.category.name,
+        trackingType: 'QUANTITY',
+        unitLabel: product.unitLabel,
+      },
+      unitId: null,
+      scanLogId: outcome.scanLogId,
+      productInStock: outcome.productInStock,
+    }
+  }
+
+  // ── สินค้ารายชิ้น ──
+  const serial = original.serial
+  if (!original.unitId || !serial) {
+    throw new HttpError(400, 'รายการนี้ไม่มี serial ผูกอยู่ คืนไม่ได้')
+  }
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockSerial(tx, serial)
+    await assertNotReturned(tx)
+    const unit = await tx.serialUnit.findUnique({ where: { id: original.unitId! } })
+    if (!unit) throw new HttpError(404, 'ไม่พบของชิ้นนี้ในระบบแล้ว')
+    if (unit.status !== 'OUT') throw new HttpError(409, 'ของชิ้นนี้กลับเข้าคลังไปแล้ว')
+    await tx.serialUnit.update({
+      where: { id: unit.id },
+      data: { status: 'IN_STOCK', receivedAt: now, releasedAt: null, lastScanAt: now },
+    })
+    const log = await tx.scanLog.create({
+      data: {
+        serial,
+        quantity: 1,
+        type: 'IN',
+        result: 'RETURNED',
+        accepted: true,
+        message: 'คืนของที่เบิกผิดกลับเข้าคลัง',
+        note: input.note ?? null,
+        userId: input.userId,
+        productId: unit.productId,
+        unitId: unit.id,
+        reversesId: original.id,
+      },
+    })
+    return { scanLogId: log.id }
+  })
+
+  return withStockCount({
+    accepted: true,
+    result: 'RETURNED',
+    message: `คืน ${product.name} (${serial}) กลับเข้าคลังแล้ว`,
+    serial,
+    quantity: 1,
+    product: {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      categoryName: product.category.name,
+      trackingType: 'SERIAL',
+      unitLabel: product.unitLabel,
+    },
+    unitId: original.unitId,
+    scanLogId: outcome.scanLogId,
+  })
+}
+
 // ────────────────────────────── ตรวจนับสต็อก ──────────────────────────────
 
 export async function openAuditSession(input: {
@@ -671,6 +835,22 @@ export async function auditQuantityCount(input: {
     counted: countedQty,
     countedAt: at.toISOString(),
   }
+}
+
+/**
+ * ลบรอบตรวจนับที่เปิดผิด - ได้เฉพาะรอบที่ยังว่าง (ยังไม่ยิง/กรอกอะไรเลย)
+ * รอบที่มี log แล้วลบไม่ได้ กันลบหลักฐาน ให้ปิดรอบแทน
+ */
+export async function deleteAuditSession(input: { sessionId: string }): Promise<{ ok: true }> {
+  const session = await prisma.auditSession.findUnique({ where: { id: input.sessionId } })
+  if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+  if (session.status !== 'OPEN') throw new HttpError(409, 'ลบได้เฉพาะรอบที่ยังเปิดอยู่')
+  const scanCount = await prisma.scanLog.count({ where: { auditSessionId: input.sessionId } })
+  if (scanCount > 0) {
+    throw new HttpError(409, 'รอบนี้เริ่มนับไปแล้ว ลบไม่ได้ - ให้ปิดรอบแทน')
+  }
+  await prisma.auditSession.delete({ where: { id: input.sessionId } })
+  return { ok: true }
 }
 
 export type AuditUnitRow = {
@@ -964,24 +1144,38 @@ function productFilter(filters: StockReportFilters): Prisma.ProductWhereInput | 
 /**
  * ยอดเบิกออกสะสมของสินค้านับจำนวน (รวม quantity ไม่ได้นับแถว)
  * สินค้าแบบ SERIAL มี quantity=1 ทุกแถวจึงใช้ยอดนี้ได้เหมือนกัน แต่รายงานเดิมนับจาก SerialUnit อยู่แล้ว
+ *
+ * หักยอดคืนของที่เบิกผิด (IN + RETURNED) ออกด้วย - ไม่งั้นกดคืนแล้วของในคลังกลับมา
+ * แต่ยอด "เบิกออกไปแล้ว" ยังค้างเท่าเดิม สรุปยอดจะไม่ลงตัว
  */
 async function sumOutQuantity(
   productIds: string[],
   opts: { vendorId?: string | null; customerId?: string | null } = {}
 ): Promise<Map<string, number>> {
   if (productIds.length === 0) return new Map()
-  const grouped = await prisma.scanLog.groupBy({
-    by: ['productId'],
-    where: {
-      accepted: true,
-      type: 'OUT',
-      productId: { in: productIds },
-      ...(opts.vendorId ? { vendorId: opts.vendorId } : {}),
-      ...(opts.customerId ? { customerId: opts.customerId } : {}),
-    },
-    _sum: { quantity: true },
-  })
-  return new Map(grouped.map((g) => [g.productId!, g._sum.quantity ?? 0]))
+  const base = {
+    accepted: true,
+    productId: { in: productIds },
+    ...(opts.vendorId ? { vendorId: opts.vendorId } : {}),
+    ...(opts.customerId ? { customerId: opts.customerId } : {}),
+  }
+  const [outGrouped, returnedGrouped] = await Promise.all([
+    prisma.scanLog.groupBy({
+      by: ['productId'],
+      where: { ...base, type: 'OUT' },
+      _sum: { quantity: true },
+    }),
+    prisma.scanLog.groupBy({
+      by: ['productId'],
+      where: { ...base, type: 'IN', result: 'RETURNED' },
+      _sum: { quantity: true },
+    }),
+  ])
+  const returned = new Map(returnedGrouped.map((g) => [g.productId!, g._sum.quantity ?? 0]))
+  // กันติดลบเผื่อข้อมูลเก่าที่คืนแบบไม่ผูก log (ยิงรับเข้าคืนเองสมัยก่อนมีปุ่มคืนของ)
+  return new Map(
+    outGrouped.map((g) => [g.productId!, Math.max(0, (g._sum.quantity ?? 0) - (returned.get(g.productId!) ?? 0))])
+  )
 }
 
 export async function buildStockReport(filters: StockReportFilters = {}): Promise<{
@@ -1874,6 +2068,8 @@ export type SerialHistoryEntry = {
   customerName: string | null
   auditSessionName: string | null
   at: string
+  /** รายการเบิกนี้ถูกคืนเข้าคลังไปแล้วหรือยัง */
+  reversed: boolean
 }
 
 const scanLogInclude = {
@@ -1882,6 +2078,7 @@ const scanLogInclude = {
   vendor: { select: { name: true } },
   customer: { select: { code: true, name: true } },
   auditSession: { select: { name: true } },
+  reversedBy: { select: { id: true } },
 } satisfies Prisma.ScanLogInclude
 
 const scanLogDetailInclude = {
@@ -1909,6 +2106,7 @@ function toHistoryEntry(log: ScanLogWithRelations): SerialHistoryEntry {
     customerName: log.customer ? `${log.customer.code} · ${log.customer.name}` : null,
     auditSessionName: log.auditSession?.name ?? null,
     at: log.createdAt.toISOString(),
+    reversed: !!log.reversedBy,
   }
 }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ScanConsole, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { api } from '@/lib/client'
 import type { AuditReport } from '@/lib/scan-service'
@@ -19,8 +20,25 @@ export function AuditSessionClient({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const router = useRouter()
 
   const closed = report.status === 'CLOSED'
+
+  // ── ความคืบหน้าการนับ: ของรายชิ้น (ยิงแล้ว/ที่ต้องนับ) + ของนับจำนวน (กรอกแล้ว/ทั้งหมด) ──
+  const qtyTotal = report.quantityLines.length
+  const qtyDone = report.quantityLines.filter((l) => l.counted !== null).length
+  const serialDone = report.matchedCount + report.surplus.length
+  const serialTotal = report.expectedCount + report.surplus.length
+  const progressDone = serialDone + qtyDone
+  const progressTotal = serialTotal + qtyTotal
+  const progressPct =
+    progressTotal === 0 ? 100 : Math.min(100, Math.round((progressDone / progressTotal) * 100))
+  // ลบรอบทิ้งได้เฉพาะรอบที่เปิดผิดและยังไม่ได้นับอะไรเลย
+  const deletable =
+    !closed &&
+    report.scannedCount === 0 &&
+    report.unknownSerials.length === 0 &&
+    qtyDone === 0
 
   const refresh = useCallback(async () => {
     const { report: fresh } = await api<{ report: AuditReport }>(`/api/audit/sessions/${sessionId}`)
@@ -50,6 +68,22 @@ export function AuditSessionClient({
     },
     [sessionId, scheduleRefresh]
   )
+
+  async function deleteSession() {
+    const ok = window.confirm('ลบรอบตรวจนับนี้ทิ้ง? (ทำได้เฉพาะรอบที่เปิดผิดและยังไม่ได้นับอะไรเลย)')
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api(`/api/audit/sessions/${sessionId}`, { method: 'DELETE' })
+      router.push('/audit')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ลบรอบไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function closeSession() {
     const ok = window.confirm(
@@ -87,6 +121,17 @@ export function AuditSessionClient({
           <button className="btn-ghost" onClick={() => void refresh()} disabled={busy}>
             รีเฟรชผล
           </button>
+          {deletable && (
+            <button
+              className="btn-danger"
+              onClick={deleteSession}
+              disabled={busy}
+              data-testid="delete-audit"
+              title="ลบรอบที่เปิดผิดทิ้ง (ได้เฉพาะรอบที่ยังไม่ได้นับ)"
+            >
+              ลบรอบนี้
+            </button>
+          )}
           {!closed && (
             <>
               <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -117,6 +162,32 @@ export function AuditSessionClient({
         <Tile label="ยิงเจอ" value={report.scannedCount} testId="audit-scanned" />
         <Tile label="ของหาย" value={report.missing.length} tone="red" testId="audit-missing" />
         <Tile label="ของเกิน" value={report.surplus.length} tone="amber" testId="audit-surplus" />
+      </div>
+
+      <div className="card p-4" data-testid="audit-progress">
+        <div className="flex items-baseline justify-between gap-2 text-sm">
+          <span className="font-medium">ความคืบหน้าการนับ</span>
+          <span data-testid="audit-progress-text" className="text-slate-600">
+            นับแล้ว {progressDone} จาก {progressTotal} ({progressPct}%)
+          </span>
+        </div>
+        <div
+          className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-valuenow={progressPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-sky-600 transition-all"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        {qtyTotal > 0 && (
+          <p className="mt-1 text-xs text-slate-500">
+            รวมของนับจำนวน {qtyTotal} รายการ (กรอกแล้ว {qtyDone})
+          </p>
+        )}
       </div>
 
       {!closed && (

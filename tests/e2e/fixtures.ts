@@ -149,6 +149,17 @@ export async function focusScanner(page: Page) {
   await input.focus()
 }
 
+/** เลือกสินค้าใน ProductPicker: พิมพ์ค้นหาแล้วคลิกตัวเลือกแรก */
+export async function selectProduct(page: Page, text: string) {
+  await page.getByTestId('product-select').fill(text)
+  await page.getByTestId('product-option').first().click()
+}
+
+/** กดยืนยันบันทึกรายการที่รออยู่ (scan-in แบบ pending-confirm) */
+export async function confirmScan(page: Page) {
+  await page.getByTestId('confirm-scan').click()
+}
+
 /** รอจนคิวส่งหมดแล้วตัวเลข รับ/ปฏิเสธ ตรงตามที่คาด */
 export async function expectScanTotals(
   page: Page,

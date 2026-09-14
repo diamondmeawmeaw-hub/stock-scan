@@ -22,7 +22,8 @@ test.describe('สินค้านับจำนวน (quantity)', () => {
 
     // 2) รับเข้า 5 ตู้
     await page.goto('/scan-in')
-    await page.getByTestId('product-select').selectOption(product.id)
+    await page.getByTestId('product-select').fill('RK-E2E')
+    await page.getByTestId('product-option').first().click()
     await page.getByTestId('quantity-input').fill('5')
     await page.getByTestId('quantity-in-form').getByRole('button', { name: 'รับเข้า' }).click()
     await expect(page.getByTestId('quantity-message')).toContainText('คงเหลือ 5')
@@ -31,7 +32,8 @@ test.describe('สินค้านับจำนวน (quantity)', () => {
     // 3) เบิกออก 2 ตู้ (แท็บกรอกจำนวน)
     await page.goto('/scan-out')
     await page.getByTestId('mode-quantity').click()
-    await page.getByTestId('quantity-product-select').selectOption(product.id)
+    await page.getByTestId('quantity-product-select').fill('RK-E2E')
+    await page.getByTestId('product-option').first().click()
     await page.getByTestId('quantity-input').fill('2')
     await page.getByTestId('quantity-out-form').getByRole('button', { name: 'เบิกออก' }).click()
     await expect(page.getByTestId('quantity-message')).toContainText('คงเหลือ 3')
@@ -45,9 +47,10 @@ test.describe('สินค้านับจำนวน (quantity)', () => {
     await page.getByTestId('quantity-input').fill('3')
     await page.getByTestId('quantity-out-form').getByRole('button', { name: 'เบิกออก' }).click()
     await expect(page.getByTestId('quantity-message')).toContainText('คงเหลือ 0')
-    const option = page
-      .getByTestId('quantity-product-select')
-      .locator(`option[value="${product.id}"]`)
-    await expect(option).toBeDisabled()
+    await page.getByTestId('quantity-product-select').fill('RK-E2E')
+    await expect(page.getByTestId('product-option').first()).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    )
   })
 })

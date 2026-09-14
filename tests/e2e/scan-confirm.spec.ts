@@ -5,6 +5,7 @@ import {
   loginAs,
   scanBurst,
   scanFeedRows,
+  selectProduct,
   test,
 } from './fixtures'
 
@@ -18,7 +19,7 @@ test.describe('ยืนยันรับเข้า (confirm)', () => {
     data,
     page,
   }) => {
-    await page.getByTestId('product-select').selectOption(data.products.notebook.id)
+    await selectProduct(page, 'IT-NB')
     await scanBurst(page, ['NB-9101', 'NB-9102'])
 
     await focusScanner(page)

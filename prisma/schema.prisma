@@ -180,6 +180,8 @@ model ScanLog {
   customerId     String?
   auditSessionId String?
   createdAt      DateTime   @default(now())
+  /// อ้างถึงรายการ OUT ที่รายการนี้คืนของให้ (กันคืนซ้ำ - 1 รายการคืนได้ครั้งเดียว)
+  reversesId     String?  @unique
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
   product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -187,6 +189,8 @@ model ScanLog {
   vendor       Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   auditSession AuditSession? @relation(fields: [auditSessionId], references: [id], onDelete: Cascade)
+  reverses   ScanLog?  @relation("ScanLogReversal", fields: [reversesId], references: [id], onDelete: SetNull)
+  reversedBy ScanLog?  @relation("ScanLogReversal")
 
   @@index([type, createdAt])
   @@index([serial])

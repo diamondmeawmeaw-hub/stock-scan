@@ -1,4 +1,4 @@
-import { expect, loginAs, prisma, scanBurst, STOCK, test } from './fixtures'
+import { confirmScan, expect, loginAs, prisma, scanBurst, selectProduct, STOCK, test } from './fixtures'
 
 test.describe('ประวัติการสแกนที่หน้าค้นหา serial', () => {
   test('กรองตามประเภท ผู้สแกน และ serial ได้', async ({ page, data }) => {
@@ -6,9 +6,10 @@ test.describe('ประวัติการสแกนที่หน้า�
 
     // สร้างความเคลื่อนไหวจริงผ่านหน้าเว็บ: รับเข้า 2 ชิ้น แล้วเบิกออก 1 ชิ้น
     await page.goto('/scan-in')
-    await page.getByTestId('product-select').selectOption(data.products.notebook.id)
+    await selectProduct(page, 'IT-NB')
     await scanBurst(page, ['LOG-0001', 'LOG-0002'])
-    await expect(page.getByTestId('scan-pending')).toHaveCount(0)
+    await confirmScan(page)
+    await expect(page.locator('[data-testid="scan-feed"] tbody tr')).toHaveCount(0)
 
     await page.goto('/scan-out')
     await scanBurst(page, ['LOG-0001'])
@@ -84,5 +85,19 @@ test.describe('ประวัติการสแกนที่หน้า�
 
     await expect(page.getByTestId('serial-value')).toHaveText(STOCK.notebook[0])
     await expect(page.getByTestId('serial-status')).toHaveAttribute('data-status', 'OUT')
+  })
+
+  test('ค้น serial ไม่เจอ -> แนะนำให้ไปดูรายงานคงเหลือ (ของนับจำนวน)', async ({
+    page,
+    data: _data,
+  }) => {
+    await loginAs(page, 'staff')
+    await page.goto('/serials?serial=RACK-NOPE-9U')
+
+    await expect(page.getByTestId('serial-not-found')).toBeVisible()
+    await expect(page.getByTestId('quantity-hint')).toBeVisible()
+
+    await page.getByTestId('quantity-hint').getByRole('link', { name: 'ไปดูรายงานคงเหลือ' }).click()
+    await expect(page).toHaveURL(/\/reports\?q=RACK-NOPE-9U/)
   })
 })

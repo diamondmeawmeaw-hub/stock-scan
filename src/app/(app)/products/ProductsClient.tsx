@@ -19,6 +19,14 @@ type Product = {
 
 type Category = { id: string; name: string }
 
+/** หน่วยนับมาตรฐาน - กันสะกดมั่ว (ชิ้น/อัน/ใบ ปนกัน) ค่าเก่าที่เพี้ยนอยู่แล้วแสดงตามเดิม ไม่บังคับแก้ */
+const UNIT_LABELS = ['ชิ้น', 'อัน', 'เครื่อง', 'กล่อง', 'เมตร', 'ม้วน', 'ชุด', 'ตู้', 'ใบ'] as const
+const UNIT_CUSTOM = '__custom__'
+
+function isStandardUnit(value: string): boolean {
+  return (UNIT_LABELS as readonly string[]).includes(value)
+}
+
 export function ProductsClient({
   products,
   categories,
@@ -30,6 +38,18 @@ export function ProductsClient({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  // ค้นหากรองตารางฝั่ง client - ไม่ยิง API (ของเยอะแล้วเลื่อนหาช้า)
+  const [query, setQuery] = useState('')
+  const filtered = query.trim()
+    ? products.filter((p) => {
+        const hay = `${p.sku} ${p.name} ${p.brand ?? ''} ${p.categoryName}`.toUpperCase()
+        return query
+          .trim()
+          .toUpperCase()
+          .split(/\s+/)
+          .every((w) => hay.includes(w))
+      })
+    : products
   const [form, setForm] = useState({
     sku: '',
     name: '',
@@ -46,6 +66,9 @@ export function ProductsClient({
     trackingType: 'SERIAL',
     unitLabel: '',
   })
+  // true = กำลังพิมพ์หน่วยนับเอง (ฟอร์มสร้าง / ฟอร์มแก้ไข แยกกัน)
+  const [customUnit, setCustomUnit] = useState(false)
+  const [customEditUnit, setCustomEditUnit] = useState(false)
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true)
@@ -62,6 +85,10 @@ export function ProductsClient({
 
   const create = (e: React.FormEvent) => {
     e.preventDefault()
+    if (form.trackingType === 'QUANTITY' && customUnit && !form.unitLabel.trim()) {
+      setError('พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ')
+      return
+    }
     void run(async () => {
       await api('/api/products', {
         method: 'POST',
@@ -78,6 +105,7 @@ export function ProductsClient({
         trackingType: 'SERIAL',
         unitLabel: 'ชิ้น',
       })
+      setCustomUnit(false)
     })
   }
 
@@ -169,18 +197,59 @@ export function ProductsClient({
           <label className="label" htmlFor="unit">
             หน่วยนับ
           </label>
-          <input
+          <select
             id="unit"
+            data-testid="unit-select"
             className="field"
-            placeholder="ชิ้น / อัน / เมตร"
             disabled={form.trackingType !== 'QUANTITY'}
-            value={form.unitLabel}
-            onChange={(e) => setForm({ ...form, unitLabel: e.target.value })}
-          />
+            value={customUnit ? UNIT_CUSTOM : isStandardUnit(form.unitLabel) ? form.unitLabel : UNIT_CUSTOM}
+            onChange={(e) => {
+              if (e.target.value === UNIT_CUSTOM) {
+                setCustomUnit(true)
+                setForm({ ...form, unitLabel: '' })
+              } else {
+                setCustomUnit(false)
+                setForm({ ...form, unitLabel: e.target.value })
+              }
+            }}
+          >
+            {UNIT_LABELS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+            <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
+          </select>
+          {customUnit && form.trackingType === 'QUANTITY' && (
+            <input
+              data-testid="unit-custom"
+              className="field mt-1"
+              placeholder="เช่น ลัง, แพ็ก (1–20 ตัวอักษร)"
+              maxLength={20}
+              required
+              value={form.unitLabel}
+              onChange={(e) => setForm({ ...form, unitLabel: e.target.value })}
+            />
+          )}
         </div>
       </form>
 
       <div className="card overflow-hidden">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <input
+            data-testid="product-search"
+            className="field"
+            placeholder="ค้นหา SKU / ชื่อ / แบรนด์ / ประเภท..."
+            autoComplete="off"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query.trim() && (
+            <p className="mt-1 text-xs text-slate-500">
+              เจอ {filtered.length} จาก {products.length} รายการ
+            </p>
+          )}
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
@@ -201,7 +270,14 @@ export function ProductsClient({
                 </td>
               </tr>
             )}
-            {products.map((p) =>
+            {products.length > 0 && filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-slate-500" data-testid="product-empty">
+                  ไม่พบสินค้าที่ตรงกับคำค้น
+                </td>
+              </tr>
+            )}
+            {filtered.map((p) =>
               editingId === p.id ? (
                 <tr key={p.id} className="bg-slate-50">
                   <td className="px-4 py-2">
@@ -248,12 +324,48 @@ export function ProductsClient({
                       <option value="QUANTITY">จำนวน</option>
                     </select>
                     {edit.trackingType === 'QUANTITY' && (
-                      <input
-                        className="field mt-1"
-                        placeholder="หน่วยนับ"
-                        value={edit.unitLabel}
-                        onChange={(e) => setEdit({ ...edit, unitLabel: e.target.value })}
-                      />
+                      <>
+                        <select
+                          className="field mt-1"
+                          data-testid="unit-edit-select"
+                          value={
+                            customEditUnit
+                              ? UNIT_CUSTOM
+                              : isStandardUnit(edit.unitLabel)
+                                ? edit.unitLabel
+                                : UNIT_CUSTOM
+                          }
+                          onChange={(e) => {
+                            if (e.target.value === UNIT_CUSTOM) {
+                              setCustomEditUnit(true)
+                              setEdit({ ...edit, unitLabel: '' })
+                            } else {
+                              setCustomEditUnit(false)
+                              setEdit({ ...edit, unitLabel: e.target.value })
+                            }
+                          }}
+                        >
+                          {UNIT_LABELS.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                          <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
+                        </select>
+                        {(customEditUnit || !isStandardUnit(edit.unitLabel)) && (
+                          <input
+                            className="field mt-1"
+                            data-testid="unit-edit-custom"
+                            placeholder="หน่วยนับเอง (1–20 ตัวอักษร)"
+                            maxLength={20}
+                            value={edit.unitLabel}
+                            onChange={(e) => {
+                              setCustomEditUnit(true)
+                              setEdit({ ...edit, unitLabel: e.target.value })
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="px-4 py-2">{p.inStock}</td>
@@ -261,19 +373,30 @@ export function ProductsClient({
                     <button
                       className="btn-primary mr-2"
                       disabled={busy}
-                      onClick={() =>
+                      onClick={() => {
+                        if (edit.trackingType === 'QUANTITY' && customEditUnit && !edit.unitLabel.trim()) {
+                          setError('พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ')
+                          return
+                        }
                         void run(async () => {
                           await api(`/api/products/${p.id}`, {
                             method: 'PATCH',
                             body: JSON.stringify(edit),
                           })
                           setEditingId(null)
+                          setCustomEditUnit(false)
                         })
-                      }
+                      }}
                     >
                       บันทึก
                     </button>
-                    <button className="btn-ghost" onClick={() => setEditingId(null)}>
+                    <button
+                      className="btn-ghost"
+                      onClick={() => {
+                        setEditingId(null)
+                        setCustomEditUnit(false)
+                      }}
+                    >
                       ยกเลิก
                     </button>
                   </td>
@@ -306,6 +429,7 @@ export function ProductsClient({
                       className="btn-ghost mr-2"
                       onClick={() => {
                         setEditingId(p.id)
+                        setCustomEditUnit(!isStandardUnit(p.unitLabel ?? 'ชิ้น'))
                         setEdit({
                           sku: p.sku,
                           name: p.name,

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
+import { ReturnButton } from '@/components/ReturnButton'
 import { SalesFilters } from './SalesFilters'
 
 export const dynamic = 'force-dynamic'
@@ -63,7 +64,12 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     where,
     orderBy: { createdAt: 'desc' },
     take: 200,
-    include: { customer: true, product: true, user: true },
+    include: {
+      customer: true,
+      product: true,
+      user: true,
+      reversedBy: { select: { id: true } },
+    },
   })
 
   return (
@@ -103,6 +109,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                   <th className="px-4 py-2 font-medium">สินค้า</th>
                   <th className="px-4 py-2 font-medium">ผู้ทำรายการ</th>
                   <th className="px-4 py-2 font-medium">หมายเหตุ</th>
+                  <th className="px-4 py-2 font-medium" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -131,6 +138,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                     <td className="px-4 py-2">{log.product?.name ?? '-'}</td>
                     <td className="px-4 py-2">{log.user.displayName}</td>
                     <td className="px-4 py-2">{log.note ?? '-'}</td>
+                    <td className="px-4 py-2 text-right">
+                      {!log.reversedBy ? (
+                        <ReturnButton scanLogId={log.id} />
+                      ) : (
+                        <span className="text-xs text-slate-400">คืนแล้ว</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

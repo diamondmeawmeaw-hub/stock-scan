@@ -71,4 +71,32 @@ test.describe('เข้าสู่ระบบ', () => {
     await expect(page.getByText('ผู้ดูแล', { exact: true })).toBeVisible()
     await expect(page.getByTestId('product-form')).toBeVisible()
   })
+
+  test('ปุ่มแสดงรหัสผ่านสลับ type ของช่องรหัสได้', async ({ page, data: _data }) => {
+    await page.goto('/login')
+    const password = page.locator('#password')
+    await expect(password).toHaveAttribute('type', 'password')
+
+    await page.getByTestId('toggle-password').click()
+    await expect(password).toHaveAttribute('type', 'text')
+
+    await page.getByTestId('toggle-password').click()
+    await expect(password).toHaveAttribute('type', 'password')
+  })
+
+  test('ติ๊กจำชื่อไว้ -> ออกจากระบบแล้วชื่อยังกรอกอยู่ (จำแค่ชื่อ ไม่จำรหัส)', async ({
+    page,
+    data: _data,
+  }) => {
+    await page.goto('/login')
+    await page.locator('#username').fill(ACCOUNTS.staff.username)
+    await page.locator('#password').fill(ACCOUNTS.staff.password)
+    await expect(page.getByTestId('remember-username')).toBeChecked()
+    await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'))
+
+    await logout(page)
+    await expect(page.locator('#username')).toHaveValue(ACCOUNTS.staff.username)
+    await expect(page.locator('#password')).toHaveValue('')
+  })
 })

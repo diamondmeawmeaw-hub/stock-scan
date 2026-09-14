@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
+import { ProductPicker } from '@/components/ProductPicker'
 import { api } from '@/lib/client'
 
 type ProductOption = {
@@ -51,16 +52,6 @@ export function ScanInClient({
   useEffect(() => {
     productsRef.current = products
   })
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, ProductOption[]>()
-    for (const p of products) {
-      const list = map.get(p.categoryName) ?? []
-      list.push(p)
-      map.set(p.categoryName, list)
-    }
-    return [...map.entries()]
-  }, [products])
 
   const selected = products.find((p) => p.id === productId) ?? null
 
@@ -204,27 +195,20 @@ export function ScanInClient({
     <div className="space-y-4">
       <div className="card grid gap-4 p-4 sm:grid-cols-2">
         <div>
-          <label className="label" htmlFor="product">
+          <label className="label" htmlFor="product-select">
             สินค้าที่กำลังรับเข้า
           </label>
-          <select
-            id="product"
-            data-testid="product-select"
-            className="field"
+          <ProductPicker
+            options={products.map((p) => ({
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              categoryName: p.categoryName,
+              stockText: `เหลือ ${p.inStock} ${p.trackingType === 'QUANTITY' ? (p.unitLabel ?? 'ชิ้น') : 'ชิ้น'}`,
+            }))}
             value={productId}
-            onChange={(e) => handleProductChange(e.target.value)}
-          >
-            <option value="">— เลือกสินค้า —</option>
-            {grouped.map(([categoryName, list]) => (
-              <optgroup key={categoryName} label={categoryName}>
-                {list.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.sku} · {p.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            onChange={handleProductChange}
+          />
           {selected && (
             <p className="mt-1 text-xs text-slate-500">
               ตอนนี้ในคลังมี {selected.inStock} {selected.trackingType === 'QUANTITY' ? (selected.unitLabel ?? 'ชิ้น') : 'ชิ้น'}

@@ -1,4 +1,4 @@
-import { expect, loginAs, scanBurst, test } from './fixtures'
+import { confirmScan, expect, loginAs, scanBurst, selectProduct, test } from './fixtures'
 
 test.describe('รายงาน', () => {
   test('กรองยอดคงเหลือตามประเภทของ แบรนด์ และค้นหาชื่อ', async ({ page, data }) => {
@@ -34,21 +34,22 @@ test.describe('รายงาน', () => {
   test('ดูความเคลื่อนไหวของวันนี้หลังยิงรับเข้า', async ({ page, data }) => {
     await loginAs(page, 'staff')
     await page.goto('/scan-in')
-    await page.getByTestId('product-select').selectOption(data.products.notebook.id)
+    await selectProduct(page, 'IT-NB')
     await scanBurst(page, ['NEW-0001', 'NEW-0002'])
-    await expect(page.getByTestId('scan-pending')).toHaveCount(0)
+    await confirmScan(page)
+    await expect(page.locator('[data-testid="scan-feed"] tbody tr')).toHaveCount(0)
 
     await page.goto('/reports')
     await page.getByTestId('tab-movement').click()
 
     await expect(page.getByTestId('total-in')).toHaveText('2')
     await expect(page.getByTestId('total-out')).toHaveText('0')
-    await expect(page.getByTestId('movement-row')).toHaveCount(1)
-    await expect(page.getByTestId('movement-row')).toContainText('IT-NB-001')
+    await expect(page.getByTestId('movement-row')).toHaveCount(2)
+    await expect(page.getByTestId('movement-row').first()).toContainText('IT-NB-001')
 
     // เลือกช่วงวันที่ในอดีตที่ไม่มีการยิง -> ต้องว่าง
-    await page.getByTestId('filter-from').fill('2026-01-01')
-    await page.getByTestId('filter-to').fill('2026-01-31')
+    await page.getByTestId('filter-from').fill('01/01/2026')
+    await page.getByTestId('filter-to').fill('31/01/2026')
     await page.getByTestId('apply-filters').click()
     await expect(page.getByTestId('movement-empty')).toBeVisible()
   })
