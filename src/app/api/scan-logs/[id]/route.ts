@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { readJson, route } from '@/lib/api'
-import { HttpError, requireUser } from '@/lib/auth'
+import { HttpError, requireAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 const schema = z.object({
@@ -13,10 +13,12 @@ const schema = z.object({
  *
  * แก้ได้เฉพาะรายการขายที่สำเร็จและยังไม่ถูกคืน
  * เพราะของถูกคืนเข้าคลังแล้วไม่ควรนับอยู่ในงานไหน
+ *
+ * ย้ายรายการหลังขายแล้วเป็นงานของ admin เท่านั้น - staff ดูได้อย่างเดียว
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return route(async () => {
-    await requireUser()
+    await requireAdmin()
     const { id } = await params
     const body = schema.parse(await readJson(request))
     if (body.projectId === undefined) throw new HttpError(400, 'ไม่ได้ส่งโปรเจคมา')

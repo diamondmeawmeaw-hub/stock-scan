@@ -9,6 +9,7 @@ import { POST as scanReturnRoute } from '@/app/api/scan/return/route'
 import {
   getJson,
   giveStock,
+  login,
   patchJson,
   postJson,
   prisma,
@@ -174,6 +175,24 @@ describe('ระบบโปรเจคของลูกค้า', () => {
   })
 
   describe('ย้ายรายการขายข้ามโปรเจค', () => {
+    beforeEach(async () => {
+      // ย้ายรายการหลังขายเป็นงานของ admin - login ทับ session staff จาก seedFixtures
+      await login(fx.admin.username, fx.admin.password)
+    })
+
+    it('staff ย้ายไม่ได้ -> 403 และ projectId ไม่เปลี่ยน', async () => {
+      const p1 = await makeProject(custA.id, 'ติดกล้อง')
+      const p2 = await makeProject(custA.id, 'ติด wifi')
+      const sold = await sell('NB0001', { customerId: custA.id, projectId: p1.id })
+      const logId = (sold.body as { scanLogId: string }).scanLogId
+
+      await login(fx.user.username, fx.user.password)
+      const res = await patchJson(scanLogPatchRoute, { projectId: p2.id }, { id: logId })
+      expect(res.status).toBe(403)
+      const log = await prisma.scanLog.findUnique({ where: { id: logId } })
+      expect(log?.projectId).toBe(p1.id)
+    })
+
     it('ย้ายได้ -> log ชี้โปรเจคใหม่ และถอดออกด้วย null ได้', async () => {
       const p1 = await makeProject(custA.id, 'ติดกล้อง')
       const p2 = await makeProject(custA.id, 'ติด wifi')

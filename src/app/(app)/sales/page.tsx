@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
+import { getSession } from '@/lib/auth'
 import { ReturnButton } from '@/components/ReturnButton'
 import { ProjectAssign } from './ProjectSelect'
 import { SalesFilters } from './SalesFilters'
@@ -28,6 +29,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   const today = todayInThailand()
   const from = DATE_PATTERN.test(rawFrom) ? rawFrom : ''
   const to = DATE_PATTERN.test(rawTo) ? rawTo : ''
+
+  // ย้ายรายการขายหลังขายแล้วเป็นงาน admin เท่านั้น - staff ดูอย่างเดียว
+  const session = await getSession()
+  const readOnly = session?.role !== 'ADMIN'
 
   const [customers, projects] = await Promise.all([
     listCustomers(),
@@ -154,6 +159,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                         logId={log.id}
                         customerId={log.customerId}
                         value={log.projectId}
+                        readOnly={readOnly}
                         projects={projects.map((p) => ({
                           id: p.id,
                           customerId: p.customerId,

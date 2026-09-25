@@ -9,17 +9,21 @@ type ProjectOption = { id: string; customerId: string; name: string; active: boo
 /**
  * เปลี่ยนโปรเจคของรายการขาย 1 แถว - ย้ายของข้ามโปรเจคโดยไม่ต้องแก้ทีละหน้า
  * ตัวเลือกเป็นโปรเจคของลูกค้าคนเดียวกับที่ซื้อของเท่านั้น (ฝั่งเซิร์ฟเวอร์ก็กันซ้ำอีกชั้น)
+ *
+ * readOnly = staff - เห็นชื่อโปรเจคอย่างเดียว ย้ายได้เฉพาะ admin
  */
 export function ProjectAssign({
   logId,
   customerId,
   value,
   projects,
+  readOnly = false,
 }: {
   logId: string
   customerId: string | null
   value: string | null
   projects: ProjectOption[]
+  readOnly?: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -43,6 +47,17 @@ export function ProjectAssign({
     } finally {
       setBusy(false)
     }
+  }
+
+  if (readOnly) {
+    const project = value ? projects.find((p) => p.id === value) : null
+    if (!value) return <span className="text-slate-400" data-testid="row-project-name">-</span>
+    return (
+      <span data-testid="row-project-name">
+        {project ? project.name : '(ไม่ใช่ของลูกค้านี้)'}
+        {project && !project.active ? ' (ปิดแล้ว)' : ''}
+      </span>
+    )
   }
 
   return (
