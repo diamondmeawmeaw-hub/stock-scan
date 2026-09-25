@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 
 export type PickerOption = {
   id: string
@@ -51,7 +51,15 @@ export function ProductPicker({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = options.find((o) => o.id === value) ?? null
-  const filtered = useMemo(() => filterPickerOptions(options, query), [options, query])
+  const filtered = useMemo(
+    () =>
+      filterPickerOptions(options, query).slice().sort(
+        (a, b) =>
+          a.categoryName.localeCompare(b.categoryName, 'th') ||
+          a.sku.localeCompare(b.sku)
+      ),
+    [options, query]
+  )
   const selectable = useMemo(() => filtered.filter((o) => !o.disabled), [filtered])
 
   // ปิด dropdown เมื่อคลิกที่อื่น
@@ -145,52 +153,61 @@ export function ProductPicker({
           {filtered.length === 0 && (
             <li className="px-3 py-2 text-sm text-slate-500">ไม่พบสินค้าที่ตรงกับคำค้น</li>
           )}
-          {filtered.map((o) => {
-            const hIndex = selectable.findIndex((s) => s.id === o.id)
-            const active = hIndex >= 0 && hIndex === highlight
-            return (
-              <li
-                key={o.id}
-                role="option"
-                aria-selected={o.id === value}
-                aria-disabled={o.disabled}
-                data-testid="product-option"
-                data-value={o.id}
-                onMouseDown={(e) => {
-                  // ใช้ mousedown แทน click เพราะ blur จะปิด dropdown ก่อน click ทำงาน
-                  e.preventDefault()
-                  if (!o.disabled) pick(o.id)
-                }}
-                onMouseEnter={() => {
-                  if (hIndex >= 0) setHighlight(hIndex)
-                }}
-                className={`flex cursor-pointer items-baseline gap-2 px-3 py-2 text-sm ${
-                  o.disabled
-                    ? 'cursor-not-allowed text-slate-400'
-                    : active
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <span className="font-mono font-medium">{o.sku}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {o.name}
-                  <span className={o.disabled || active ? '' : 'text-slate-400'}>
-                    {' '}
-                    · {o.categoryName}
-                  </span>
-                </span>
-                {o.stockText && (
-                  <span
-                    className={`shrink-0 text-xs ${o.disabled ? '' : active ? 'text-slate-200' : 'text-slate-500'}`}
+          {(() => {
+            // หมวดที่ขึ้นซ้ำหลังจากมีหัวข้อแล้วจะขึ้นหัวข้ออีกเฉพาะตอนเปลี่ยนหมวด
+            const seen = new Set<string>()
+            return filtered.map((o) => {
+              const hIndex = selectable.findIndex((s) => s.id === o.id)
+              const active = hIndex >= 0 && hIndex === highlight
+              const showHeader = !seen.has(o.categoryName)
+              seen.add(o.categoryName)
+              return (
+                <Fragment key={o.id}>
+                  {showHeader && (
+                    <li
+                      aria-hidden="true"
+                      className="sticky top-0 border-b border-slate-100 bg-slate-50/95 px-3 pt-2 pb-1 text-xs font-semibold text-slate-500 backdrop-blur"
+                    >
+                      {o.categoryName}
+                    </li>
+                  )}
+                  <li
+                    role="option"
+                    aria-selected={o.id === value}
+                    aria-disabled={o.disabled}
+                    data-testid="product-option"
+                    data-value={o.id}
+                    onMouseDown={(e) => {
+                      // ใช้ mousedown แทน click เพราะ blur จะปิด dropdown ก่อน click ทำงาน
+                      e.preventDefault()
+                      if (!o.disabled) pick(o.id)
+                    }}
+                    onMouseEnter={() => {
+                      if (hIndex >= 0) setHighlight(hIndex)
+                    }}
+                    className={`flex cursor-pointer items-baseline gap-2 px-3 py-2 text-sm ${
+                      o.disabled
+                        ? 'cursor-not-allowed text-slate-400'
+                        : active
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-700 hover:bg-slate-100'
+                    }`}
                   >
-                    {o.stockText}
-                    {o.disabled && o.disabledHint ? ` ${o.disabledHint}` : ''}
-                  </span>
-                )}
-              </li>
-            )
-          })}
+                    <span className="font-mono font-medium">{o.sku}</span>
+                    <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                    {o.stockText && (
+                      <span
+                        className={`shrink-0 text-xs ${o.disabled ? '' : active ? 'text-slate-200' : 'text-slate-500'}`}
+                      >
+                        {o.stockText}
+                        {o.disabled && o.disabledHint ? ` ${o.disabledHint}` : ''}
+                      </span>
+                    )}
+                  </li>
+                </Fragment>
+              )
+            })
+          })()}
         </ul>
       )}
     </div>
