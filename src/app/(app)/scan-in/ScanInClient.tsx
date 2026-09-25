@@ -255,7 +255,7 @@ export function ScanInClient({
         </div>
         <div className="sm:col-span-2">
           <label className="label" htmlFor="note">
-            หมายเหตุ (ติดไปกับทุกรายการที่ยิงในรอบนี้)
+            หมายเหตุ + ตำแหน่งเก็บของ (ติดไปกับทุกรายการที่ยิงในรอบนี้)
           </label>
           <input
             id="note"
