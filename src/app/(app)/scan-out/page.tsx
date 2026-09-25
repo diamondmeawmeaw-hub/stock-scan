@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export default async function ScanOutPage() {
-  const [customers, quantityProducts] = await Promise.all([
+  const [customers, quantityProducts, projects] = await Promise.all([
     prisma.customer.findMany({
       where: { active: true },
       orderBy: { name: 'asc' },
@@ -14,6 +14,11 @@ export default async function ScanOutPage() {
       where: { trackingType: 'QUANTITY' },
       orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
       include: { category: true },
+    }),
+    prisma.project.findMany({
+      where: { active: true, customer: { active: true } },
+      orderBy: [{ customerId: 'asc' }, { name: 'asc' }],
+      select: { id: true, customerId: true, name: true },
     }),
   ])
   return (
@@ -26,6 +31,7 @@ export default async function ScanOutPage() {
       </div>
       <ScanOutClient
         customers={customers}
+        projects={projects}
         quantityProducts={quantityProducts.map((p) => ({
           id: p.id,
           sku: p.sku,

@@ -16,7 +16,7 @@ const { prisma } = await import('@/lib/prisma')
 const { __clearCookies } = await import('./mocks/next-headers')
 
 /** ลำดับตารางไม่สำคัญเพราะ CASCADE แต่เขียนเรียงตามความสัมพันธ์ไว้ให้อ่านง่าย */
-const TABLES = ['ScanLog', 'AuditSession', 'SerialUnit', 'Product', 'Category', 'Vendor', 'User']
+const TABLES = ['ScanLog', 'AuditSession', 'SerialUnit', 'Product', 'Category', 'Vendor', 'Customer', 'User']
 
 beforeEach(async () => {
   await prisma.$executeRawUnsafe(

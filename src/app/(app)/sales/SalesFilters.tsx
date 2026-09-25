@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 
 type Values = {
   customerId: string
+  projectId: string
   q: string
   from: string
   to: string
@@ -82,9 +83,11 @@ function DatePicker({
 
 export function SalesFilters({
   customers,
+  projects,
   values,
 }: {
   customers: { id: string; code: string; name: string }[]
+  projects: { id: string; customerId: string; name: string; customerLabel: string }[]
   values: Values
 }) {
   const router = useRouter()
@@ -93,11 +96,17 @@ export function SalesFilters({
   function apply(next: Values) {
     const query = new URLSearchParams()
     if (next.customerId) query.set('customerId', next.customerId)
+    if (next.projectId) query.set('projectId', next.projectId)
     if (next.q.trim()) query.set('q', next.q.trim())
     if (next.from) query.set('from', next.from)
     if (next.to) query.set('to', next.to)
     router.push(`/sales${query.toString() ? `?${query}` : ''}`)
   }
+
+  // ลูกค้าที่เลือกอยู่ -> ตัวกรองโปรเจคเหลือของลูกค้าคนนั้น ไม่ต้องเลื่อนหาในลิสต์ยาว
+  const projectOptions = form.customerId
+    ? projects.filter((p) => p.customerId === form.customerId)
+    : projects
 
   return (
     <form
@@ -117,12 +126,33 @@ export function SalesFilters({
           data-testid="filter-customer"
           className={fieldClass}
           value={form.customerId}
-          onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+          onChange={(e) => setForm({ ...form, customerId: e.target.value, projectId: '' })}
         >
           <option value="">ทั้งหมด</option>
           {customers.map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} · {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="label" htmlFor="filter-project">
+          โปรเจค
+        </label>
+        <select
+          id="filter-project"
+          data-testid="filter-project"
+          className={fieldClass}
+          value={form.projectId}
+          onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+        >
+          <option value="">ทั้งหมด</option>
+          {projectOptions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {form.customerId ? '' : ` · ${p.customerLabel}`}
             </option>
           ))}
         </select>
@@ -170,7 +200,7 @@ export function SalesFilters({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
           data-testid="clear-filters"
           onClick={() => {
-            const cleared = { customerId: '', q: '', from: '', to: '' }
+            const cleared = { customerId: '', projectId: '', q: '', from: '', to: '' }
             setForm(cleared)
             apply(cleared)
           }}

@@ -83,7 +83,25 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  scanLogs  ScanLog[]
+  projects  Project[]
+}
+
+/// งาน/โครงการที่ลูกค้าแต่ละคนซื้อของเป็นชุด - เช่น ลูกค้าติดกล้องซื้อ NVR+กล้อง = โปรเจคกล้อง
+/// ผูกกับรายการขาย (ScanLog OUT+SALE) เพื่อดูว่าลูกค้าคนนี้ซื้อของเป็นงานอะไรบ้าง
+model Project {
+  id         String   @id @default(cuid())
+  customerId String
+  name       String
+  note       String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
   scanLogs ScanLog[]
+
+  @@index([customerId, active])
 }
 
 model Category {
@@ -178,6 +196,8 @@ model ScanLog {
   vendorId       String?
   /// ลูกค้าที่ซื้อสินค้า - ใช้กับรายการเบิกออกเหตุผล SALE
   customerId     String?
+  /// โปรเจค/งานที่ลูกค้าซื้อของชุดนี้เข้า - ผูกตอนเบิกขาย ย้ายได้ที่หน้าประวัติ
+  projectId      String?
   auditSessionId String?
   createdAt      DateTime   @default(now())
   /// อ้างถึงรายการ OUT ที่รายการนี้คืนของให้ (กันคืนซ้ำ - 1 รายการคืนได้ครั้งเดียว)
@@ -188,6 +208,7 @@ model ScanLog {
   unit         SerialUnit?   @relation(fields: [unitId], references: [id], onDelete: SetNull)
   vendor       Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   auditSession AuditSession? @relation(fields: [auditSessionId], references: [id], onDelete: Cascade)
   reverses   ScanLog?  @relation("ScanLogReversal", fields: [reversesId], references: [id], onDelete: SetNull)
   reversedBy ScanLog?  @relation("ScanLogReversal")
@@ -198,6 +219,7 @@ model ScanLog {
   @@index([userId, createdAt])
   @@index([vendorId])
   @@index([customerId])
+  @@index([projectId])
 }
 
 /// รอบการตรวจนับ 1 รอบ - เปิดรอบ ยิงของ แล้วปิดรอบเพื่อดูผลต่าง

@@ -22,5 +22,5 @@
 
 ## ต้องมี
 - Docker Compose รันได้ด้วย `docker-compose up` ตัวเดียวจบ
-- Prisma schema: Category, Product, SerialUnit, ScanLog, User
+- Prisma schema: Category, Product, SerialUnit, ScanLog, User, Customer, Project
 - เทส: unit test (Vitest), integration test สำหรับ API สแกน, E2E (Playwright) จำลองพิมพ์เร็วตามด้วย Enter

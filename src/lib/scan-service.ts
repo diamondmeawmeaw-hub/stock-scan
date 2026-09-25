@@ -203,6 +203,7 @@ export async function scanOut(input: {
   reason: OutReasonCode
   note?: string | null
   customerId?: string | null
+  projectId?: string | null
 }): Promise<ScanOutcome> {
   const validation = validateSerial(input.rawSerial)
   if (!validation.ok) return rejectedOutcome(input.rawSerial.trim(), validation.message)
@@ -214,6 +215,10 @@ export async function scanOut(input: {
   if (input.customerId && (!customer || !customer.active)) {
     throw new HttpError(400, 'ไม่พบลูกค้าที่เลือกหรือถูกปิดใช้งานแล้ว')
   }
+  const projectId = await resolveProject(
+    input.reason === 'SALE' ? input.projectId : null,
+    input.customerId ?? null
+  )
 
   const outcome = await prisma.$transaction(async (tx) => {
     await lockSerial(tx, serial)
@@ -273,6 +278,7 @@ export async function scanOut(input: {
         productId: unit?.productId ?? null,
         unitId: unit?.id ?? null,
         customerId: input.reason === 'SALE' ? input.customerId ?? null : null,
+        projectId,
       },
     })
 
@@ -354,6 +360,26 @@ async function resolveQuantityCustomer(
     throw new HttpError(400, 'ไม่พบลูกค้าที่เลือกหรือถูกปิดใช้งานแล้ว')
   }
   return customer.id
+}
+
+/**
+ * ตรวจโปรเจคที่จะผูกกับรายการขาย - ต้องเป็นของลูกค้าคนเดียวกับที่เลือกไว้ และยังเปิดอยู่
+ *
+ * ปิดโปรเจคแล้วของเดิมที่เคยขายไปยังอยู่ครบให้ดูย้อนหลังได้
+ * แต่รับของใหม่เข้าโปรเจคที่ปิดไปแล้วไม่ได้ กันของไหลไปลงงานที่จบแล้ว
+ */
+async function resolveProject(
+  projectId: string | null | undefined,
+  customerId: string | null
+): Promise<string | null> {
+  const id = projectId ?? null
+  if (!id) return null
+  if (!customerId) throw new HttpError(400, 'ต้องเลือกลูกค้าก่อนจึงจะผูกโปรเจคได้')
+  const project = await prisma.project.findUnique({ where: { id } })
+  if (!project) throw new HttpError(400, 'ไม่พบโปรเจคที่เลือกไว้')
+  if (project.customerId !== customerId) throw new HttpError(400, 'โปรเจคนี้ไม่ได้เป็นของลูกค้าที่เลือก')
+  if (!project.active) throw new HttpError(400, `โปรเจค "${project.name}" ถูกปิดใช้งานอยู่`)
+  return project.id
 }
 
 function toQuantityProductInfo(product: {
@@ -442,6 +468,7 @@ export async function quantityOut(input: {
   reason: OutReasonCode
   note?: string | null
   customerId?: string | null
+  projectId?: string | null
 }): Promise<QuantityOutcome> {
   const check = validateQuantity(input.rawQuantity)
   if (!check.ok) throw new HttpError(400, check.message)
@@ -456,6 +483,10 @@ export async function quantityOut(input: {
     throw new HttpError(400, `สินค้า "${product.name}" นับเป็นรายชิ้น ให้ยิง serial แทนการกรอกจำนวน`)
   }
   const customerId = await resolveQuantityCustomer(input.customerId, input.reason)
+  const projectId = await resolveProject(
+    input.reason === 'SALE' ? input.projectId : null,
+    customerId
+  )
 
   const outcome = await prisma.$transaction(async (tx) => {
     await lockProduct(tx, product.id)
@@ -489,6 +520,7 @@ export async function quantityOut(input: {
         productId: product.id,
         unitId: null,
         customerId,
+        projectId,
       },
     })
     return { productInStock: updated.stockQty, scanLogId: log.id }

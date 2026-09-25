@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
 import { ReturnButton } from '@/components/ReturnButton'
+import { ProjectAssign } from './ProjectSelect'
 import { SalesFilters } from './SalesFilters'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,7 @@ function one(params: Record<string, string | string[] | undefined>, key: string)
 export default async function SalesPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const customerId = one(params, 'customerId')
+  const projectId = one(params, 'projectId')
   const q = one(params, 'q')
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
@@ -27,7 +29,19 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   const from = DATE_PATTERN.test(rawFrom) ? rawFrom : ''
   const to = DATE_PATTERN.test(rawTo) ? rawTo : ''
 
-  const customers = await listCustomers()
+  const [customers, projects] = await Promise.all([
+    listCustomers(),
+    prisma.project.findMany({
+      orderBy: [{ customerId: 'asc' }, { active: 'desc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        customerId: true,
+        name: true,
+        active: true,
+        customer: { select: { code: true, name: true } },
+      },
+    }),
+  ])
 
   // ── สร้าง where clause ──
   const where: Record<string, unknown> = {
@@ -38,6 +52,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
 
   if (customerId) {
     where.customerId = customerId
+  }
+
+  if (projectId) {
+    where.projectId = projectId
   }
 
   if (from || to) {
@@ -88,7 +106,16 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
         </div>
       </div>
 
-      <SalesFilters customers={customers} values={{ customerId, q, from, to }} />
+      <SalesFilters
+        customers={customers}
+        projects={projects.map((p) => ({
+          id: p.id,
+          customerId: p.customerId,
+          name: p.name,
+          customerLabel: `${p.customer.code} · ${p.customer.name}`,
+        }))}
+        values={{ customerId, projectId, q, from, to }}
+      />
 
       {logs.length === 0 ? (
         <p
@@ -105,6 +132,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                 <tr>
                   <th className="px-4 py-2 font-medium">เวลา</th>
                   <th className="px-4 py-2 font-medium">ลูกค้า</th>
+                  <th className="px-4 py-2 font-medium">โปรเจค</th>
                   <th className="px-4 py-2 font-medium">Serial</th>
                   <th className="px-4 py-2 font-medium">สินค้า</th>
                   <th className="px-4 py-2 font-medium">ผู้ทำรายการ</th>
@@ -120,6 +148,19 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                     </td>
                     <td className="px-4 py-2">
                       {log.customer ? `${log.customer.code} · ${log.customer.name}` : '-'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <ProjectAssign
+                        logId={log.id}
+                        customerId={log.customerId}
+                        value={log.projectId}
+                        projects={projects.map((p) => ({
+                          id: p.id,
+                          customerId: p.customerId,
+                          name: p.name,
+                          active: p.active,
+                        }))}
+                      />
                     </td>
                     <td className="px-4 py-2">
                       {log.serial ? (

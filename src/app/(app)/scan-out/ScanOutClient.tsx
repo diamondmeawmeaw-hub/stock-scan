@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { ProductPicker } from '@/components/ProductPicker'
 import { OUT_REASONS, api } from '@/lib/client'
 
 type CustomerOption = { id: string; code: string; name: string }
+
+type ProjectOption = { id: string; customerId: string; name: string }
 
 type QuantityProductOption = {
   id: string
@@ -19,9 +21,11 @@ type QuantityProductOption = {
 
 export function ScanOutClient({
   customers,
+  projects: initialProjects,
   quantityProducts,
 }: {
   customers: CustomerOption[]
+  projects: ProjectOption[]
   quantityProducts: QuantityProductOption[]
 }) {
   const [mode, setMode] = useState<'SERIAL' | 'QUANTITY'>('SERIAL')
@@ -29,6 +33,43 @@ export function ScanOutClient({
   const [customerId, setCustomerId] = useState('')
   const [note, setNote] = useState('')
   const router = useRouter()
+
+  // ── โปรเจคของลูกค้า (ผูกกับรายการขาย) ──
+  const [projects, setProjects] = useState<ProjectOption[]>(initialProjects)
+  const [projectId, setProjectId] = useState('')
+  const [newProjectName, setNewProjectName] = useState('')
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [projectError, setProjectError] = useState('')
+
+  // เปลี่ยนลูกค้า -> โปรเจคของลูกค้าคนก่อนใช้ไม่ได้แล้ว ล้างทิ้งกันของผูกผิดคน
+  useEffect(() => {
+    setProjectId('')
+    setNewProjectName('')
+    setProjectError('')
+  }, [customerId])
+
+  const customerProjects = projects.filter((p) => p.customerId === customerId)
+  const showProject = reason === 'SALE' && customerId !== ''
+
+  async function createProject() {
+    const name = newProjectName.trim()
+    if (!name || !customerId || creatingProject) return
+    setCreatingProject(true)
+    setProjectError('')
+    try {
+      const { project } = await api<{ project: ProjectOption }>('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({ customerId, name }),
+      })
+      setProjects((prev) => [...prev, project])
+      setProjectId(project.id)
+      setNewProjectName('')
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'สร้างโปรเจคไม่สำเร็จ')
+    } finally {
+      setCreatingProject(false)
+    }
+  }
 
   // ── ฟอร์มเบิกออกแบบจำนวน ──
   const [qtyProductId, setQtyProductId] = useState('')
@@ -43,9 +84,15 @@ export function ScanOutClient({
     async (serial: string): Promise<ScanOutcomeLike> =>
       api<ScanOutcomeLike>('/api/scan/out', {
         method: 'POST',
-        body: JSON.stringify({ serial, reason, customerId: customerId || null, note: note || null }),
+        body: JSON.stringify({
+          serial,
+          reason,
+          customerId: customerId || null,
+          projectId: projectId || null,
+          note: note || null,
+        }),
       }),
-    [reason, customerId, note]
+    [reason, customerId, projectId, note]
   )
 
   async function submitQuantity(e: React.FormEvent) {
@@ -63,6 +110,7 @@ export function ScanOutClient({
             quantity: Number(qty),
             reason,
             customerId: customerId || null,
+            projectId: projectId || null,
             note: note || null,
           }),
         }
@@ -159,6 +207,54 @@ export function ScanOutClient({
             onChange={(e) => setNote(e.target.value)}
           />
         </div>
+        {showProject && (
+          <div className="sm:col-span-2" data-testid="project-field">
+            <label className="label" htmlFor="project-select">
+              โปรเจค (ไม่บังคับ - งานที่ลูกค้าซื้อของชุดนี้)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <select
+                id="project-select"
+                data-testid="project-select"
+                className="field flex-1"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+              >
+                <option value="">— ไม่ระบุโปรเจค —</option>
+                {customerProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                data-testid="project-new-name"
+                className="field"
+                placeholder="ชื่อโปรเจคใหม่ เช่น ติดกล้อง ตึก 1"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void createProject()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                data-testid="project-create"
+                className="btn-primary"
+                disabled={creatingProject || !newProjectName.trim()}
+                onClick={() => void createProject()}
+              >
+                {creatingProject ? 'กำลังสร้าง...' : 'เพิ่มโปรเจค'}
+              </button>
+            </div>
+            {projectError && (
+              <p className="mt-1 text-xs text-red-600">{projectError}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {mode === 'SERIAL' ? (

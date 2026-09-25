@@ -12,7 +12,7 @@ import { E2E_DATABASE_URL } from './env'
 /** client ของเทสผูกกับฐาน e2e ตรงๆ ไม่พึ่ง DATABASE_URL เพื่อกันเผลอไปล้างฐานใช้งานจริง */
 export const prisma = new PrismaClient({ datasourceUrl: E2E_DATABASE_URL })
 
-const TABLES = ['ScanLog', 'AuditSession', 'SerialUnit', 'Product', 'Category', 'User']
+const TABLES = ['ScanLog', 'AuditSession', 'SerialUnit', 'Product', 'Category', 'Customer', 'User']
 
 export const ACCOUNTS = {
   // ตั้งชื่อไม่ให้ซ้ำกับ seed ของฐานใช้งานจริง ถ้าเว็บเผลอไปต่อผิดฐาน login จะพังทันที
