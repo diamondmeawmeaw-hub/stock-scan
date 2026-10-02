@@ -17,7 +17,7 @@ export default async function ProductsPage() {
 
   return (
     <ProductsClient
-      categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+      categories={categories.map((c) => ({ id: c.id, code: c.code, name: c.name }))}
       products={products.map((p) => ({
         id: p.id,
         sku: p.sku,

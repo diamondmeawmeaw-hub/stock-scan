@@ -17,7 +17,7 @@ type Product = {
   inStock: number
 }
 
-type Category = { id: string; name: string }
+type Category = { id: string; code: string; name: string }
 
 /** หน่วยนับมาตรฐาน - กันสะกดมั่ว (ชิ้น/อัน/ใบ ปนกัน) ค่าเก่าที่เพี้ยนอยู่แล้วแสดงตามเดิม ไม่บังคับแก้ */
 const UNIT_LABELS = ['ชิ้น', 'อัน', 'เครื่อง', 'กล่อง', 'เมตร', 'ม้วน', 'ชุด', 'ตู้', 'ใบ'] as const
@@ -169,8 +169,8 @@ export function ProductsClient({
               onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
             >
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+                <option key={c.id} value={c.id} title={c.name}>
+                  {c.code}
                 </option>
               ))}
             </select>
@@ -308,8 +308,8 @@ export function ProductsClient({
                       onChange={(e) => setEdit({ ...edit, categoryId: e.target.value })}
                     >
                       {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
+                        <option key={c.id} value={c.id} title={c.name}>
+                          {c.code}
                         </option>
                       ))}
                     </select>
