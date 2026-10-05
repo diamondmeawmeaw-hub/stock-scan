@@ -96,4 +96,39 @@ describe('suggestProduct', () => {
     expect(err.status).toBe(429)
     expect(err.message).toContain('กำลังพัก')
   })
+
+  it('ทรง OpenAI (OpenRouter) อ่าน choices[0].message.content', async () => {
+    vi.stubEnv('AI_API_KEY', 'test-key')
+    vi.stubEnv('AI_PROVIDER', 'openai')
+    vi.stubEnv('AI_API_BASE', 'https://openrouter.ai/api')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  name: 'สายแลน Cat6',
+                  brand: 'Link',
+                  categoryId: 'cat-cbl',
+                  trackingType: 'QUANTITY',
+                  unitLabel: 'กล่อง',
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    )
+    const out = await suggestProduct('CBL-UTP-C6', master)
+    expect(out).toEqual({
+      name: 'สายแลน Cat6',
+      brand: 'Link',
+      categoryId: 'cat-cbl',
+      trackingType: 'QUANTITY',
+      unitLabel: 'กล่อง',
+    })
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/chat/completions')
+  })
 })

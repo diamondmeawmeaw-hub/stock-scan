@@ -29,7 +29,8 @@ Flow: ปุ่มข้างช่อง SKU → `POST /api/products/suggest {
 → `POST {AI_API_BASE}/v1/messages` ทรง Anthropic messages API
   (default `https://n8n.carwraman.shop`, header `x-api-key: AI_API_KEY`,
   body `{ model: AI_MODEL (default `xi/ling-3.1-flash`), max_tokens, messages }`,
-  อ่านข้อความจาก `content[].text` — ทั้ง 3 ค่ามาจาก `.env` เผื่อย้ายค่ายทีหลังไม่ต้องแก้โค้ด)
+  อ่านข้อความจาก `content[].text` — ทั้ง 4 ค่า (`AI_PROVIDER/AI_API_BASE/AI_API_KEY/AI_MODEL`)
+  มาจาก `.env` เผื่อย้ายค่ายทีหลังไม่ต้องแก้โค้ด (`AI_PROVIDER=openai` ใช้ทรง OpenAI ทรง OpenRouter))
 → zod validate: `name/brand/trackingType/unitLabel` รับค่าอิสระ,
   `categoryId` ต้องตรง master ถ้าไม่ตรงให้เว้นว่าง (`''`)
 → client fill ลงฟอร์มเพิ่ม (เขียนทับทั้งหมด — ฟอร์มของใหม่เลยทับได้)

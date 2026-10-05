@@ -58,17 +58,49 @@ export async function suggestProduct(
   }
   const baseUrl = (process.env.AI_API_BASE?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '')
   const model = process.env.AI_MODEL?.trim() || DEFAULT_MODEL
+  // ทรง API: relay นี้ใช้ทรง Anthropic, OpenRouter ใช้ทรง OpenAI - สลับผ่าน env ได้ไม่ต้องแก้โค้ด
+  const provider = (process.env.AI_PROVIDER?.trim().toLowerCase() || 'anthropic') as
+    | 'anthropic'
+    | 'openai'
+
+  const prompt = buildPrompt(keyword, master)
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let url: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payload: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let pickText: (body: any) => string | undefined
+  if (provider === 'openai') {
+    url = `${baseUrl}/v1/chat/completions`
+    headers.Authorization = `Bearer ${apiKey}`
+    payload = {
+      model,
+      max_tokens: 500,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }],
+    }
+    pickText = (body) => body.choices?.[0]?.message?.content ?? undefined
+  } else {
+    url = `${baseUrl}/v1/messages`
+    headers['x-api-key'] = apiKey
+    payload = {
+      model,
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }],
+    }
+    pickText = (body) =>
+      (body.content as { type?: string; text?: string }[] | undefined)?.find(
+        (c) => c.type === 'text' && c.text
+      )?.text
+  }
 
   let res: Response
   try {
-    res = await fetch(`${baseUrl}/v1/messages`, {
+    res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({
-        model,
-        max_tokens: 500,
-        messages: [{ role: 'user', content: buildPrompt(keyword, master) }],
-      }),
+      headers,
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(90_000),
     })
   } catch (err) {
@@ -82,10 +114,8 @@ export async function suggestProduct(
     throw new HttpError(502, `AI ตอบกลับมาไม่สำเร็จ (${res.status}) - ลองใหม่ หรือกรอกเองได้เลย`)
   }
 
-  const body = (await res.json()) as {
-    content?: { type?: string; text?: string }[]
-  }
-  const text = (body.content ?? []).find((c) => c.type === 'text' && c.text)?.text
+  const body = await res.json()
+  const text = pickText(body)
   if (!text) throw new HttpError(502, 'AI ตอบกลับมาไม่ใช่รูปแบบที่อ่านได้ - ลองใหม่ หรือกรอกเองได้เลย')
 
   let parsed: unknown
