@@ -6,7 +6,7 @@
 
 **Architecture:** route ใหม่รับ keyword → lib เรียก Gemini JSON mode พร้อม master context → zod validate → client fill ฟอร์มเพิ่ม (ไม่ auto-save)
 
-**Tech Stack:** Next.js App Router, fetch เพียว (ไม่เพิ่ม dep), Gemini `gemini-3.8-flash` Interactions API, zod, vitest
+**Tech Stack:** Next.js App Router, fetch เพียว (ไม่เพิ่ม dep), Anthropic messages API ผ่าน relay (`xi/ling-3.1-flash`), zod, vitest
 
 **Spec:** `docs/superpowers/specs/2026-10-05-ai-product-suggest-design.md`
 
@@ -15,8 +15,8 @@
 - ไฟล์ใหม่: `src/lib/ai-suggest.ts`, `src/app/api/products/suggest/route.ts`
 - ไฟล์แก้: `src/app/(app)/products/ProductsClient.tsx` (ฟอร์มเพิ่มเท่านั้น), `.env.example`
 - ห้ามแตะ: ฟอร์มแก้ไข, `POST /api/products`, `prisma/*`, logic สแกน
-- ห้ามเพิ่ม dependency — เรียก `POST https://generativelanguage.googleapis.com/v1beta/interactions` ด้วย `fetch` (header `x-goog-api-key`, body `{ model: 'gemini-3.8-flash', input, response_format }`, อ่านข้อความจาก `steps[].content[].text`)
-- คีย์จาก `GEMINI_API_KEY` เท่านั้น ห้ามส่งคีย์ผ่าน browser
+- ห้ามเพิ่ม dependency — เรียก `POST {AI_API_BASE}/v1/messages` ด้วย `fetch` (header `x-api-key: AI_API_KEY`, body `{ model: AI_MODEL, max_tokens, messages }`, อ่านข้อความจาก `content[]` ที่ `type: 'text'`)
+- คีย์จาก `AI_API_KEY` (+ `AI_API_BASE`, `AI_MODEL` มี default) เท่านั้น ห้ามส่งคีย์ผ่าน browser
 - ไม่ auto-save เด็ดขาด — แค่ fill ฟอร์ม
 - ห้ามยิง Gemini จริงในเทส (mock `fetch` ระดับ lib)
 
@@ -25,7 +25,7 @@
 - keyword ว่าง/ยาวเกิน/อักขระประหลาด — คาดว่า zod ตัดที่ route
 - Gemini ตอบ JSON เพี้ยน/ไม่ใช่ JSON — คาดว่า parse fail แล้ว error ภาษาไทย
 - categoryId ที่ AI ตอบไม่อยู่ใน master — คาดว่าเว้นว่าง ไม่ยัดค่ามั่ว
-- ไม่ตั้ง GEMINI_API_KEY — คาดว่าปุ่มแจ้งเตือน ไม่พังทั้งหน้า
+- ไม่ตั้ง `AI_API_KEY` — คาดว่าปุ่มแจ้งเตือน ไม่พังทั้งหน้า
 - กดปุ่มซ้ำตอนกำลังโหลด — คาดว่า disable ปุ่มตอน busy
 
 ---
@@ -59,7 +59,7 @@ Expected: FAIL with "suggestProduct not defined" (mock `globalThis.fetch` ใน
 
 - [ ] **Step 3: Implement `suggestProduct` in `src/lib/ai-suggest.ts`**
 
-ใช้ `fetch` POST `/v1beta/interactions` (header `x-goog-api-key`, body `{ model: 'gemini-3.8-flash', input, response_format: { type: 'text', mime_type: 'application/json', schema } }`, timeout 10 วิ via `AbortSignal.timeout`), prompt ประกอบด้วย keyword + รายการ category (code+name) + brands, อ่านข้อความจาก `steps[].content[]` ที่ `type: 'text'` แล้ว zod validate (`categoryId` ต้องอยู่ใน master ไม่งั้น `''`), error ทุกแบบเป็นข้อความไทยผ่าน `HttpError`
+ใช้ `fetch` POST `{AI_API_BASE}/v1/messages` (header `x-api-key`, body `{ model: AI_MODEL, max_tokens: 500, messages: [{ role: 'user', content: prompt }] }`, timeout 30 วิ via `AbortSignal.timeout` — relay ต่างประเทศช้ากว่า), สั่งโมเดลใน prompt ว่า "ตอบ JSON อย่างเดียวตาม schema", parse `content[]` แล้ว zod validate (`categoryId` ต้องอยู่ใน master ไม่งั้น `''`), error ทุกแบบเป็นข้อความไทยผ่าน `HttpError`
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -87,7 +87,7 @@ git commit -m "feat(ai): suggest product info via Gemini"
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-it('ไม่มี GEMINI_API_KEY ตอบ 400 ข้อความชัด', async () => {
+it('ไม่มี AI_API_KEY ตอบ 400 ข้อความชัด', async () => {
   const res = await postJson(suggestRoute, { keyword: 'LKA-200' })
   expect(res.status).toBe(400)
 })
@@ -102,7 +102,7 @@ Expected: FAIL with "route not defined / 404"
 
 - [ ] **Step 3: Implement route + ปุ่มฟอร์ม**
 
-route: `z.object({ keyword: trim min1 max40 })` → `requireUser()` → โหลด categories + distinct brands → เรียก `suggestProduct` → `{ suggestion }`; client: ปุ่ม `✨ เติมด้วย AI` ข้างช่อง SKU ฟอร์มเพิ่ม + `suggestBusy/suggestError` + `setForm` จากผลลัพธ์ (เขียนทับทั้งหมด); `.env.example` เพิ่ม `# AI เติมข้อมูลสินค้า (ไม่บังคับ): GEMINI_API_KEY=...` — ห้ามแตะฟอร์มแก้ไข
+route: `z.object({ keyword: trim min1 max40 })` → `requireUser()` → โหลด categories + distinct brands → เรียก `suggestProduct` → `{ suggestion }`; client: ปุ่ม `✨ เติมด้วย AI` ข้างช่อง SKU ฟอร์มเพิ่ม + `suggestBusy/suggestError` + `setForm` จากผลลัพธ์ (เขียนทับทั้งหมด); `.env.example` เพิ่ม `# AI เติมข้อมูลสินค้า (ไม่บังคับ): AI_API_BASE / AI_API_KEY / AI_MODEL` — ห้ามแตะฟอร์มแก้ไข
 
 - [ ] **Step 4: Run tests to verify they pass**
 

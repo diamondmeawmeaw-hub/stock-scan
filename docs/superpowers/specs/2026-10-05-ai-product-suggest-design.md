@@ -8,7 +8,7 @@
 - ผลลัพธ์: กรอก SKU/ชื่อรุ่นคร่าวๆ (เช่น `LKA-200`, `AP-MNT-MP10-D`) กดปุ่ม AI แล้วฟอร์มเพิ่มสินค้าถูกเติมอัตโนมัติ (ชื่อเต็ม, แบรนด์, หมวดหมู่, วิธีนับ, หน่วยนับ)
 - ผู้ใช้: STAFF/ADMIN ตอนเพิ่มสินค้าใหม่ (ข้อตกลงเดิม: staff จัดการ master ได้)
 - ความสำเร็จ: ลดเวลากรอก + ชื่อสินค้ามาตรฐานขึ้น โดยคนยังเป็นคนตรวจก่อนบันทึกเสมอ
-- สมมติฐาน: AI เติมอิสระทุกช่อง (ไม่บังคับตรง master), ใช้ Gemini Flash คีย์ฟรี, ปุ่มอยู่เฉพาะฟอร์มเพิ่ม
+- สมมติฐาน: AI เติมอิสระทุกช่อง (ไม่บังคับตรง master), ใช้ relay ฟรี (`xi/ling-3.1-flash` เทสผ่านแล้ว), ปุ่มอยู่เฉพาะฟอร์มเพิ่ม
 
 ## 2. ขอบเขต
 
@@ -16,7 +16,7 @@
 - ใหม่ `src/lib/ai-suggest.ts` — เรียก Gemini + prompt + zod validate
 - ใหม่ `src/app/api/products/suggest/route.ts` — รับ keyword, โหลด master, คืน suggestion
 - แก้ `src/app/(app)/products/ProductsClient.tsx` — เฉพาะฟอร์มเพิ่ม (ปุ่ม + state + fill)
-- เพิ่ม `.env.example` — `GEMINI_API_KEY=` (ไม่บังคับตั้ง)
+- เพิ่ม `.env.example` — `AI_API_BASE / AI_API_KEY / AI_MODEL` (ไม่บังคับตั้ง)
 
 ไม่แตะ:
 - ฟอร์มแก้ไขสินค้า, `POST /api/products`, schema.prisma (ไม่มี migration), logic สแกนทั้งหมด
@@ -26,9 +26,10 @@
 
 Flow: ปุ่มข้างช่อง SKU → `POST /api/products/suggest { keyword }` (`requireUser`)
 → server โหลด Category ทั้งหมด + brand ที่มีในระบบ → ประกอบ prompt
-→ `POST https://generativelanguage.googleapis.com/v1beta/interactions`
-  (คีย์ใหม่ต้องใช้ Interactions API ตัวใหม่ — `generateContent` เดิมใช้ไม่ได้,
-  header `x-goog-api-key: GEMINI_API_KEY`, body `{ model: 'gemini-3.8-flash', input, response_format }`)
+→ `POST {AI_API_BASE}/v1/messages` ทรง Anthropic messages API
+  (default `https://n8n.carwraman.shop`, header `x-api-key: AI_API_KEY`,
+  body `{ model: AI_MODEL (default `xi/ling-3.1-flash`), max_tokens, messages }`,
+  อ่านข้อความจาก `content[].text` — ทั้ง 3 ค่ามาจาก `.env` เผื่อย้ายค่ายทีหลังไม่ต้องแก้โค้ด)
 → zod validate: `name/brand/trackingType/unitLabel` รับค่าอิสระ,
   `categoryId` ต้องตรง master ถ้าไม่ตรงให้เว้นว่าง (`''`)
 → client fill ลงฟอร์มเพิ่ม (เขียนทับทั้งหมด — ฟอร์มของใหม่เลยทับได้)
@@ -45,7 +46,7 @@ Flow: ปุ่มข้างช่อง SKU → `POST /api/products/suggest {
 
 ## 5. Section 3 — Safety + Testing (อนุมัติแล้ว)
 
-- ไม่ตั้ง `GEMINI_API_KEY`: ปุ่มกดแล้วแจ้ง "ยังไม่ได้ตั้งค่า ดู .env.example" ไม่พัง
+- ไม่ตั้ง `AI_API_KEY`: ปุ่มกดแล้วแจ้ง "ยังไม่ได้ตั้งค่า ดู .env.example" ไม่พัง
 - คีย์ผิด/โควต้าหมด/เน็ตหลุด/timeout (10 วิ): โชว์ข้อความไทย กรอกมือต่อได้
 - unit test: zod validate (categoryId เพี้ยน→เว้นว่าง, JSON เพี้ยน→error อ่านรู้เรื่อง)
 - integration test: ยิง route ตรง (mock `fetch` ระดับ lib ไม่ยิง Gemini จริง)
@@ -54,7 +55,7 @@ Flow: ปุ่มข้างช่อง SKU → `POST /api/products/suggest {
 
 ## 6. Self-review
 
-- Placeholder: ไม่มี TBD — model (`gemini-2.0-flash`), endpoint, timeout, ไฟล์ ครบ
+- Placeholder: ไม่มี TBD — model (`xi/ling-3.1-flash` default, เปลี่ยนผ่าน env), endpoint, timeout, ไฟล์ ครบ
 - Consistency: เติมอิสระแต่ categoryId ต้องตรง master (กัน FK error) ตรงกันทุก section
 - Scope: พอแผนเดียวจบ (2 ไฟล์ใหม่ + 1 ไฟล์แก้ + test)
 - Ambiguity: "เขียนทับทั้งหมด" เฉพาะฟอร์มเพิ่มของใหม่ ไม่กระทบฟอร์มแก้ไขที่ไม่ได้แตะ
