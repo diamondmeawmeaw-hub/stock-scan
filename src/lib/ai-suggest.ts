@@ -124,7 +124,16 @@ export async function suggestProduct(
     const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
     parsed = JSON.parse(cleaned)
   } catch {
-    throw new HttpError(502, 'AI ตอบกลับมาไม่ใช่รูปแบบที่อ่านได้ - ลองใหม่ หรือกรอกเองได้เลย')
+    // โมเดลเล็กชอบตอบปนคำอธิบาย - งัดก้อน {...} ก้อนแรกออกมา
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) {
+      throw new HttpError(502, 'AI ตอบกลับมาไม่ใช่รูปแบบที่อ่านได้ - ลองใหม่ หรือกรอกเองได้เลย')
+    }
+    try {
+      parsed = JSON.parse(match[0])
+    } catch {
+      throw new HttpError(502, 'AI ตอบกลับมาไม่ใช่รูปแบบที่อ่านได้ - ลองใหม่ หรือกรอกเองได้เลย')
+    }
   }
   const data = suggestionSchema.parse(parsed)
 

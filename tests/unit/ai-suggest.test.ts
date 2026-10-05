@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { suggestProduct, type SuggestMaster } from '@/lib/ai-suggest'
 
 const master: SuggestMaster = {
@@ -23,6 +23,14 @@ function mockAnthropic(text: string, status = 200) {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
+})
+
+// ล็อก env ทุกเคส - กัน .env เครื่อง dev (ที่มี AI_PROVIDER=openai ไว้ลองของจริง)
+// รั่วเข้ามาเปลี่ยนทรง API ระหว่างเทส
+beforeEach(() => {
+  vi.stubEnv('AI_PROVIDER', 'anthropic')
+  vi.stubEnv('AI_API_BASE', 'https://ai.example')
+  vi.stubEnv('AI_MODEL', 'test-model')
 })
 
 describe('suggestProduct', () => {
@@ -67,6 +75,21 @@ describe('suggestProduct', () => {
     vi.stubEnv('AI_API_KEY', 'test-key')
     mockAnthropic('ไม่ใช่ json เลย')
     await expect(suggestProduct('XXX-1', master)).rejects.toThrow('AI ตอบกลับมาไม่ใช่รูปแบบที่อ่านได้')
+  })
+
+  it('AI ตอบปนคำอธิบาย งัดก้อน JSON ออกมาใช้ได้', async () => {
+    vi.stubEnv('AI_API_KEY', 'test-key')
+    mockAnthropic(
+      'ได้เลยครับ\n{"name":"สายแลน Cat6","brand":"Link","categoryId":"cat-cbl","trackingType":"QUANTITY","unitLabel":"กล่อง"}\nมีอะไรถามเพิ่มได้'
+    )
+    const out = await suggestProduct('CBL-1', master)
+    expect(out).toEqual({
+      name: 'สายแลน Cat6',
+      brand: 'Link',
+      categoryId: 'cat-cbl',
+      trackingType: 'QUANTITY',
+      unitLabel: 'กล่อง',
+    })
   })
 
   it('trackingType เพี้ยนต้อง default เป็น SERIAL', async () => {
