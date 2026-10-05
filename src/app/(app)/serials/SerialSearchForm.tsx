@@ -19,7 +19,7 @@ export function SerialSearchForm({ initial }: { initial: string }) {
 
   return (
     <form
-      className="flex flex-wrap items-end gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm"
+      className="card-pop flex flex-wrap items-end gap-3 p-4 sm:p-5"
       data-testid="serial-search-form"
       onSubmit={(e) => {
         e.preventDefault()

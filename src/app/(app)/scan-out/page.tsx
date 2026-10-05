@@ -23,9 +23,9 @@ export default async function ScanOutPage() {
   ])
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">เบิกออกจากคลัง</h1>
-        <p className="text-sm text-slate-500">
+      <div className="scan-hero">
+        <h1 className="text-2xl font-bold text-sky-950">เบิกออกจากคลัง</h1>
+        <p className="mt-1 text-sm text-sky-900/70">
           ของรายชิ้น: เลือกเหตุผลไว้ก่อน แล้วยิง serial ได้เลย · ของนับจำนวน: เลือกสินค้าแล้วกรอกจำนวน
         </p>
       </div>

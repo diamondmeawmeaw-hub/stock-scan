@@ -109,10 +109,10 @@ export function AuditSessionClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="scan-hero flex flex-wrap items-start gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{report.name}</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-sky-950">{report.name}</h1>
+          <p className="mt-1 text-sm text-sky-900/70">
             ขอบเขต: {report.categoryName ?? 'ทั้งคลัง'} ·{' '}
             {closed ? `ปิดรอบแล้ว ${formatTime(report.closedAt)}` : 'กำลังนับ'}
           </p>
@@ -143,7 +143,7 @@ export function AuditSessionClient({
                 ปรับสต็อกตามผลนับ
               </label>
               <button
-                className="btn-primary"
+                className="btn-pop-primary sm:w-auto"
                 onClick={closeSession}
                 disabled={busy}
                 data-testid="close-audit"
@@ -164,7 +164,7 @@ export function AuditSessionClient({
         <Tile label="ของเกิน" value={report.surplus.length} tone="amber" testId="audit-surplus" />
       </div>
 
-      <div className="card p-4" data-testid="audit-progress">
+      <div className="card-pop p-4 sm:p-5" data-testid="audit-progress">
         <div className="flex items-baseline justify-between gap-2 text-sm">
           <span className="font-medium">ความคืบหน้าการนับ</span>
           <span data-testid="audit-progress-text" className="text-slate-600">
@@ -172,7 +172,7 @@ export function AuditSessionClient({
           </span>
         </div>
         <div
-          className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100"
+          className="mt-2 h-3 overflow-hidden rounded-full border border-sky-200 bg-sky-100"
           role="progressbar"
           aria-valuenow={progressPct}
           aria-valuemin={0}
@@ -275,14 +275,14 @@ function QuantityAuditSection({
   }
 
   return (
-    <div className="card overflow-hidden" data-testid="quantity-audit">
-      <h2 className="border-b border-slate-200 px-4 py-3 font-medium">
+    <div className="card-pop overflow-hidden" data-testid="quantity-audit">
+      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950">
         สินค้านับจำนวน ({lines.length}) — กรอกยอดที่นับได้จริง
       </h2>
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
             <tr>
               <th className="px-4 py-2 font-medium">สินค้า</th>
               <th className="px-4 py-2 text-right font-medium">ระบบว่ามี</th>
@@ -363,8 +363,8 @@ function Tile({
   const color =
     tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-slate-900'
   return (
-    <div className="card p-4">
-      <div className="text-sm text-slate-500">{label}</div>
+    <div className="card-pop p-4">
+      <div className="text-sm font-medium text-sky-900/70">{label}</div>
       <div className={`mt-1 text-3xl font-semibold ${color}`} data-testid={testId}>
         {value}
       </div>
@@ -384,15 +384,15 @@ function UnitTable({
   testId: string
 }) {
   return (
-    <div className="card overflow-hidden" data-testid={testId}>
-      <h2 className="border-b border-slate-200 px-4 py-3 font-medium">
+    <div className="card-pop overflow-hidden" data-testid={testId}>
+      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950">
         {title} ({rows.length})
       </h2>
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-sm text-slate-500">{empty}</p>
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
               <th className="px-4 py-2 font-medium">สินค้า</th>

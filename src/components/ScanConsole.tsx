@@ -245,15 +245,15 @@ export function ScanConsole({
 
   return (
     <div className="space-y-4">
-      <div className="card p-4">
-        <label className="label" htmlFor="scan-input">
+      <div className="card-pop p-4 sm:p-5">
+        <label className="label text-base font-semibold" htmlFor="scan-input">
           {label}
         </label>
         <input
           id="scan-input"
           ref={inputRef}
           data-testid="scan-input"
-          className="w-full rounded-lg border-2 border-slate-300 px-4 py-3 font-mono text-2xl tracking-wider outline-none focus:border-slate-900 disabled:bg-slate-100"
+          className="scan-input tracking-wider disabled:bg-slate-100"
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
@@ -293,8 +293,8 @@ export function ScanConsole({
         <div
           data-testid="scan-last"
           data-accepted={last.accepted ? 'true' : 'false'}
-          className={`rounded-xl border-2 p-4 ${
-            last.accepted ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50'
+          className={`rounded-xl border-2 p-4 sm:p-5 ${
+            last.accepted ? 'border-emerald-300 bg-emerald-100' : 'border-rose-300 bg-rose-100'
           }`}
         >
           <div className="flex flex-wrap items-baseline gap-x-3">
@@ -320,7 +320,7 @@ export function ScanConsole({
         <div
           data-testid="scan-duplicate-alert"
           role="alert"
-          className="rounded-xl border-2 border-red-300 bg-red-50 p-4"
+          className="rounded-xl border-2 border-rose-300 bg-rose-100 p-4"
         >
           <div className="flex items-start gap-3">
             <span className="text-lg font-medium text-red-700">✕ {duplicateAlert}</span>
@@ -331,7 +331,7 @@ export function ScanConsole({
                 setDuplicateAlert(null)
                 inputRef.current?.focus()
               }}
-              className="ml-auto rounded-lg px-2 py-1 text-sm font-medium text-red-600 transition hover:bg-red-100"
+              className="ml-auto rounded-lg px-3 py-1.5 text-sm font-medium text-rose-800 transition hover:bg-rose-200"
             >
               ปิด
             </button>
@@ -340,16 +340,16 @@ export function ScanConsole({
       )}
 
       {feed.length > 0 && (
-        <div className="card overflow-hidden">
+        <div className="card-pop overflow-hidden">
           {onConfirm && (
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-amber-50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-200 bg-amber-100 px-4 py-3">
               <div>
                 <span className="text-sm text-amber-800">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
                 {confirmError && <p className="mt-1 text-sm text-red-700">{confirmError}</p>}
               </div>
               <button
                 type="button"
-                className="btn-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn-pop-primary whitespace-nowrap sm:w-auto"
                 disabled={confirming || feed.length === 0}
                 onClick={() => void confirmFeed()}
                 data-testid="confirm-scan"
@@ -360,7 +360,7 @@ export function ScanConsole({
             </div>
           )}
           <table className="w-full text-sm" data-testid="scan-feed">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
               <tr>
                 <th className="px-4 py-2 font-medium">เวลา</th>
                 <th className="px-4 py-2 font-medium">Serial</th>
@@ -387,7 +387,7 @@ export function ScanConsole({
                       <button
                         type="button"
                         onClick={() => handleDelete(item)}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg hover:bg-red-100 text-red-600 transition-colors"
+                        className="inline-flex items-center justify-center w-9 h-9 rounded-xl border-2 border-rose-200 hover:bg-rose-100 text-rose-700 transition-colors"
                         title="ลบรายการนี้"
                         data-testid={`delete-${item.key}`}
                       >
