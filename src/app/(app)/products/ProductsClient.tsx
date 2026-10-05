@@ -58,6 +58,53 @@ export function ProductsClient({
     trackingType: 'SERIAL',
     unitLabel: 'ชิ้น',
   })
+  // AI เติมข้อมูลสินค้า - เฉพาะฟอร์มเพิ่ม กดแล้ว fill ฟอร์มให้ตรวจก่อนบันทึก (ไม่ auto-save)
+  const [suggestBusy, setSuggestBusy] = useState(false)
+  const [suggestMsg, setSuggestMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  async function suggest() {
+    const keyword = form.sku.trim()
+    if (!keyword) {
+      setSuggestMsg({ ok: false, text: 'กรอกรหัสหรือชื่อรุ่นในช่อง SKU ก่อนกดปุ่ม AI' })
+      return
+    }
+    setSuggestBusy(true)
+    setSuggestMsg(null)
+    try {
+      const res = (await api('/api/products/suggest', {
+        method: 'POST',
+        body: JSON.stringify({ keyword }),
+      })) as {
+        suggestion: {
+          name: string
+          brand: string
+          categoryId: string
+          trackingType: 'SERIAL' | 'QUANTITY'
+          unitLabel: string | null
+        }
+      }
+      const s = res.suggestion
+      setForm((f) => ({
+        ...f,
+        name: s.name || f.name,
+        brand: s.brand,
+        categoryId: s.categoryId || f.categoryId,
+        trackingType: s.trackingType,
+        unitLabel: s.trackingType === 'QUANTITY' ? s.unitLabel?.trim() || 'ชิ้น' : f.unitLabel,
+      }))
+      if (s.trackingType === 'QUANTITY' && s.unitLabel && !isStandardUnit(s.unitLabel.trim())) {
+        setCustomUnit(true)
+      }
+      setSuggestMsg({
+        ok: true,
+        text: s.categoryId ? 'AI เติมข้อมูลให้แล้ว - ตรวจแล้วกดเพิ่ม' : 'AI เติมให้แล้ว แต่จับคู่หมวดหมู่ไม่ได้ - เลือกเอง',
+      })
+    } catch (err) {
+      setSuggestMsg({ ok: false, text: err instanceof Error ? err.message : 'ขอ AI ไม่สำเร็จ' })
+    } finally {
+      setSuggestBusy(false)
+    }
+  }
   const [edit, setEdit] = useState({
     sku: '',
     name: '',
@@ -132,6 +179,24 @@ export function ProductsClient({
             value={form.sku}
             onChange={(e) => setForm({ ...form, sku: e.target.value })}
           />
+          <button
+            type="button"
+            className="btn-ghost mt-2 w-full px-3 py-1.5 text-xs"
+            disabled={suggestBusy}
+            onClick={() => void suggest()}
+            data-testid="ai-suggest"
+            title="ให้ AI เติมชื่อ แบรนด์ และหมวดหมู่จากรหัสนี้"
+          >
+            {suggestBusy ? 'กำลังถาม AI…' : '✨ เติมด้วย AI'}
+          </button>
+          {suggestMsg && (
+            <p
+              data-testid="ai-suggest-message"
+              className={`mt-1 text-xs ${suggestMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}
+            >
+              {suggestMsg.text}
+            </p>
+          )}
         </div>
         <div className="sm:col-span-2">
           <label className="label" htmlFor="name">
