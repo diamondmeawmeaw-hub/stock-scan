@@ -69,12 +69,16 @@ export async function suggestProduct(
         max_tokens: 500,
         messages: [{ role: 'user', content: buildPrompt(keyword, master) }],
       }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(90_000),
     })
-  } catch {
+  } catch (err) {
+    console.error('[ai-suggest] fetch failed:', err instanceof Error ? err.message : err)
     throw new HttpError(502, 'ติดต่อ AI ไม่ได้ - เช็คเน็ตแล้วลองใหม่ หรือกรอกเองได้เลย')
   }
   if (!res.ok) {
+    if (res.status === 429) {
+      throw new HttpError(429, 'AI กำลังพัก (คนใช้เยอะ) - รอสักครู่แล้วกดใหม่ หรือกรอกเองได้เลย')
+    }
     throw new HttpError(502, `AI ตอบกลับมาไม่สำเร็จ (${res.status}) - ลองใหม่ หรือกรอกเองได้เลย`)
   }
 

@@ -88,4 +88,12 @@ describe('suggestProduct', () => {
     vi.stubEnv('AI_API_KEY', '')
     await expect(suggestProduct('XXX-1', master)).rejects.toThrow('ยังไม่ได้ตั้งค่า AI_API_KEY')
   })
+
+  it('relay ตอบ 429 -> โยน 429 ข้อความให้รอแล้วกดใหม่', async () => {
+    vi.stubEnv('AI_API_KEY', 'test-key')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 429 }))
+    const err = await suggestProduct('XXX-1', master).catch((e) => e)
+    expect(err.status).toBe(429)
+    expect(err.message).toContain('กำลังพัก')
+  })
 })
