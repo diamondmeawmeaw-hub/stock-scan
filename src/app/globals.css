@@ -42,3 +42,32 @@ body {
 @utility label {
   @apply mb-1 block text-sm font-medium text-slate-700;
 }
+
+/* โทนพาสเทลเฉพาะหน้าสแกน — สนุกแต่สบายตา ใช้งานนานไม่ล้า */
+@utility scan-hero {
+  @apply rounded-2xl border-2 border-white bg-gradient-to-br from-sky-100 via-amber-50 to-rose-100 p-4 shadow-sm sm:p-5;
+}
+
+@utility card-pop {
+  @apply rounded-xl border-2 border-sky-200 bg-white shadow-sm;
+}
+
+@utility btn-pop {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-sky-300 bg-white px-5 py-3 text-base font-semibold text-sky-950 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-pop-primary {
+  @apply inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-400 bg-emerald-300 px-5 py-3 text-base font-semibold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility scan-input {
+  @apply w-full rounded-xl border-2 border-sky-300 bg-white px-4 py-3 font-mono text-2xl outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-200;
+}
+
+@utility stat-pop-ok {
+  @apply rounded-xl border-2 border-emerald-300 bg-emerald-100 px-4 py-3 text-emerald-950;
+}
+
+@utility stat-pop-bad {
+  @apply rounded-xl border-2 border-rose-300 bg-rose-100 px-4 py-3 text-rose-950;
+}
