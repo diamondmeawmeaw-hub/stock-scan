@@ -206,7 +206,7 @@ export function ScanInClient({
 
   return (
     <div className="space-y-4">
-      <div className="card grid gap-4 p-4 sm:grid-cols-2">
+      <div className="card-pop grid gap-4 p-4 sm:p-5 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="product-select">
             สินค้าที่กำลังรับเข้า
@@ -278,7 +278,7 @@ export function ScanInClient({
       )}
 
       {isQuantity && selected ? (
-        <form onSubmit={submitQuantity} className="card space-y-3 p-4" data-testid="quantity-in-form">
+        <form onSubmit={submitQuantity} className="card-pop space-y-3 p-4 sm:p-5" data-testid="quantity-in-form">
           <div>
             <label className="label" htmlFor="qty">
               จำนวนที่รับเข้า ({selected.unitLabel ?? 'ชิ้น'})
@@ -298,7 +298,7 @@ export function ScanInClient({
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
               />
-              <button className="btn-primary shrink-0" disabled={qtyBusy}>
+              <button className="btn-pop shrink-0" disabled={qtyBusy}>
                 {qtyBusy ? 'กำลังบันทึก…' : 'รับเข้า'}
               </button>
             </div>
@@ -306,7 +306,7 @@ export function ScanInClient({
           {qtyMessage && (
             <p
               data-testid="quantity-message"
-              className={`rounded-lg px-3 py-2 text-sm ${qtyMessage.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950' : 'border-rose-300 bg-rose-100 text-rose-950'}`}
             >
               {qtyMessage.text}
             </p>

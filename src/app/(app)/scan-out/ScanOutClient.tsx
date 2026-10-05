@@ -139,8 +139,8 @@ export function ScanOutClient({
           aria-selected={mode === 'SERIAL'}
           data-testid="mode-serial"
           onClick={() => setMode('SERIAL')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-            mode === 'SERIAL' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+          className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
+            mode === 'SERIAL' ? 'border-sky-400 bg-sky-300 text-sky-950' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50'
           }`}
         >
           ยิง serial (รายชิ้น)
@@ -151,15 +151,15 @@ export function ScanOutClient({
           aria-selected={mode === 'QUANTITY'}
           data-testid="mode-quantity"
           onClick={() => setMode('QUANTITY')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-            mode === 'QUANTITY' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+          className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
+            mode === 'QUANTITY' ? 'border-sky-400 bg-sky-300 text-sky-950' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50'
           }`}
         >
           กรอกจำนวน
         </button>
       </div>
 
-      <div className="card grid gap-4 p-4 sm:grid-cols-2">
+      <div className="card-pop grid gap-4 p-4 sm:p-5 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="customer">ขายให้ลูกค้า</label>
           <select
@@ -243,7 +243,7 @@ export function ScanOutClient({
               <button
                 type="button"
                 data-testid="project-create"
-                className="btn-primary"
+                className="btn-pop"
                 disabled={creatingProject || !newProjectName.trim()}
                 onClick={() => void createProject()}
               >
@@ -263,7 +263,7 @@ export function ScanOutClient({
           label="ยิง serial ที่จะเบิกออก"
         />
       ) : (
-        <form onSubmit={submitQuantity} className="card space-y-3 p-4" data-testid="quantity-out-form">
+        <form onSubmit={submitQuantity} className="card-pop space-y-3 p-4 sm:p-5" data-testid="quantity-out-form">
           <div>
             <label className="label" htmlFor="quantity-product-select">
               สินค้าที่จะเบิกออก
@@ -312,7 +312,7 @@ export function ScanOutClient({
                 onChange={(e) => setQty(e.target.value)}
               />
               <button
-                className="btn-primary shrink-0"
+                className="btn-pop shrink-0"
                 disabled={qtyBusy || !selectedQty || maxQty <= 0}
               >
                 {qtyBusy ? 'กำลังบันทึก…' : 'เบิกออก'}
@@ -322,7 +322,7 @@ export function ScanOutClient({
           {qtyMessage && (
             <p
               data-testid="quantity-message"
-              className={`rounded-lg px-3 py-2 text-sm ${qtyMessage.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950' : 'border-rose-300 bg-rose-100 text-rose-950'}`}
             >
               {qtyMessage.text}
             </p>
