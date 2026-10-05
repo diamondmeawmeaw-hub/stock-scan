@@ -12,9 +12,10 @@ describe('ScanConsole pastel classes', () => {
   it('ช่องสแกนใช้ scan-input', () => {
     expect(src).toMatch(/className="[^"]*scan-input/)
   })
-  it('stats ใช้ stat-pop-ok / stat-pop-bad', () => {
-    expect(src).toContain('stat-pop-ok')
-    expect(src).toContain('stat-pop-bad')
+  it('stats ตัวหนังสือเล็กแบบเดิม ไม่ใส่กรอบ', () => {
+    expect(src).not.toContain('stat-pop-ok')
+    expect(src).not.toContain('stat-pop-bad')
+    expect(src).toContain('data-testid="scan-stats"')
   })
   it('ปุ่มยืนยันใช้ btn-pop-primary', () => {
     expect(src).toContain('btn-pop-primary')

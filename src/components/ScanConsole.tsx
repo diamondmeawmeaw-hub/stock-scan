@@ -279,14 +279,10 @@ export function ScanConsole({
             if (!disabled && !e.relatedTarget) setTimeout(() => inputRef.current?.focus(), 0)
           }}
         />
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          <span data-testid="scan-stats" className="flex flex-wrap items-center gap-2">
-            <span className="stat-pop-ok text-base font-semibold">
-              รับ <b className="text-xl">{stats.accepted}</b>
-            </span>
-            <span className="stat-pop-bad text-base font-semibold">
-              ปฏิเสธ <b className="text-xl">{stats.rejected}</b>
-            </span>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span data-testid="scan-stats">
+            รับ <b className="text-emerald-600">{stats.accepted}</b> · ปฏิเสธ{' '}
+            <b className="text-red-600">{stats.rejected}</b>
           </span>
           {pending > 0 && <span data-testid="scan-pending">กำลังส่ง {pending} รายการ...</span>}
           <span className="ml-auto">ยิงแล้วกด Enter (เครื่องสแกนทำให้เอง)</span>
