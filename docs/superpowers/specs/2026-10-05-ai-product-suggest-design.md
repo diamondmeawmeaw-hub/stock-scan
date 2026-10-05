@@ -26,8 +26,9 @@
 
 Flow: ปุ่มข้างช่อง SKU → `POST /api/products/suggest { keyword }` (`requireUser`)
 → server โหลด Category ทั้งหมด + brand ที่มีในระบบ → ประกอบ prompt
-→ `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
-  (`responseMimeType: application/json`, คีย์จาก `GEMINI_API_KEY`)
+→ `POST https://generativelanguage.googleapis.com/v1beta/interactions`
+  (คีย์ใหม่ต้องใช้ Interactions API ตัวใหม่ — `generateContent` เดิมใช้ไม่ได้,
+  header `x-goog-api-key: GEMINI_API_KEY`, body `{ model: 'gemini-3.8-flash', input, response_format }`)
 → zod validate: `name/brand/trackingType/unitLabel` รับค่าอิสระ,
   `categoryId` ต้องตรง master ถ้าไม่ตรงให้เว้นว่าง (`''`)
 → client fill ลงฟอร์มเพิ่ม (เขียนทับทั้งหมด — ฟอร์มของใหม่เลยทับได้)

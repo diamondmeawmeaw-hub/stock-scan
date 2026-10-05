@@ -6,7 +6,7 @@
 
 **Architecture:** route ใหม่รับ keyword → lib เรียก Gemini JSON mode พร้อม master context → zod validate → client fill ฟอร์มเพิ่ม (ไม่ auto-save)
 
-**Tech Stack:** Next.js App Router, fetch เพียว (ไม่เพิ่ม dep), Gemini `gemini-2.0-flash` generateContent, zod, vitest
+**Tech Stack:** Next.js App Router, fetch เพียว (ไม่เพิ่ม dep), Gemini `gemini-3.8-flash` Interactions API, zod, vitest
 
 **Spec:** `docs/superpowers/specs/2026-10-05-ai-product-suggest-design.md`
 
@@ -15,7 +15,7 @@
 - ไฟล์ใหม่: `src/lib/ai-suggest.ts`, `src/app/api/products/suggest/route.ts`
 - ไฟล์แก้: `src/app/(app)/products/ProductsClient.tsx` (ฟอร์มเพิ่มเท่านั้น), `.env.example`
 - ห้ามแตะ: ฟอร์มแก้ไข, `POST /api/products`, `prisma/*`, logic สแกน
-- ห้ามเพิ่ม dependency — เรียก `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent` ด้วย `fetch`
+- ห้ามเพิ่ม dependency — เรียก `POST https://generativelanguage.googleapis.com/v1beta/interactions` ด้วย `fetch` (header `x-goog-api-key`, body `{ model: 'gemini-3.8-flash', input, response_format }`, อ่านข้อความจาก `steps[].content[].text`)
 - คีย์จาก `GEMINI_API_KEY` เท่านั้น ห้ามส่งคีย์ผ่าน browser
 - ไม่ auto-save เด็ดขาด — แค่ fill ฟอร์ม
 - ห้ามยิง Gemini จริงในเทส (mock `fetch` ระดับ lib)
@@ -59,7 +59,7 @@ Expected: FAIL with "suggestProduct not defined" (mock `globalThis.fetch` ใน
 
 - [ ] **Step 3: Implement `suggestProduct` in `src/lib/ai-suggest.ts`**
 
-ใช้ `fetch` POST generateContent (`responseMimeType: application/json`, timeout 10 วิ via `AbortSignal.timeout`), prompt ประกอบด้วย keyword + รายการ category (code+name) + brands, parse `candidates[0].content.parts[0].text` แล้ว zod validate (`categoryId` ต้องอยู่ใน master ไม่งั้น `''`), error ทุกแบบเป็นข้อความไทยผ่าน `HttpError`
+ใช้ `fetch` POST `/v1beta/interactions` (header `x-goog-api-key`, body `{ model: 'gemini-3.8-flash', input, response_format: { type: 'text', mime_type: 'application/json', schema } }`, timeout 10 วิ via `AbortSignal.timeout`), prompt ประกอบด้วย keyword + รายการ category (code+name) + brands, อ่านข้อความจาก `steps[].content[]` ที่ `type: 'text'` แล้ว zod validate (`categoryId` ต้องอยู่ใน master ไม่งั้น `''`), error ทุกแบบเป็นข้อความไทยผ่าน `HttpError`
 
 - [ ] **Step 4: Run test to verify it passes**
 
