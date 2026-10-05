@@ -45,7 +45,7 @@ body {
 
 /* โทนพาสเทลเฉพาะหน้าสแกน — สนุกแต่สบายตา ใช้งานนานไม่ล้า */
 @utility scan-hero {
-  @apply rounded-2xl border-2 border-white bg-gradient-to-br from-sky-100 via-amber-50 to-rose-100 p-4 shadow-sm sm:p-5;
+  @apply rounded-2xl border-2 border-sky-200 bg-gradient-to-br from-sky-100 via-sky-50 to-white p-4 shadow-sm sm:p-5;
 }
 
 @utility card-pop {
