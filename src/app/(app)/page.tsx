@@ -60,14 +60,14 @@ export default async function HomePage() {
   })
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-b from-sky-50 via-blue-50/60 to-white p-5 text-slate-800 shadow-lg sm:p-7">
-      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+    <div className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-b from-sky-50 via-blue-50/60 to-white p-5 text-slate-800 shadow-lg sm:p-7 dark:border-sky-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 dark:text-slate-200">
+      <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-800/20" />
+      <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-blue-200/30 blur-3xl dark:bg-blue-900/20" />
 
       <div className="relative space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-sky-600">ระบบเช็คสต็อกด้วยการสแกน serial</p>
+            <p className="text-sm font-medium text-sky-600 dark:text-sky-300">ระบบเช็คสต็อกด้วยการสแกน serial</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
               ภาพรวมคลังสินค้า
             </h1>
@@ -76,16 +76,16 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="rounded-xl border border-sky-100 bg-white/70 px-4 py-2 text-right shadow-sm dark:border-sky-900 dark:bg-slate-900/70">
-            <div className="text-sm font-medium text-sky-700">{todayText}</div>
+            <div className="text-sm font-medium text-sky-700 dark:text-sky-300">{todayText}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">{nowTime} น.</div>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat icon={<PackageIcon />} accent="bg-sky-100 text-sky-600" label="ของในคลัง (ชิ้น)" value={inStock} />
-          <Stat icon={<SendIcon />} accent="bg-blue-100 text-blue-600" label="เบิกออกไปแล้ว (ชิ้น)" value={out} />
-          <Stat icon={<TagIcon />} accent="bg-indigo-100 text-indigo-600" label="รายการสินค้า" value={productCount} />
-          <Stat icon={<LayersIcon />} accent="bg-cyan-100 text-cyan-600" label="ประเภทของ" value={categoryCount} />
+          <Stat icon={<PackageIcon />} accent="bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300" label="ของในคลัง (ชิ้น)" value={inStock} />
+          <Stat icon={<SendIcon />} accent="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300" label="เบิกออกไปแล้ว (ชิ้น)" value={out} />
+          <Stat icon={<TagIcon />} accent="bg-indigo-100 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300" label="รายการสินค้า" value={productCount} />
+          <Stat icon={<LayersIcon />} accent="bg-cyan-100 text-cyan-600 dark:bg-cyan-950 dark:text-cyan-300" label="ประเภทของ" value={categoryCount} />
         </div>
 
         {openSession && (
@@ -165,7 +165,7 @@ export default async function HomePage() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-900">
-          <h2 className="border-b border-slate-100 px-4 py-3 font-medium dark:border-slate-800">
+          <h2 className="border-b border-slate-100 px-4 py-3 font-medium text-slate-900 dark:border-slate-800 dark:text-slate-100">
             การสแกนล่าสุด
           </h2>
           {recentScans.length === 0 ? (
