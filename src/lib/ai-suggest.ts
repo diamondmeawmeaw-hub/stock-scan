@@ -86,6 +86,8 @@ export async function suggestProduct(
       model,
       max_tokens: 1000,
       response_format: { type: 'json_object' },
+      // ให้ค้นเว็บก่อนตอบ - รหัส SKU เฉพาะเจาะจง ค้นเจอชัวร์กว่าเดาจากความจำ
+      plugins: [{ id: 'web', max_results: 3 }],
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
