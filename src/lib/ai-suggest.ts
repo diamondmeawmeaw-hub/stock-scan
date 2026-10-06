@@ -68,6 +68,9 @@ export async function suggestProduct(
     | 'openai'
 
   const prompt = buildPrompt(keyword, master)
+  // สั่งห้ามพล่ามก่อนตอบ - โมเดลเล็กถ้าปล่อยคิดดังจะช้าเป็นนาที (เจอมาแล้ว 50 วิ)
+  const systemPrompt =
+    'You are a product classifier. Output ONLY the JSON object. No thinking, no explanation, no markdown.'
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let url: string
@@ -80,9 +83,12 @@ export async function suggestProduct(
     headers.Authorization = `Bearer ${apiKey}`
     payload = {
       model,
-      max_tokens: 2000,
+      max_tokens: 1000,
       response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
     }
     pickText = (body) => body.choices?.[0]?.message?.content ?? undefined
   } else {
@@ -90,7 +96,8 @@ export async function suggestProduct(
     headers['x-api-key'] = apiKey
     payload = {
       model,
-      max_tokens: 2000,
+      max_tokens: 1000,
+      system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
     }
     pickText = (body) =>
