@@ -47,9 +47,9 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm">
+      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm dark:border-sky-900 dark:from-sky-950 dark:via-slate-900 dark:to-slate-900">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300">
             <UsersIcon className="h-5 w-5" />
           </span>
           <div>
