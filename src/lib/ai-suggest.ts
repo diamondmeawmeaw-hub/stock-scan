@@ -15,8 +15,9 @@ export type ProductSuggestion = {
   unitLabel: string | null
 }
 
-const DEFAULT_BASE_URL = 'https://n8n.carwraman.shop'
-const DEFAULT_MODEL = 'xi/ling-3.1-flash'
+const DEFAULT_PROVIDER = 'openai'
+const DEFAULT_BASE_URL = 'https://openrouter.ai/api'
+const DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning:free'
 
 const suggestionSchema = z.object({
   name: z.string().trim().min(1).max(150).catch(''),
@@ -38,9 +39,12 @@ function buildPrompt(keyword: string, master: SuggestMaster): string {
     '',
     `แบรนด์ที่มีในระบบ: ${brands}`,
     '',
-    'ตอบ JSON อย่างเดียว ไม่ต้องอธิบายเพิ่ม รูปแบบ:',
-    '{"name":"ชื่อสินค้าเต็ม","brand":"ยี่ห้อ","categoryId":"...","trackingType":"SERIAL หรือ QUANTITY","unitLabel":"หน่วยนับหรือ null"}',
-    'trackingType: ของเป็นชิ้นมี serial (AP, Switch, กล้อง) = SERIAL, ของนับเป็นจำนวน (ตู้แร็ค, สายแลน) = QUANTITY',
+    'ตอบ JSON object อย่างเดียว ห้ามมีข้อความอื่นนอก JSON มีคีย์พวกนี้เท่านั้น:',
+    '- name: string ชื่อสินค้าเต็ม (ห้ามตอบว่าชื่อสินค้าเต็ม ให้เติมชื่อจริง)',
+    '- brand: string ยี่ห้อ (ห้ามตอบว่ายี่ห้อ ให้เติมยี่ห้อจริง ถ้าไม่รู้ตอบว่าง)',
+    '- categoryId: string เอา id จากรายการข้างบนเท่านั้น ถ้าไม่เข้าอันไหนเลยตอบว่าง',
+    '- trackingType: ตอบ SERIAL ถ้าเป็นของรายชิ้นมี serial (AP, Switch, กล้อง) / QUANTITY ถ้าเป็นของนับจำนวน (ตู้แร็ค, สายแลน)',
+    '- unitLabel: string หน่วยนับ หรือ null ถ้าเป็น SERIAL',
   ].join('\n')
 }
 
@@ -59,7 +63,7 @@ export async function suggestProduct(
   const baseUrl = (process.env.AI_API_BASE?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '')
   const model = process.env.AI_MODEL?.trim() || DEFAULT_MODEL
   // ทรง API: relay นี้ใช้ทรง Anthropic, OpenRouter ใช้ทรง OpenAI - สลับผ่าน env ได้ไม่ต้องแก้โค้ด
-  const provider = (process.env.AI_PROVIDER?.trim().toLowerCase() || 'anthropic') as
+  const provider = (process.env.AI_PROVIDER?.trim().toLowerCase() || DEFAULT_PROVIDER) as
     | 'anthropic'
     | 'openai'
 
@@ -76,7 +80,7 @@ export async function suggestProduct(
     headers.Authorization = `Bearer ${apiKey}`
     payload = {
       model,
-      max_tokens: 500,
+      max_tokens: 2000,
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     }
@@ -86,7 +90,7 @@ export async function suggestProduct(
     headers['x-api-key'] = apiKey
     payload = {
       model,
-      max_tokens: 500,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }],
     }
     pickText = (body) =>
