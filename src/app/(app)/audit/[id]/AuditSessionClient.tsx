@@ -111,8 +111,8 @@ export function AuditSessionClient({
     <div className="space-y-4">
       <div className="scan-hero flex flex-wrap items-start gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-sky-950">{report.name}</h1>
-          <p className="mt-1 text-sm text-sky-900/70">
+          <h1 className="text-2xl font-bold text-sky-950 dark:text-sky-100">{report.name}</h1>
+          <p className="mt-1 text-sm text-sky-900/70 dark:text-sky-200/70">
             ขอบเขต: {report.categoryName ?? 'ทั้งคลัง'} ·{' '}
             {closed ? `ปิดรอบแล้ว ${formatTime(report.closedAt)}` : 'กำลังนับ'}
           </p>
@@ -134,7 +134,7 @@ export function AuditSessionClient({
           )}
           {!closed && (
             <>
-              <label className="flex items-center gap-2 text-sm text-slate-600">
+              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={applyAdjustments}
@@ -155,7 +155,7 @@ export function AuditSessionClient({
         </div>
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Tile label="ระบบว่ามี" value={report.expectedCount} />
@@ -167,12 +167,12 @@ export function AuditSessionClient({
       <div className="card-pop p-4 sm:p-5" data-testid="audit-progress">
         <div className="flex items-baseline justify-between gap-2 text-sm">
           <span className="font-medium">ความคืบหน้าการนับ</span>
-          <span data-testid="audit-progress-text" className="text-slate-600">
+          <span data-testid="audit-progress-text" className="text-slate-600 dark:text-slate-300">
             นับแล้ว {progressDone} จาก {progressTotal} ({progressPct}%)
           </span>
         </div>
         <div
-          className="mt-2 h-3 overflow-hidden rounded-full border border-sky-200 bg-sky-100"
+          className="mt-2 h-3 overflow-hidden rounded-full border border-sky-200 bg-sky-100 dark:border-sky-800 dark:bg-sky-950"
           role="progressbar"
           aria-valuenow={progressPct}
           aria-valuemin={0}
@@ -184,7 +184,7 @@ export function AuditSessionClient({
           />
         </div>
         {qtyTotal > 0 && (
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             รวมของนับจำนวน {qtyTotal} รายการ (กรอกแล้ว {qtyDone})
           </p>
         )}
@@ -220,14 +220,14 @@ export function AuditSessionClient({
 
       {report.unknownSerials.length > 0 && (
         <div className="card overflow-hidden">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-medium">
+          <h2 className="border-b border-slate-200 px-4 py-3 font-medium dark:border-slate-700">
             serial ที่ระบบไม่รู้จัก ({report.unknownSerials.length}) - ต้องเพิ่มเข้าระบบก่อน
           </h2>
-          <ul className="divide-y divide-slate-100 text-sm">
+          <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
             {report.unknownSerials.map((u) => (
               <li key={u.serial} className="flex justify-between px-4 py-2">
                 <span className="font-mono">{u.serial}</span>
-                <span className="text-slate-500">{formatTime(u.scannedAt)}</span>
+                <span className="text-slate-500 dark:text-slate-400">{formatTime(u.scannedAt)}</span>
               </li>
             ))}
           </ul>
@@ -276,13 +276,13 @@ function QuantityAuditSection({
 
   return (
     <div className="card-pop overflow-hidden" data-testid="quantity-audit">
-      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950">
+      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-100">
         สินค้านับจำนวน ({lines.length}) — กรอกยอดที่นับได้จริง
       </h2>
-      {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">{error}</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
+          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
             <tr>
               <th className="px-4 py-2 font-medium">สินค้า</th>
               <th className="px-4 py-2 text-right font-medium">ระบบว่ามี</th>
@@ -291,20 +291,20 @@ function QuantityAuditSection({
               {!closed && <th className="px-4 py-2 font-medium">กรอกยอดนับ</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {lines.map((l) => {
               const diff = l.counted === null ? null : l.counted - l.expected
               return (
                 <tr key={l.productId}>
                   <td className="px-4 py-2">
-                    {l.productName} <span className="text-slate-400">({l.sku})</span>
+                    {l.productName} <span className="text-slate-400 dark:text-slate-500">({l.sku})</span>
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{l.expected}</td>
                   <td className="px-4 py-2 text-right font-medium tabular-nums">
                     {l.counted ?? '-'}
                   </td>
                   <td
-                    className={`px-4 py-2 text-right font-medium tabular-nums ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                    className={`px-4 py-2 text-right font-medium tabular-nums ${diff === null ? 'text-slate-400 dark:text-slate-500' : diff === 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'}`}
                   >
                     {diff === null ? '-' : diff > 0 ? `+${diff}` : `${diff}`}
                   </td>
@@ -361,10 +361,14 @@ function Tile({
   testId?: string
 }) {
   const color =
-    tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-slate-900'
+    tone === 'red'
+      ? 'text-red-600 dark:text-red-300'
+      : tone === 'amber'
+        ? 'text-amber-600 dark:text-amber-300'
+        : 'text-slate-900 dark:text-slate-100'
   return (
     <div className="card-pop p-4">
-      <div className="text-sm font-medium text-sky-900/70">{label}</div>
+      <div className="text-sm font-medium text-sky-900/70 dark:text-sky-200/70">{label}</div>
       <div className={`mt-1 text-3xl font-semibold ${color}`} data-testid={testId}>
         {value}
       </div>
@@ -385,25 +389,25 @@ function UnitTable({
 }) {
   return (
     <div className="card-pop overflow-hidden" data-testid={testId}>
-      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950">
+      <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-100">
         {title} ({rows.length})
       </h2>
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-slate-500">{empty}</p>
+        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">{empty}</p>
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
+          <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
               <th className="px-4 py-2 font-medium">สินค้า</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((r) => (
               <tr key={r.unitId}>
                 <td className="px-4 py-2 font-mono">{r.serial}</td>
-                <td className="px-4 py-2 text-slate-600">
-                  {r.productName} <span className="text-slate-400">({r.sku})</span>
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                  {r.productName} <span className="text-slate-400 dark:text-slate-500">({r.sku})</span>
                 </td>
               </tr>
             ))}

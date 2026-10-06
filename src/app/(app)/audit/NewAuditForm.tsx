@@ -64,7 +64,7 @@ export function NewAuditForm({ categories }: { categories: { id: string; name: s
           </select>
         </div>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <button className="btn-primary" disabled={busy} data-testid="start-audit">
         {busy ? 'กำลังเปิดรอบ...' : 'เริ่มตรวจนับ'}
       </button>

@@ -65,14 +65,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm">
+      <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm dark:border-sky-900 dark:from-sky-950 dark:via-slate-900 dark:to-slate-900">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300">
             <BarChartIcon className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-xl font-semibold text-slate-900">รายงาน</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">รายงาน</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               {view === 'stock'
                 ? 'กรองตามประเภทของ แบรนด์ ผู้ซื้อ ช่วงเวลา หรือค้นหาชื่อ/SKU · ดูยอดคงเหลือแบบละเอียด'
                 : 'ดูประวัติการเคลื่อนไหวของสินค้า · รับเข้า เบิกออก ตรวจนับ'}
@@ -83,7 +83,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav
-          className="inline-flex gap-1 rounded-xl border border-sky-100 bg-sky-50/70 p-1"
+          className="inline-flex gap-1 rounded-xl border border-sky-100 bg-sky-50/70 p-1 dark:border-sky-900 dark:bg-sky-950/60"
           data-testid="report-tabs"
         >
           <Tab
@@ -110,7 +110,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           <a
             href={exportHref('xlsx')}
             data-testid="export-xlsx"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <DownloadIcon className="h-4 w-4 text-emerald-600" />
             โหลด Excel
@@ -118,7 +118,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           <a
             href={exportHref('pdf')}
             data-testid="export-pdf"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <FileTextIcon className="h-4 w-4 text-red-600" />
             โหลด PDF
@@ -178,7 +178,7 @@ function Tab({
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
         active
           ? 'bg-sky-600 text-white shadow-sm'
-          : 'text-slate-600 hover:bg-white/70'
+          : 'text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-800/70'
       }`}
     >
       {label}
@@ -258,32 +258,32 @@ async function MovementView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm dark:border-sky-900 dark:bg-slate-900">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
           {thaiDate(from)} - {thaiDate(to)}
         </span>
         <span className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">
-            รับเข้า <b className="tabular-nums text-emerald-900" data-testid="total-in">{report.totalIn.toLocaleString('th-TH')}</b> รายการ
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+            รับเข้า <b className="tabular-nums text-emerald-900 dark:text-emerald-100" data-testid="total-in">{report.totalIn.toLocaleString('th-TH')}</b> รายการ
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
-            เบิกออก <b className="tabular-nums text-amber-900" data-testid="total-out">{report.totalOut.toLocaleString('th-TH')}</b> รายการ
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            เบิกออก <b className="tabular-nums text-amber-900 dark:text-amber-100" data-testid="total-out">{report.totalOut.toLocaleString('th-TH')}</b> รายการ
           </span>
         </span>
       </div>
 
       {report.rows.length === 0 ? (
         <p
-          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm"
+          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-sky-900 dark:bg-slate-900 dark:text-slate-400"
           data-testid="movement-empty"
         >
           ช่วงวันที่นี้ไม่มีการรับเข้าหรือเบิกออก
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-2 font-medium">วันที่</th>
                   <th className="px-4 py-2 font-medium">รายการ</th>
@@ -294,27 +294,31 @@ async function MovementView({
                   <th className="px-4 py-2 font-medium">หมายเหตุ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {report.rows.map((r) => (
                   <tr key={r.id} data-testid="movement-row">
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{thaiDateTime(r.at)}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">{thaiDateTime(r.at)}</td>
                     <td className="px-4 py-2">
                       <span className={`font-medium ${
-                        r.type === 'IN' ? 'text-emerald-700' : r.type === 'OUT' ? 'text-amber-700' : 'text-slate-600'
+                        r.type === 'IN'
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : r.type === 'OUT'
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : 'text-slate-600 dark:text-slate-300'
                       }`}>
                         {SCAN_TYPE_LABEL[r.type] ?? r.type}
                       </span>
                     </td>
-                    <td className="px-4 py-2 font-mono text-slate-700">
+                    <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">
                       {r.serial ?? (r.quantity > 1 ? `× ${r.quantity}` : '—')}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="text-slate-700">{r.productName}</span>
-                      <span className="ml-1 text-xs text-slate-400">{r.sku}</span>
+                      <span className="text-slate-700 dark:text-slate-200">{r.productName}</span>
+                      <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">{r.sku}</span>
                     </td>
-                    <td className="px-4 py-2 text-slate-600">{r.customerName ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.userName}</td>
-                    <td className="px-4 py-2 text-slate-500">
+                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.customerName ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.userName}</td>
+                    <td className="px-4 py-2 text-slate-500 dark:text-slate-400">
                       {r.note ?? (r.reason ? `(${r.reason})` : '-')}
                     </td>
                   </tr>

@@ -29,7 +29,7 @@ export function ProjectAssign({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  if (!customerId) return <span className="text-slate-400">-</span>
+  if (!customerId) return <span className="text-slate-400 dark:text-slate-500">-</span>
 
   const options = projects.filter((p) => p.customerId === customerId)
 
@@ -51,7 +51,7 @@ export function ProjectAssign({
 
   if (readOnly) {
     const project = value ? projects.find((p) => p.id === value) : null
-    if (!value) return <span className="text-slate-400" data-testid="row-project-name">-</span>
+    if (!value) return <span className="text-slate-400 dark:text-slate-500" data-testid="row-project-name">-</span>
     return (
       <span data-testid="row-project-name">
         {project ? project.name : '(ไม่ใช่ของลูกค้านี้)'}
@@ -63,7 +63,7 @@ export function ProjectAssign({
   return (
     <span className="inline-flex items-center gap-2">
       <select
-        className="w-full rounded-md border border-sky-200 bg-white px-2 py-1 text-sm outline-none transition focus:border-sky-500"
+        className="w-full rounded-md border border-sky-200 bg-white px-2 py-1 text-sm outline-none transition focus:border-sky-500 dark:border-sky-900 dark:bg-slate-900"
         data-testid="row-project-select"
         aria-label="โปรเจคของรายการนี้"
         disabled={busy}
@@ -82,7 +82,7 @@ export function ProjectAssign({
           <option value={value}>(ไม่ใช่ของลูกค้านี้)</option>
         )}
       </select>
-      {error && <span className="whitespace-nowrap text-xs text-red-600">{error}</span>}
+      {error && <span className="whitespace-nowrap text-xs text-red-600 dark:text-red-400">{error}</span>}
     </span>
   )
 }

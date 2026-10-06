@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { ThemeToggle } from './ThemeToggle'
 
 const LINKS = [
   { href: '/', label: 'หน้าหลัก' },
@@ -27,7 +28,9 @@ const isActive = (pathname: string, href: string) =>
 
 const linkClass = (active: boolean) =>
   `rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-    active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+    active
+      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
   }`
 
 export function NavBar({ displayName, role }: { displayName: string; role: 'ADMIN' | 'STAFF' }) {
@@ -41,7 +44,7 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-slate-200 bg-white transition-colors duration-500 ease-in-out dark:border-slate-800 dark:bg-slate-950">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-3">
         <span className="mr-4 text-base font-semibold tracking-tight">Stock&nbsp;Scan</span>
         <nav className="flex flex-wrap items-center gap-1">
@@ -57,15 +60,16 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
           <ManageMenu pathname={pathname} role={role} />
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <span className="text-slate-500">
+          <span className="text-slate-500 dark:text-slate-400">
             {displayName}
-            <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+            <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               {role === 'ADMIN' ? 'ผู้ดูแล' : 'พนักงาน'}
             </span>
           </span>
           <button onClick={logout} className="btn-ghost px-3 py-1.5">
             ออกจากระบบ
           </button>
+          <ThemeToggle />
         </div>
       </div>
     </header>
@@ -119,7 +123,7 @@ function ManageMenu({ pathname, role }: { pathname: string; role: 'ADMIN' | 'STA
         <div
           role="menu"
           data-testid="manage-menu-items"
-          className="absolute left-0 top-full z-20 mt-1 min-w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute left-0 top-full z-20 mt-1 min-w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {links.map((link) => (
             <Link
@@ -128,8 +132,8 @@ function ManageMenu({ pathname, role }: { pathname: string; role: 'ADMIN' | 'STA
               role="menuitem"
               className={`block px-3 py-1.5 text-sm font-medium transition ${
                 isActive(pathname, link.href)
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                  : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
               }`}
             >
               {link.label}

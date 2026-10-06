@@ -27,13 +27,13 @@ function formatThaiDateTime(iso: string): string {
 export function StockView({ categories, grandTotalInStock, filters, snapshotAt, serialMode, summaryLabel }: StockViewProps) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-900 px-4 py-3 shadow-sm">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
           ณ {formatThaiDateTime(snapshotAt)}
         </span>
-        <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800">
+        <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200">
           {summaryLabel ?? 'รวม'}
-          <b className="tabular-nums text-sky-900" data-testid="grand-total">
+          <b className="tabular-nums text-sky-900 dark:text-sky-100" data-testid="grand-total">
             {grandTotalInStock.toLocaleString('th-TH')}
           </b>
           ชิ้น
@@ -42,7 +42,7 @@ export function StockView({ categories, grandTotalInStock, filters, snapshotAt, 
 
       {categories.length === 0 && (
         <p
-          className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm"
+          className="rounded-2xl border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-900 p-6 text-sm text-slate-500 dark:text-slate-400 shadow-sm"
           data-testid="stock-empty"
         >
           ไม่พบสินค้าตามเงื่อนไขที่เลือก
@@ -87,24 +87,24 @@ function CategorySection({
 
   return (
     <div
-      className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm"
+      className="overflow-hidden rounded-2xl border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-900 shadow-sm"
       data-testid="report-category"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-        <h2 className="font-medium text-slate-900">
-          {category.categoryName} <span className="text-slate-400">({category.categoryCode})</span>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 px-4 py-3">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">
+          {category.categoryName} <span className="text-slate-400 dark:text-slate-500">({category.categoryCode})</span>
         </h2>
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-slate-600 dark:text-slate-300">
           {isOut ? 'เบิกออกรวม' : 'คงเหลือรวม'}{' '}
-          <b className="text-slate-900">{categoryTotal}</b> ชิ้น
+          <b className="text-slate-900 dark:text-slate-100">{categoryTotal}</b> ชิ้น
         </span>
       </div>
       {category.products.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-slate-500">ยังไม่มีสินค้าในประเภทนี้</p>
+        <p className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400">ยังไม่มีสินค้าในประเภทนี้</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">SKU</th>
                 <th className="px-4 py-2 font-medium">สินค้า</th>
@@ -120,25 +120,25 @@ function CategorySection({
                 <th className="px-4 py-2 text-center font-medium">Serial</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {category.products.map((p) => {
                 const isExpanded = expandedProducts.has(p.productId)
                 const isQty = p.trackingType === 'QUANTITY'
                 return (
                   <Fragment key={p.productId}>
                     <tr>
-                      <td className="px-4 py-2 font-mono text-slate-700">{p.sku}</td>
+                      <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{p.sku}</td>
                       <td className="px-4 py-2">
                         {p.name}
                         {isQty && (
-                          <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                          <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                             จำนวน{p.unitLabel ? ` (${p.unitLabel})` : ''}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
                       {isOut ? (
-                        <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700">
+                        <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
                           {p.out}
                         </td>
                       ) : (
@@ -146,16 +146,16 @@ function CategorySection({
                           <td className="px-4 py-2 text-right font-medium tabular-nums">
                             {p.inStock}
                           </td>
-                          <td className="px-4 py-2 text-right text-slate-500">{p.out}</td>
+                          <td className="px-4 py-2 text-right text-slate-500 dark:text-slate-400">{p.out}</td>
                         </>
                       )}
                       <td className="px-4 py-2 text-center">
                         {isQty ? (
-                          <span className="text-xs text-slate-400">—</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
                         ) : (
                           <button
                             onClick={() => toggleExpand(p.productId)}
-                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-sky-600 transition hover:bg-sky-50 hover:text-sky-700"
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-sky-600 transition hover:bg-sky-50 hover:text-sky-700 dark:text-sky-300 dark:hover:bg-sky-950 dark:hover:text-sky-200"
                             data-testid={`expand-${p.sku}`}
                           >
                             <ChevronIcon expanded={isExpanded} />

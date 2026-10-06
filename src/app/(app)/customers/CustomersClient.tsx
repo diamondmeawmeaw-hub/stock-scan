@@ -41,8 +41,8 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
   }
 
   return <div className="space-y-5">
-    <div><h1 className="text-xl font-semibold">ลูกค้า</h1><p className="text-sm text-slate-500">จัดการรายชื่อลูกค้า ดูโปรเจคที่เคยซื้อขาย และประวัติการขาย</p></div>
-    {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+    <div><h1 className="text-xl font-semibold">ลูกค้า</h1><p className="text-sm text-slate-500 dark:text-slate-400">จัดการรายชื่อลูกค้า ดูโปรเจคที่เคยซื้อขาย และประวัติการขาย</p></div>
+    {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
     <form className="card grid gap-3 p-4 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); void save({ ...form, note: form.note || null }, true) }}>
       <input className="field" required placeholder="รหัสลูกค้า" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
       <input className="field" required placeholder="ชื่อลูกค้า" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -51,7 +51,7 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
     </form>
     <div className="card overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left">
+        <thead className="bg-slate-50 text-left dark:bg-slate-800">
           <tr>
             <th className="px-4 py-2">รหัส</th>
             <th className="px-4 py-2">ชื่อ</th>
@@ -62,20 +62,20 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
             <th />
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {customers.map((c) => {
             const list = projects.filter((p) => p.customerId === c.id)
             const expanded = expandedId === c.id
             return (
               <Fragment key={c.id}>
-                <tr className={!c.active ? 'text-slate-400' : ''}>
+                <tr className={!c.active ? 'text-slate-400 dark:text-slate-500' : ''}>
                   <td className="px-4 py-2 font-mono">{c.code}</td>
                   <td className="px-4 py-2">{c.name}</td>
                   <td className="px-4 py-2">{c.note ?? '-'}</td>
                   <td className="px-4 py-2 text-right">{c.saleCount}</td>
                   <td className="px-4 py-2 text-right">
                     <button
-                      className="rounded-md px-2 py-1 text-sky-700 transition hover:bg-sky-50"
+                      className="rounded-md px-2 py-1 text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950"
                       data-testid="toggle-projects"
                       aria-expanded={expanded}
                       onClick={() => setExpandedId(expanded ? '' : c.id)}
@@ -88,18 +88,18 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
                 </tr>
                 {expanded && (
                   <tr data-testid="project-list">
-                    <td colSpan={7} className="bg-slate-50/60 px-4 py-3">
-                      <p className="mb-2 text-xs font-medium uppercase text-slate-500">
+                    <td colSpan={7} className="bg-slate-50/60 px-4 py-3 dark:bg-slate-800/60">
+                      <p className="mb-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
                         โปรเจคของ {c.name} · สร้างใหม่ได้ตอนเบิกขาย (หน้าเบิกออก)
                       </p>
                       {list.length === 0 ? (
-                        <p className="text-sm text-slate-500">ยังไม่มีโปรเจค</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">ยังไม่มีโปรเจค</p>
                       ) : (
                         <ul className="space-y-1.5">
                           {list.map((p) => {
                             const editing = editingId === p.id
                             return (
-                              <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2" data-testid="project-row">
+                              <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" data-testid="project-row">
                                 {editing ? (
                                   <>
                                     <input
@@ -125,11 +125,11 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
                                   </>
                                 ) : (
                                   <>
-                                    <span className={`font-medium ${p.active ? '' : 'text-slate-400 line-through'}`} data-testid="project-name">
+                                    <span className={`font-medium ${p.active ? '' : 'text-slate-400 line-through dark:text-slate-500'}`} data-testid="project-name">
                                       {p.name}
                                     </span>
-                                    {!p.active && <span className="text-xs text-slate-400">(ปิดแล้ว)</span>}
-                                    <span className="text-xs text-slate-500">ขายแล้ว {p.saleCount} รายการ</span>
+                                    {!p.active && <span className="text-xs text-slate-400 dark:text-slate-500">(ปิดแล้ว)</span>}
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">ขายแล้ว {p.saleCount} รายการ</span>
                                     <span className="ml-auto flex gap-1">
                                       <button
                                         className="btn-ghost"
