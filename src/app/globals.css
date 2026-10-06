@@ -49,6 +49,11 @@ body {
   @apply antialiased;
 }
 
+/* ตอนจับลูกบิดสวิตช์ลาก - ให้ตามนิ้วทันที ไม่เอา transition มาหน่วง */
+body.toggle-dragging [data-toggle-knob] {
+  transition: none !important;
+}
+
 /* ค่อยๆ เปลี่ยนสีทั้งหน้าเวลาสลับโหมด - ถนอมสายตา (เฉพาะสี ไม่แตะ transform/opacity ของคนอื่น) */
 body.theme-anim,
 body.theme-anim *,
