@@ -279,7 +279,7 @@ export function ScanConsole({
             if (!disabled && !e.relatedTarget) setTimeout(() => inputRef.current?.focus(), 0)
           }}
         />
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
           <span data-testid="scan-stats">
             รับ <b className="text-emerald-600">{stats.accepted}</b> · ปฏิเสธ{' '}
             <b className="text-red-600">{stats.rejected}</b>
@@ -294,19 +294,21 @@ export function ScanConsole({
           data-testid="scan-last"
           data-accepted={last.accepted ? 'true' : 'false'}
           className={`rounded-xl border-2 p-4 sm:p-5 ${
-            last.accepted ? 'border-emerald-300 bg-emerald-100' : 'border-rose-300 bg-rose-100'
+            last.accepted
+              ? 'border-emerald-300 bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950'
+              : 'border-rose-300 bg-rose-100 dark:border-rose-700 dark:bg-rose-950'
           }`}
         >
           <div className="flex flex-wrap items-baseline gap-x-3">
             <span className="font-mono text-2xl font-semibold">{last.serial}</span>
             <span
-              className={`text-lg font-medium ${last.accepted ? 'text-emerald-700' : 'text-red-700'}`}
+              className={`text-lg font-medium ${last.accepted ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}
             >
               {last.accepted ? '✓' : '✕'} {last.message}
             </span>
           </div>
           {last.product && (
-            <div className="mt-1 text-sm text-slate-600">
+            <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               {last.product.name} ({last.product.sku}) · {last.product.categoryName}
               {typeof last.productInStock === 'number' && (
                 <> · คงเหลือ {last.productInStock} ชิ้น</>
@@ -320,10 +322,10 @@ export function ScanConsole({
         <div
           data-testid="scan-duplicate-alert"
           role="alert"
-          className="rounded-xl border-2 border-rose-300 bg-rose-100 p-4"
+          className="rounded-xl border-2 border-rose-300 bg-rose-100 p-4 dark:border-rose-700 dark:bg-rose-950"
         >
           <div className="flex items-start gap-3">
-            <span className="text-lg font-medium text-red-700">✕ {duplicateAlert}</span>
+            <span className="text-lg font-medium text-red-700 dark:text-red-300">✕ {duplicateAlert}</span>
             <button
               type="button"
               aria-label="ปิดการแจ้งเตือน"
@@ -342,10 +344,10 @@ export function ScanConsole({
       {feed.length > 0 && (
         <div className="card-pop overflow-hidden">
           {onConfirm && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-200 bg-amber-100 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-200 bg-amber-100 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
               <div>
-                <span className="text-sm text-amber-800">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
-                {confirmError && <p className="mt-1 text-sm text-red-700">{confirmError}</p>}
+                <span className="text-sm text-amber-800 dark:text-amber-200">ตรวจสอบรายการให้เรียบร้อย ก่อนยืนยันบันทึกเข้าสต็อก</span>
+                {confirmError && <p className="mt-1 text-sm text-red-700 dark:text-red-300">{confirmError}</p>}
               </div>
               <button
                 type="button"
@@ -360,7 +362,7 @@ export function ScanConsole({
             </div>
           )}
           <table className="w-full text-sm" data-testid="scan-feed">
-            <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900">
+            <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
               <tr>
                 <th className="px-4 py-2 font-medium">เวลา</th>
                 <th className="px-4 py-2 font-medium">Serial</th>
@@ -369,16 +371,16 @@ export function ScanConsole({
                 <th className="px-4 py-2 font-medium w-12 text-center">ลบ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {feed.map((item) => (
-                <tr key={item.key} className={item.accepted ? '' : 'bg-red-50/50'}>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                <tr key={item.key} className={item.accepted ? '' : 'bg-red-50/50 dark:bg-red-950/40'}>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                     {item.at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} {item.at.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                   </td>
                   <td className="px-4 py-2 font-mono">{item.serial}</td>
-                  <td className="px-4 py-2 text-slate-600">{item.product?.name ?? '-'}</td>
+                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{item.product?.name ?? '-'}</td>
                   <td
-                    className={`px-4 py-2 ${item.accepted ? 'text-emerald-700' : 'text-red-700'}`}
+                    className={`px-4 py-2 ${item.accepted ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}
                   >
                     {item.message}
                   </td>
@@ -387,7 +389,7 @@ export function ScanConsole({
                       <button
                         type="button"
                         onClick={() => handleDelete(item)}
-                        className="inline-flex items-center justify-center w-9 h-9 rounded-xl border-2 border-rose-200 hover:bg-rose-100 text-rose-700 transition-colors"
+                        className="inline-flex items-center justify-center w-9 h-9 rounded-xl border-2 border-rose-200 hover:bg-rose-100 text-rose-700 transition-colors dark:border-rose-800 dark:hover:bg-rose-950 dark:text-rose-300"
                         title="ลบรายการนี้"
                         data-testid={`delete-${item.key}`}
                       >

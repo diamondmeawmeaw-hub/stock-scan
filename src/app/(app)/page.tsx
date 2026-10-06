@@ -68,16 +68,16 @@ export default async function HomePage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-sky-600">ระบบเช็คสต็อกด้วยการสแกน serial</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
               ภาพรวมคลังสินค้า
             </h1>
-            <p className="mt-2 max-w-md text-sm text-slate-500">
+            <p className="mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
               รับเข้า เบิกออก ตรวจนับ ได้ในหน้าจอเดียว 
             </p>
           </div>
-          <div className="rounded-xl border border-sky-100 bg-white/70 px-4 py-2 text-right shadow-sm">
+          <div className="rounded-xl border border-sky-100 bg-white/70 px-4 py-2 text-right shadow-sm dark:border-sky-900 dark:bg-slate-900/70">
             <div className="text-sm font-medium text-sky-700">{todayText}</div>
-            <div className="text-xs text-slate-500">{nowTime} น.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">{nowTime} น.</div>
           </div>
         </div>
 
@@ -89,10 +89,10 @@ export default async function HomePage() {
         </div>
 
         {openSession && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
             <div>
               <div className="font-medium">มีรอบตรวจนับที่เปิดค้างอยู่: {openSession.name}</div>
-              <div className="text-sm text-amber-700/80">
+              <div className="text-sm text-amber-700/80 dark:text-amber-200/80">
                 ขอบเขต: {openSession.category?.name ?? 'ทั้งคลัง'}
               </div>
             </div>
@@ -107,11 +107,11 @@ export default async function HomePage() {
 
         {productCount === 0 && (
           <div
-            className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm"
+            className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm dark:border-sky-900 dark:bg-slate-900"
             data-testid="onboarding-guide"
           >
-            <h2 className="font-semibold text-slate-900">เริ่มต้นใช้งาน 3 ขั้น</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100">เริ่มต้นใช้งาน 3 ขั้น</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               คลังยังว่างอยู่ ทำตามนี้แล้วเริ่มยิงสแกนได้เลย (กล่องนี้จะหายไปเองเมื่อมีสินค้า)
             </p>
             <ol className="mt-3 space-y-2">
@@ -146,32 +146,34 @@ export default async function HomePage() {
             title="รับเข้าสต็อก"
             desc="เลือกสินค้า แล้วยิง serial รัวๆ"
             icon={<ScanInIcon />}
-            accent="bg-sky-100 text-sky-600"
+            accent="bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300"
           />
           <ActionCard
             href="/scan-out"
             title="เบิกออก"
             desc="ยิง serial ที่จะเบิกออกจากคลัง"
             icon={<ScanOutIcon />}
-            accent="bg-blue-100 text-blue-600"
+            accent="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300"
           />
           <ActionCard
             href="/audit"
             title="ตรวจนับสต็อก"
             desc="เทียบของจริงกับที่ระบบมี"
             icon={<ClipboardCheckIcon />}
-            accent="bg-amber-100 text-amber-600"
+            accent="bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300"
           />
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white">
-          <h2 className="border-b border-slate-100 px-4 py-3 font-medium">การสแกนล่าสุด</h2>
+        <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-900">
+          <h2 className="border-b border-slate-100 px-4 py-3 font-medium dark:border-slate-800">
+            การสแกนล่าสุด
+          </h2>
           {recentScans.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-slate-500">ยังไม่มีการสแกน</p>
+            <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">ยังไม่มีการสแกน</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-2 font-medium">เวลา</th>
                     <th className="px-4 py-2 font-medium">ประเภท</th>
@@ -181,27 +183,27 @@ export default async function HomePage() {
                     <th className="px-4 py-2 font-medium">ผล</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {recentScans.map((log) => (
                     <tr key={log.id}>
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                         {log.createdAt.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
                       </td>
                       <td className="px-4 py-2">
                         <TypeBadge type={log.type} />
                       </td>
-                      <td className="px-4 py-2 font-mono text-slate-800">
+                      <td className="px-4 py-2 font-mono text-slate-800 dark:text-slate-200">
                         {log.serial ?? (log.quantity > 1 ? `× ${log.quantity}` : '—')}
                       </td>
-                      <td className="px-4 py-2 text-slate-600">{log.product?.name ?? '-'}</td>
-                      <td className="px-4 py-2 text-slate-600">{log.user.displayName}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{log.product?.name ?? '-'}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{log.user.displayName}</td>
                       <td
                         className={`px-4 py-2 font-medium ${
                           log.result === 'MISSING'
-                            ? 'text-amber-600'
+                            ? 'text-amber-600 dark:text-amber-300'
                             : log.accepted
-                              ? 'text-emerald-600'
-                              : 'text-red-600'
+                              ? 'text-emerald-600 dark:text-emerald-300'
+                              : 'text-red-600 dark:text-red-300'
                         }`}
                       >
                         {log.message ?? log.result}
@@ -219,9 +221,9 @@ export default async function HomePage() {
 }
 
 const TYPE_STYLES = {
-  IN: 'bg-emerald-100 text-emerald-700',
-  OUT: 'bg-sky-100 text-sky-700',
-  AUDIT: 'bg-amber-100 text-amber-700',
+  IN: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  OUT: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+  AUDIT: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
 } as const
 
 const TYPE_LABELS = { IN: 'รับเข้า', OUT: 'เบิกออก', AUDIT: 'ตรวจนับ' } as const
@@ -248,17 +250,19 @@ function OnboardingStep({
   done: boolean
 }) {
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/70">
       <span
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-          done ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'
+          done
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+            : 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
         }`}
       >
         {done ? '✓' : n}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-slate-900">{title}</span>
-        <span className="block truncate text-xs text-slate-500">{desc}</span>
+        <span className="block text-sm font-medium text-slate-900 dark:text-slate-100">{title}</span>
+        <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{desc}</span>
       </span>
       <Link
         href={href}
@@ -282,12 +286,12 @@ function Stat({
   value: number
 }) {
   return (
-    <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm dark:border-sky-900 dark:bg-slate-900">
       <div className="flex items-center gap-2">
         <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${accent}`}>{icon}</span>
-        <span className="text-sm text-slate-500">{label}</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
       </div>
-      <div className="mt-3 text-3xl font-bold tabular-nums text-slate-900">
+      <div className="mt-3 text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
         {value.toLocaleString('th-TH')}
       </div>
     </div>
@@ -310,16 +314,16 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className="group flex items-start gap-4 rounded-2xl border border-sky-100 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:shadow-md"
+      className="group flex items-start gap-4 rounded-2xl border border-sky-100 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:shadow-md dark:border-sky-900 dark:bg-slate-900 dark:hover:border-sky-700"
     >
       <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accent}`}>
         {icon}
       </span>
       <span className="flex-1">
-        <span className="block font-semibold text-slate-900">{title}</span>
-        <span className="mt-1 block text-sm text-slate-500">{desc}</span>
+        <span className="block font-semibold text-slate-900 dark:text-slate-100">{title}</span>
+        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">{desc}</span>
       </span>
-      <ArrowRightIcon className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-sky-600" />
+      <ArrowRightIcon className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-sky-600 dark:text-slate-500" />
     </Link>
   )
 }

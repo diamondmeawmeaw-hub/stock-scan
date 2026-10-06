@@ -39,11 +39,11 @@ export function ReturnButton({ scanLogId }: { scanLogId: string }) {
         onClick={() => void onReturn()}
         disabled={busy}
         data-testid={`return-${scanLogId}`}
-        className="rounded-md px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
+        className="rounded-md px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-300 dark:hover:bg-emerald-950"
       >
         {busy ? 'กำลังคืน...' : 'คืนของ'}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
     </span>
   )
 }
