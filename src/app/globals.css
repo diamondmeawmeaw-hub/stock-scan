@@ -59,7 +59,8 @@ body.theme-anim *::after {
     border-color 0.5s ease-in-out,
     color 0.5s ease-in-out,
     fill 0.5s ease-in-out,
-    stroke 0.5s ease-in-out !important;
+    stroke 0.5s ease-in-out,
+    transform 0.3s ease !important;
 }
 
 /* ปุ่ม/ฟิลด์มาตรฐาน ใช้ซ้ำทั้งระบบ */
