@@ -29,17 +29,17 @@ body {
 }
 
 .dark {
-  --bg: #020617;
-  --surface: #0f172a;
-  --border: #1e293b;
-  --field-border: #334155;
-  --text: #f1f5f9;
-  --muted: #cbd5e1;
-  --faint: #94a3b8;
-  --label: #e2e8f0;
-  --primary-bg: #e2e8f0;
+  --bg: #000000;
+  --surface: #141414;
+  --border: #2b2b2b;
+  --field-border: #3d3d3d;
+  --text: #f5f5f5;
+  --muted: #d4d4d4;
+  --faint: #a3a3a3;
+  --label: #e5e5e5;
+  --primary-bg: #e5e5e5;
   --primary-bg-hover: #ffffff;
-  --primary-text: #0f172a;
+  --primary-text: #000000;
   color-scheme: dark;
 }
 
@@ -47,6 +47,19 @@ body {
   background-color: var(--bg);
   color: var(--text);
   @apply antialiased;
+}
+
+/* ค่อยๆ เปลี่ยนสีทั้งหน้าเวลาสลับโหมด - ถนอมสายตา (เฉพาะสี ไม่แตะ transform/opacity ของคนอื่น) */
+body.theme-anim,
+body.theme-anim *,
+body.theme-anim *::before,
+body.theme-anim *::after {
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    color 0.4s ease,
+    fill 0.4s ease,
+    stroke 0.4s ease !important;
 }
 
 /* ปุ่ม/ฟิลด์มาตรฐาน ใช้ซ้ำทั้งระบบ */
