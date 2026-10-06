@@ -18,7 +18,7 @@ type User = {
 const EMPTY_FORM = { username: '', displayName: '', password: '', role: 'STAFF' as Role }
 
 const fieldClass =
-  'w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10'
+  'w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 dark:border-sky-900 dark:bg-slate-900'
 
 export function UsersClient({ users, currentUserId }: { users: User[]; currentUserId: string }) {
   const router = useRouter()
@@ -53,8 +53,8 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
             <UsersIcon className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-xl font-semibold text-slate-900">ผู้ใช้งาน</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">ผู้ใช้งาน</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               ผู้ดูแลจัดการได้ทั้งหมด · พนักงานสแกนรับเข้า/เบิกออก/ตรวจนับได้ · {users.length} คน
             </p>
           </div>
@@ -62,14 +62,14 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
       </div>
 
       {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
           {error}
         </p>
       )}
 
       <form
         data-testid="user-form"
-        className="grid gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:grid-cols-5"
+        className="grid gap-3 rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:grid-cols-5 dark:border-sky-900 dark:bg-slate-900"
         onSubmit={(e) => {
           e.preventDefault()
           void run(async () => {
@@ -142,10 +142,10 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">ชื่อผู้ใช้</th>
                 <th className="px-4 py-2 font-medium">ชื่อที่แสดง</th>
@@ -155,12 +155,12 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                 <th className="px-4 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {users.map((u) => {
                 const isSelf = u.id === currentUserId
                 return editingId === u.id ? (
-                  <tr key={u.id} className="bg-sky-50/50">
-                    <td className="px-4 py-2 font-mono text-slate-700">{u.username}</td>
+                  <tr key={u.id} className="bg-sky-50/50 dark:bg-sky-950/50">
+                    <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{u.username}</td>
                     <td className="px-4 py-2">
                       <input
                         className={fieldClass}
@@ -198,7 +198,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                         บันทึก
                       </button>
                       <button
-                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         onClick={() => setEditingId(null)}
                       >
                         ยกเลิก
@@ -206,8 +206,8 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                     </td>
                   </tr>
                 ) : (
-                  <tr key={u.id} className={u.active ? '' : 'text-slate-400'}>
-                    <td className="px-4 py-2 font-mono text-slate-800">
+                  <tr key={u.id} className={u.active ? '' : 'text-slate-400 dark:text-slate-500'}>
+                    <td className="px-4 py-2 font-mono text-slate-800 dark:text-slate-200">
                       {u.username}
                       {isSelf && (
                         <span className="ml-2 rounded-full bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700">
@@ -226,7 +226,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                           ใช้งาน
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 font-medium text-slate-500">
+                        <span className="inline-flex items-center gap-1.5 font-medium text-slate-500 dark:text-slate-400">
                           <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                           ปิดใช้งาน
                         </span>
@@ -235,7 +235,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                     <td className="px-4 py-2 tabular-nums">{u.historyCount}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-right">
                       <button
-                        className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+                        className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         onClick={() => {
                           setEditingId(u.id)
                           setEdit({ displayName: u.displayName, role: u.role })
@@ -244,7 +244,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                         แก้ไข
                       </button>
                       <button
-                        className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+                        className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         data-testid="reset-password"
                         disabled={busy}
                         onClick={() => setPwTarget(u)}
@@ -254,14 +254,14 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                       {!isSelf && (
                         <>
                           <button
-                            className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={busy}
                             onClick={() => void run(() => patch(u.id, { active: !u.active }))}
                           >
                             {u.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                           </button>
                           <button
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950"
                             disabled={busy}
                             onClick={() => {
                               if (!window.confirm(`ลบผู้ใช้ "${u.displayName}" ?`)) return
@@ -361,14 +361,14 @@ function PasswordDialog({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4 dark:bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
       }}
     >
       <form
         data-testid="password-dialog"
-        className="w-full max-w-sm space-y-3 rounded-2xl border border-sky-100 bg-white p-5 shadow-xl"
+        className="w-full max-w-sm space-y-3 rounded-2xl border border-sky-100 bg-white p-5 shadow-xl dark:border-sky-900 dark:bg-slate-900"
         onSubmit={submit}
       >
         <div className="flex items-center gap-3">
@@ -376,8 +376,8 @@ function PasswordDialog({
             <KeyIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-slate-900">ตั้งรหัสผ่านใหม่</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">ตั้งรหัสผ่านใหม่</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               {isSelf ? 'บัญชีของคุณเอง' : `ให้ "${user.displayName}"`}
             </p>
           </div>
@@ -385,7 +385,7 @@ function PasswordDialog({
 
         {error && (
           <p
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
             data-testid="password-error"
           >
             {error}

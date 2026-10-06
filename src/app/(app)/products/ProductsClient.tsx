@@ -113,12 +113,12 @@ export function ProductsClient({
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">สินค้า</h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           แบบรายชิ้นยิง serial ทีละชิ้น · แบบจำนวนกรอกตัวเลข · {products.length} รายการ
         </p>
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form onSubmit={create} className="card grid gap-3 p-4 sm:grid-cols-5" data-testid="product-form">
         <div>
@@ -235,7 +235,7 @@ export function ProductsClient({
       </form>
 
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-200 px-4 py-3">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
           <input
             data-testid="product-search"
             className="field"
@@ -245,13 +245,13 @@ export function ProductsClient({
             onChange={(e) => setQuery(e.target.value)}
           />
           {query.trim() && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               เจอ {filtered.length} จาก {products.length} รายการ
             </p>
           )}
         </div>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">SKU</th>
               <th className="px-4 py-2 font-medium">ชื่อสินค้า</th>
@@ -262,24 +262,24 @@ export function ProductsClient({
               <th className="px-4 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {products.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-slate-500 dark:text-slate-400">
                   ยังไม่มีสินค้า
                 </td>
               </tr>
             )}
             {products.length > 0 && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-slate-500" data-testid="product-empty">
+                <td colSpan={7} className="px-4 py-6 text-slate-500 dark:text-slate-400" data-testid="product-empty">
                   ไม่พบสินค้าที่ตรงกับคำค้น
                 </td>
               </tr>
             )}
             {filtered.map((p) =>
               editingId === p.id ? (
-                <tr key={p.id} className="bg-slate-50">
+                <tr key={p.id} className="bg-slate-50 dark:bg-slate-800/60">
                   <td className="px-4 py-2">
                     <input
                       className="field"
@@ -405,15 +405,15 @@ export function ProductsClient({
                 <tr key={p.id}>
                   <td className="px-4 py-2 font-mono">{p.sku}</td>
                   <td className="px-4 py-2">{p.name}</td>
-                  <td className="px-4 py-2 text-slate-600">{p.brand ?? '-'}</td>
-                  <td className="px-4 py-2 text-slate-600">{p.categoryName}</td>
+                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
+                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.categoryName}</td>
                   <td className="px-4 py-2">
                     {p.trackingType === 'QUANTITY' ? (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                         จำนวน{p.unitLabel ? ` (${p.unitLabel})` : ''}
                       </span>
                     ) : (
-                      <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700">
+                      <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700 dark:bg-sky-950 dark:text-sky-300">
                         รายชิ้น
                       </span>
                     )}
@@ -421,7 +421,7 @@ export function ProductsClient({
                   <td className="px-4 py-2">
                     {p.inStock}
                     {p.trackingType === 'QUANTITY' && (
-                      <span className="ml-1 text-xs text-slate-500">{p.unitLabel ?? ''}</span>
+                      <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">{p.unitLabel ?? ''}</span>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">

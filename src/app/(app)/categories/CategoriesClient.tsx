@@ -31,12 +31,12 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">ประเภทของ</h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           ใช้จัดกลุ่มสินค้า และใช้เป็นขอบเขตตอนตรวจนับ · {categories.length} ประเภท
         </p>
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form
         data-testid="category-form"
@@ -83,7 +83,7 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">รหัส</th>
               <th className="px-4 py-2 font-medium">ชื่อ</th>
@@ -91,17 +91,17 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
               <th className="px-4 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {categories.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-slate-500">
+                <td colSpan={4} className="px-4 py-6 text-slate-500 dark:text-slate-400">
                   ยังไม่มีประเภทของ
                 </td>
               </tr>
             )}
             {categories.map((c) =>
               editingId === c.id ? (
-                <tr key={c.id} className="bg-slate-50">
+                <tr key={c.id} className="bg-slate-50 dark:bg-slate-800/60">
                   <td className="px-4 py-2">
                     <input
                       className="field"
