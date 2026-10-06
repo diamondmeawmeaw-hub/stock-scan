@@ -17,7 +17,7 @@ export type ProductSuggestion = {
 
 const DEFAULT_PROVIDER = 'openai'
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api'
-const DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning:free'
+const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free'
 
 const suggestionSchema = z.object({
   name: z.string().trim().min(1).max(150).catch(''),
