@@ -223,7 +223,7 @@ export function ScanInClient({
             onChange={handleProductChange}
           />
           {selected && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               ตอนนี้ในคลังมี {selected.inStock} {selected.trackingType === 'QUANTITY' ? (selected.unitLabel ?? 'ชิ้น') : 'ชิ้น'}
               {selected.trackingType === 'QUANTITY' ? ' (สินค้านับจำนวน)' : ''}
             </p>
@@ -248,7 +248,7 @@ export function ScanInClient({
             ))}
           </select>
           {vendors.length === 0 && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               ยังไม่มีผู้จำหน่ายในระบบ - เพิ่มได้ที่หน้า &ldquo;ซื้อจาก&rdquo;
             </p>
           )}
@@ -270,7 +270,7 @@ export function ScanInClient({
       {pendingInfo.count > 0 && (
         <div
           data-testid="pending-notice"
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
         >
           มี {pendingInfo.count} รายการรอ confirm (สินค้า: {pendingInfo.productNames.join(', ') || '-'})
           — ค่าในฟอร์มตอนนี้มีผลเฉพาะชิ้นที่ยิงหลังจากนี้
@@ -306,7 +306,7 @@ export function ScanInClient({
           {qtyMessage && (
             <p
               data-testid="quantity-message"
-              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950' : 'border-rose-300 bg-rose-100 text-rose-950'}`}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' : 'border-rose-300 bg-rose-100 text-rose-950 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200'}`}
             >
               {qtyMessage.text}
             </p>

@@ -22,8 +22,8 @@ export default async function ScanInPage() {
   return (
     <div className="space-y-4">
       <div className="scan-hero">
-        <h1 className="text-2xl font-bold text-sky-950">รับเข้าสต็อก</h1>
-        <p className="mt-1 text-sm text-sky-900/70">
+        <h1 className="text-2xl font-bold text-sky-950 dark:text-sky-100">รับเข้าสต็อก</h1>
+        <p className="mt-1 text-sm text-sky-900/70 dark:text-sky-200/70">
           สินค้าแบบรายชิ้น: เลือกสินค้าแล้ว ยิง serial ต่อกันได้เรื่อยๆ · สินค้าแบบจำนวน: เลือกสินค้าแล้วกรอกจำนวน
         </p>
       </div>

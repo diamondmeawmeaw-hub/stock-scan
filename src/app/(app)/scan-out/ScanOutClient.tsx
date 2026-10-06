@@ -140,7 +140,7 @@ export function ScanOutClient({
           data-testid="mode-serial"
           onClick={() => setMode('SERIAL')}
           className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
-            mode === 'SERIAL' ? 'border-sky-400 bg-sky-300 text-sky-950' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50'
+            mode === 'SERIAL' ? 'border-sky-400 bg-sky-300 text-sky-950 dark:border-sky-600 dark:bg-sky-800 dark:text-sky-100' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
           }`}
         >
           ยิง serial (รายชิ้น)
@@ -152,7 +152,7 @@ export function ScanOutClient({
           data-testid="mode-quantity"
           onClick={() => setMode('QUANTITY')}
           className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
-            mode === 'QUANTITY' ? 'border-sky-400 bg-sky-300 text-sky-950' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50'
+            mode === 'QUANTITY' ? 'border-sky-400 bg-sky-300 text-sky-950 dark:border-sky-600 dark:bg-sky-800 dark:text-sky-100' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
           }`}
         >
           กรอกจำนวน
@@ -175,7 +175,7 @@ export function ScanOutClient({
               <option key={customer.id} value={customer.id}>{customer.code} · {customer.name}</option>
             ))}
           </select>
-          {customers.length === 0 && <p className="mt-1 text-xs text-slate-500">เพิ่มลูกค้าได้ที่เมนูจัดการข้อมูล</p>}
+          {customers.length === 0 && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">เพิ่มลูกค้าได้ที่เมนูจัดการข้อมูล</p>}
         </div>
         <div>
           <label className="label" htmlFor="reason">
@@ -251,7 +251,7 @@ export function ScanOutClient({
               </button>
             </div>
             {projectError && (
-              <p className="mt-1 text-xs text-red-600">{projectError}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{projectError}</p>
             )}
           </div>
         )}
@@ -286,7 +286,7 @@ export function ScanOutClient({
               }}
             />
             {quantityProducts.length === 0 && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 ยังไม่มีสินค้าแบบนับจำนวน — สร้างได้ที่หน้าสินค้า
               </p>
             )}
@@ -322,7 +322,7 @@ export function ScanOutClient({
           {qtyMessage && (
             <p
               data-testid="quantity-message"
-              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950' : 'border-rose-300 bg-rose-100 text-rose-950'}`}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium ${qtyMessage.ok ? 'border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' : 'border-rose-300 bg-rose-100 text-rose-950 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200'}`}
             >
               {qtyMessage.text}
             </p>
