@@ -60,7 +60,6 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
           <ManageMenu pathname={pathname} role={role} />
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <ThemeToggle />
           <span className="text-slate-500 dark:text-slate-400">
             {displayName}
             <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
@@ -70,6 +69,7 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
           <button onClick={logout} className="btn-ghost px-3 py-1.5">
             ออกจากระบบ
           </button>
+          <ThemeToggle />
         </div>
       </div>
     </header>
