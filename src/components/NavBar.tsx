@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { ThemeToggle } from './ThemeToggle'
 
 const LINKS = [
   { href: '/', label: 'หน้าหลัก' },
@@ -57,6 +58,7 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
           <ManageMenu pathname={pathname} role={role} />
         </nav>
         <div className="ml-auto flex items-center gap-3 text-sm">
+          <ThemeToggle />
           <span className="text-slate-500">
             {displayName}
             <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
