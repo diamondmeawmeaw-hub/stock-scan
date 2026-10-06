@@ -21,7 +21,7 @@ export function ThemeToggle() {
     setStoredTheme(next)
     // เปิด transition สีทั้งหน้าชั่วคราวแล้วปิด (กันกระทบ animation อื่น)
     document.body.classList.add('theme-anim')
-    window.setTimeout(() => document.body.classList.remove('theme-anim'), 500)
+    window.setTimeout(() => document.body.classList.remove('theme-anim'), 600)
     setTheme(applyTheme(next))
   }
 

@@ -44,7 +44,7 @@ export function NavBar({ displayName, role }: { displayName: string; role: 'ADMI
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+    <header className="border-b border-slate-200 bg-white transition-colors duration-500 ease-in-out dark:border-slate-800 dark:bg-slate-950">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-3">
         <span className="mr-4 text-base font-semibold tracking-tight">Stock&nbsp;Scan</span>
         <nav className="flex flex-wrap items-center gap-1">

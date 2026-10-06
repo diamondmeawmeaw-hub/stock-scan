@@ -55,11 +55,11 @@ body.theme-anim *,
 body.theme-anim *::before,
 body.theme-anim *::after {
   transition:
-    background-color 0.4s ease,
-    border-color 0.4s ease,
-    color 0.4s ease,
-    fill 0.4s ease,
-    stroke 0.4s ease !important;
+    background-color 0.5s ease-in-out,
+    border-color 0.5s ease-in-out,
+    color 0.5s ease-in-out,
+    fill 0.5s ease-in-out,
+    stroke 0.5s ease-in-out !important;
 }
 
 /* ปุ่ม/ฟิลด์มาตรฐาน ใช้ซ้ำทั้งระบบ */
