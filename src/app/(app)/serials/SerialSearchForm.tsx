@@ -35,7 +35,7 @@ export function SerialSearchForm({ initial }: { initial: string }) {
           id="serial-query"
           ref={inputRef}
           data-testid="serial-query"
-          className="w-full rounded-lg border-2 border-sky-200 bg-sky-50/50 px-4 py-3 font-mono text-xl tracking-wider outline-none transition focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/10"
+          className="w-full rounded-lg border-2 border-sky-200 bg-sky-50/50 px-4 py-3 font-mono text-xl tracking-wider outline-none transition focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/10 dark:border-sky-800 dark:bg-sky-950/50 dark:focus:bg-slate-900"
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
@@ -55,7 +55,7 @@ export function SerialSearchForm({ initial }: { initial: string }) {
       {initial && (
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           data-testid="serial-search-clear"
           onClick={() => {
             setValue('')

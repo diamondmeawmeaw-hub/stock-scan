@@ -84,8 +84,8 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
 
   if (loading) {
     return (
-      <div className="bg-slate-50 px-6 py-4">
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+      <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
+        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
           <LoadingSpinner />
           กำลังโหลดข้อมูล Serial...
         </div>
@@ -95,34 +95,34 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
 
   if (error) {
     return (
-      <div className="bg-red-50 px-6 py-4">
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="bg-red-50 px-6 py-4 dark:bg-red-950/60">
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       </div>
     )
   }
 
   if (!data || data.serials.length === 0) {
     return (
-      <div className="bg-slate-50 px-6 py-4">
-        <p className="text-sm text-slate-500">ไม่พบ Serial</p>
+      <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
+        <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบ Serial</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-slate-50 px-6 py-4">
+    <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-700">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
           {data.product?.sku} · {data.product?.name}
         </span>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           ({data.serials.length} Serial)
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
               <th className="px-4 py-2 font-medium">วันที่รับเข้า</th>
@@ -130,11 +130,11 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
               <th className="px-4 py-2 font-medium">ผู้ซื้อ</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {data.serials.map((s) => (
               <tr key={s.serial} data-testid="serial-row">
-                <td className="px-4 py-2 font-mono text-slate-700">{s.serial}</td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{s.serial}</td>
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.receivedAt ? formatThaiDate(s.receivedAt) : '-'}
                 </td>
                 <td className="px-4 py-2 text-slate-600">
@@ -155,7 +155,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
 function LoadingSpinner() {
   return (
     <svg
-      className="h-4 w-4 animate-spin text-slate-400"
+      className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500"
       fill="none"
       viewBox="0 0 24 24"
       aria-hidden
