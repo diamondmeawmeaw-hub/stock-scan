@@ -424,7 +424,7 @@ function ScanLogSection({
                         {row.serial}
                       </Link>
                     ) : (
-                      <span className="text-slate-500">
+                      <span className="text-slate-500 dark:text-slate-400">
                         {row.productName ?? '-'}
                         {row.quantity > 1 ? ` × ${row.quantity}` : ''}
                       </span>

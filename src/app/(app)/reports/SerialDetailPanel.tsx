@@ -137,10 +137,10 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
                 <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.receivedAt ? formatThaiDate(s.receivedAt) : '-'}
                 </td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.releasedAt ? formatThaiDate(s.releasedAt) : '-'}
                 </td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.customerName ?? '-'}
                 </td>
               </tr>

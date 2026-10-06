@@ -393,7 +393,7 @@ function UnitTable({
         {title} ({rows.length})
       </h2>
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-slate-500">{empty}</p>
+        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">{empty}</p>
       ) : (
         <table className="w-full text-sm">
           <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
