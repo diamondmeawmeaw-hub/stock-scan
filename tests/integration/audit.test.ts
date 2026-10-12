@@ -262,3 +262,76 @@ describe('การตรวจนับสต็อก (audit)', () => {
     expect(body.report.missing.map((m) => m.serial).sort()).toEqual(['NB0001', 'NB0002', 'NB0003'])
   })
 })
+
+describe('ตรวจนับคละรุ่น/คละอุปกรณ์ (multi-scope)', () => {
+  beforeEach(async () => {
+    fx = await seedFixtures()
+    await giveStock(fx.products.notebook.id, ['NB0001', 'NB0002', 'NB0003'])
+    await giveStock(fx.products.drill.id, ['DRL0001', 'DRL0002'])
+    await giveStock(fx.products.monitor.id, ['MON0001'])
+  })
+
+  it('เปิดรอบคละ -> session เก็บ arrays ครบ', async () => {
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละ',
+      categoryIds: [fx.categories.tool.id],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const saved = await prisma.auditSession.findUniqueOrThrow({ where: { id: res.body.session.id } })
+    expect(saved.categoryIds).toEqual([fx.categories.tool.id])
+    expect(saved.productIds).toEqual([fx.products.notebook.id])
+  })
+
+  it('โหมดกำหนดเองแต่ไม่ติ๊กอะไรเลย -> 400 (ส่ง keys มาว่าง)', async () => {
+    const res = await postJson(openSessionRoute, {
+      name: 'รอบว่าง',
+      categoryIds: [],
+      productIds: [],
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('ยิงใน scope ทั้งสองแบบผ่าน นอก scope โดนปฏิเสธ ปิดรอบ missing ถูก', async () => {
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละ',
+      categoryIds: [fx.categories.tool.id],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const sessionId = res.body.session.id
+
+    // ผ่านทั้งทาง product (NB0001) และทาง category (DRL0001)
+    expect((await auditScan(sessionId, 'NB0001')).body).toMatchObject({
+      accepted: true,
+      result: 'OK',
+    })
+    expect((await auditScan(sessionId, 'DRL0001')).body).toMatchObject({
+      accepted: true,
+      result: 'OK',
+    })
+    // MON0001 อยู่หมวด IT ที่ไม่ได้ติ๊ก -> นอก scope
+    expect((await auditScan(sessionId, 'MON0001')).body).toMatchObject({
+      accepted: false,
+      result: 'NOT_IN_SCOPE',
+    })
+
+    const { body } = await closeSession(sessionId)
+    // expected = NB×3 + DRL×2 (MON ไม่อยู่ใน scope)
+    expect(body.report.missing.map((m) => m.serial).sort()).toEqual([
+      'DRL0002',
+      'NB0002',
+      'NB0003',
+    ])
+    expect(body.report.surplus).toEqual([])
+  })
+
+  it('รอบเก่าแบบ categoryId เดียวยังทำงานเหมือนเดิม', async () => {
+    const session = await openSession({ categoryId: fx.categories.tool.id })
+    expect((await auditScan(session.id, 'DRL0001')).body.accepted).toBe(true)
+    expect((await auditScan(session.id, 'NB0001')).body).toMatchObject({
+      accepted: false,
+      result: 'NOT_IN_SCOPE',
+    })
+  })
+})
