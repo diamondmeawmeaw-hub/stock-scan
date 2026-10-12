@@ -722,11 +722,11 @@ export function isInScope(
   )
 }
 
-/** ดึง scope ออกจาก session ที่ client เก่ายังไม่มีฟิลด์ arrays (กัน undefined) */
+/** ดึง scope ออกจาก session */
 function sessionScope(session: {
   categoryId: string | null
-  categoryIds?: string[]
-  productIds?: string[]
+  categoryIds: string[]
+  productIds: string[]
 }): { categoryId: string | null; categoryIds: string[]; productIds: string[] } {
   return {
     categoryId: session.categoryId,
@@ -768,8 +768,8 @@ export async function openAuditSession(input: {
     data: {
       name: input.name.trim(),
       categoryId: input.categoryId ?? null,
-      // client เก่าที่ยังไม่ generate จะไม่มีฟิลด์นี้ใน type - ส่งแบบ bypass
-      ...( { categoryIds, productIds } as object ),
+      categoryIds,
+      productIds,
       startedById: input.userId,
       note: input.note ?? null,
     },
@@ -806,8 +806,8 @@ export async function auditScan(input: {
 
     const decision = decideAuditScan(toSnapshot(unit), {
       scopeCategoryId: session.categoryId,
-      scopeCategoryIds: (session as unknown as { categoryIds?: string[] }).categoryIds ?? [],
-      scopeProductIds: (session as unknown as { productIds?: string[] }).productIds ?? [],
+      scopeCategoryIds: session.categoryIds,
+      scopeProductIds: session.productIds,
       alreadyScanned,
     })
 
