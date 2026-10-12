@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   GET as getSessionRoute,
   } from '@/app/api/audit/sessions/[id]/route'
+import { POST as auditQuantityRoute } from '@/app/api/audit/sessions/[id]/quantity/route'
 import { POST as closeRoute } from '@/app/api/audit/sessions/[id]/close/route'
 import { POST as auditScanRoute } from '@/app/api/audit/sessions/[id]/scan/route'
 import { GET as listSessionsRoute, POST as openSessionRoute } from '@/app/api/audit/sessions/route'
@@ -333,5 +334,79 @@ describe('ตรวจนับคละรุ่น/คละอุปกรณ
       accepted: false,
       result: 'NOT_IN_SCOPE',
     })
+  })
+
+  it('ปิดรอบแบบปรับสต็อก -> แตะเฉพาะของใน scope (รวมของนับจำนวน)', async () => {
+    const toolId = fx.categories.tool.id
+    const rack = await prisma.product.create({
+      data: {
+        sku: 'RK-9U-001',
+        name: 'ตู้แร็ค 9U',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+        stockQty: 10,
+      },
+    })
+    const cable = await prisma.product.create({
+      data: {
+        sku: 'TL-CBL-001',
+        name: 'สายแลน',
+        categoryId: toolId,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ม้วน',
+        stockQty: 5,
+      },
+    })
+
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละปรับสต็อก',
+      categoryIds: [toolId],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const sessionId = res.body.session.id
+
+    expect((await auditScan(sessionId, 'NB0001')).body.accepted).toBe(true)
+    expect((await auditScan(sessionId, 'DRL0001')).body.accepted).toBe(true)
+
+    // กรอกยอดของนับจำนวนใน scope ได้
+    const cableCount = await postJson(auditQuantityRoute, { productId: cable.id, counted: 3 }, { id: sessionId })
+    expect(cableCount.status).toBe(200)
+    // กรอกยอดของนอก scope โดนบล็อก
+    const rackCount = await postJson(auditQuantityRoute, { productId: rack.id, counted: 7 }, { id: sessionId })
+    expect(rackCount.status).toBe(400)
+
+    const { body } = await closeSession(sessionId, true)
+    expect(body.report.missing.map((m) => m.serial).sort()).toEqual([
+      'DRL0002',
+      'NB0002',
+      'NB0003',
+    ])
+
+    // ของหายใน scope ถูกเบิกออก + มี log MISSING
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0002' } })).status
+    ).toBe('OUT')
+    expect(
+      await prisma.scanLog.count({ where: { auditSessionId: sessionId, result: 'MISSING' } })
+    ).toBe(3)
+
+    // ของนอก scope ไม่ถูกแตะเลย
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'MON0001' } })).status
+    ).toBe('IN_STOCK')
+    expect(
+      await prisma.scanLog.count({
+        where: { auditSessionId: sessionId, serial: 'MON0001' },
+      })
+    ).toBe(0) // ไม่ได้ยิง และไม่มี log ใดๆ เกิดกับของนอก scope
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: rack.id } })).stockQty
+    ).toBe(10)
+    // ของนับจำนวนใน scope ถูกปรับตามยอดนับ
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: cable.id } })).stockQty
+    ).toBe(3)
   })
 })
