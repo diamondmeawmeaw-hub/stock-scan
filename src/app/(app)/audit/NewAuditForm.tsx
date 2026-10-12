@@ -7,7 +7,7 @@ import { api } from '@/lib/client'
 type Category = { id: string; name: string }
 type Product = { id: string; sku: string; name: string; categoryId: string; categoryName: string }
 
-type Mode = 'all' | 'categories' | 'custom'
+type Mode = 'all' | 'custom'
 
 export function NewAuditForm({
   categories,
@@ -19,21 +19,34 @@ export function NewAuditForm({
   const router = useRouter()
   const [name, setName] = useState('')
   const [mode, setMode] = useState<Mode>('all')
-  // โหมดเลือกประเภท: ติ๊กได้หลายอัน (categoryId เดี่ยวแบบเดิมเลิกใช้)
-  const [pickedCategories, setPickedCategories] = useState<string[]>([])
-  // โหมดกำหนดเอง: ติ๊กประเภท + รุ่นผสมกัน (ขอบเขต = union)
-  const [customCategories, setCustomCategories] = useState<string[]>([])
-  const [customProducts, setCustomProducts] = useState<string[]>([])
+  // ของที่หยิบใส่ขอบเขตแล้ว - เอาออกได้ทีละชิ้น
+  const [pickedCats, setPickedCats] = useState<string[]>([])
+  const [pickedProds, setPickedProds] = useState<string[]>([])
+  // dropdown ใช้เลือกของเข้าขอบเขต
+  const [browseCat, setBrowseCat] = useState('')
+  const [browseProd, setBrowseProd] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  function toggle(list: string[], id: string, set: (next: string[]) => void) {
-    set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
+  const pickedCatSet = new Set(pickedCats)
+  const pickedProdSet = new Set(pickedProds)
+  // รุ่นที่โชว์ให้หยิบ = รุ่นในประเภทที่กำลังดู (ยังไม่หยิบ)
+  const browseList = products.filter((p) => p.categoryId === browseCat && !pickedProdSet.has(p.id))
+  const pickedProdItems = products.filter((p) => pickedProdSet.has(p.id))
+
+  const pickedCount = pickedCats.length + pickedProds.length
+  const canStart = mode === 'all' || pickedCount > 0
+
+  function addCategory() {
+    if (browseCat && !pickedCatSet.has(browseCat)) setPickedCats([...pickedCats, browseCat])
   }
 
-  const customCount = customCategories.length + customProducts.length
-  const canStart =
-    mode === 'all' || (mode === 'categories' && pickedCategories.length > 0) || customCount > 0
+  function addProduct() {
+    if (browseProd && !pickedProdSet.has(browseProd)) {
+      setPickedProds([...pickedProds, browseProd])
+      setBrowseProd('')
+    }
+  }
 
   async function start(e: React.FormEvent) {
     e.preventDefault()
@@ -42,11 +55,9 @@ export function NewAuditForm({
     setError(null)
     try {
       const body: Record<string, unknown> = { name: name.trim() || defaultName() }
-      if (mode === 'categories') {
-        body.categoryIds = pickedCategories
-      } else if (mode === 'custom') {
-        body.categoryIds = customCategories
-        body.productIds = customProducts
+      if (mode === 'custom') {
+        body.categoryIds = pickedCats
+        body.productIds = pickedProds
       }
       const { session } = await api<{ session: { id: string } }>('/api/audit/sessions', {
         method: 'POST',
@@ -57,13 +68,6 @@ export function NewAuditForm({
       setError(err instanceof Error ? err.message : 'เปิดรอบไม่สำเร็จ')
       setBusy(false)
     }
-  }
-
-  const byCategory = new Map<string, Product[]>()
-  for (const p of products) {
-    const list = byCategory.get(p.categoryId) ?? []
-    list.push(p)
-    byCategory.set(p.categoryId, list)
   }
 
   return (
@@ -89,7 +93,6 @@ export function NewAuditForm({
           {(
             [
               ['all', 'ทั้งคลัง'],
-              ['categories', 'เลือกประเภท'],
               ['custom', 'กำหนดเอง'],
             ] as [Mode, string][]
           ).map(([value, label]) => (
@@ -112,91 +115,127 @@ export function NewAuditForm({
         </div>
       </div>
 
-      {mode === 'categories' && (
-        <fieldset>
-          <legend className="label">ติ๊กประเภทที่จะนับ ({pickedCategories.length} ประเภท)</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {categories.map((c) => (
-              <label
-                key={c.id}
-                data-testid="scope-category"
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={pickedCategories.includes(c.id)}
-                  onChange={() => toggle(pickedCategories, c.id, setPickedCategories)}
-                />
-                {c.name}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
       {mode === 'custom' && (
-        <fieldset className="space-y-4">
-          <legend className="label">
-            ติ๊กประเภทและรุ่นที่จะนับรวมกัน ({customCount} รายการ)
-          </legend>
-          <div>
-            <div className="mb-1 text-sm font-medium">ประเภท</div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {categories.map((c) => (
-                <label
-                  key={c.id}
-                  data-testid="scope-category"
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="scope-pick-category">
+                หยิบทั้งประเภท
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="scope-pick-category"
+                  data-testid="scope-pick-category"
+                  className="field flex-1"
+                  value={browseCat}
+                  onChange={(e) => {
+                    setBrowseCat(e.target.value)
+                    setBrowseProd('')
+                  }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={customCategories.includes(c.id)}
-                    onChange={() => toggle(customCategories, c.id, setCustomCategories)}
-                  />
-                  {c.name}
-                </label>
-              ))}
+                  <option value="">— เลือกประเภท —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id} disabled={pickedCatSet.has(c.id)}>
+                      {c.name}
+                      {pickedCatSet.has(c.id) ? ' (หยิบแล้ว)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  data-testid="scope-add-category"
+                  className="btn-ghost shrink-0"
+                  disabled={!browseCat || pickedCatSet.has(browseCat)}
+                  onClick={addCategory}
+                >
+                  + เพิ่ม
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="label" htmlFor="scope-pick-product">
+                หยิบเป็นรุ่น{browseCat ? ` (ใน${categories.find((c) => c.id === browseCat)?.name ?? ''})` : ''}
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="scope-pick-product"
+                  data-testid="scope-pick-product"
+                  className="field flex-1"
+                  value={browseProd}
+                  disabled={!browseCat}
+                  onChange={(e) => setBrowseProd(e.target.value)}
+                >
+                  <option value="">{browseCat ? '— เลือกรุ่น —' : 'เลือกประเภทก่อน'}</option>
+                  {browseList.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.sku})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  data-testid="scope-add-product"
+                  className="btn-ghost shrink-0"
+                  disabled={!browseProd}
+                  onClick={addProduct}
+                >
+                  + เพิ่ม
+                </button>
+              </div>
             </div>
           </div>
-          <div className="space-y-3">
-            <div className="text-sm font-medium">รุ่น</div>
-            {categories.map((c) => {
-              const list = byCategory.get(c.id) ?? []
-              if (list.length === 0) return null
-              return (
-                <div key={c.id}>
-                  <div className="mb-1 text-xs text-slate-500 dark:text-slate-400">{c.name}</div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {list.map((p) => (
-                      <label
-                        key={p.id}
-                        data-testid="scope-product"
-                        className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={customProducts.includes(p.id)}
-                          onChange={() => toggle(customProducts, p.id, setCustomProducts)}
-                        />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{p.name}</span>
-                          <span className="block font-mono text-xs text-slate-500 dark:text-slate-400">
-                            {p.sku}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+
+          <div>
+            <div className="label">ที่หยิบไว้ ({pickedCount} รายการ)</div>
+            {pickedCount === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                ยังไม่ได้หยิบอะไรเลย - เลือกจาก dropdown ข้างบน
+              </p>
+            ) : (
+              <ul className="flex flex-wrap gap-2" data-testid="scope-picked">
+                {pickedCats.map((id) => (
+                  <li
+                    key={`c-${id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 py-1 pr-1.5 pl-3 text-sm font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+                  >
+                    {categories.find((c) => c.id === id)?.name ?? '?'}
+                    <button
+                      type="button"
+                      data-testid={`scope-remove-cat-${id}`}
+                      aria-label="เอาประเภทนี้ออก"
+                      onClick={() => setPickedCats(pickedCats.filter((x) => x !== id))}
+                      className="rounded-full px-1.5 hover:bg-sky-200 dark:hover:bg-sky-800"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+                {pickedProdItems.map((p) => (
+                  <li
+                    key={`p-${p.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 py-1 pr-1.5 pl-3 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                  >
+                    {p.name}
+                    <button
+                      type="button"
+                      data-testid={`scope-remove-prod-${p.id}`}
+                      aria-label="เอารุ่นนี้ออก"
+                      onClick={() => setPickedProds(pickedProds.filter((x) => x !== p.id))}
+                      className="rounded-full px-1.5 hover:bg-emerald-200 dark:hover:bg-emerald-800"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </fieldset>
+        </div>
       )}
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {!canStart && (
-        <p className="text-sm text-amber-700 dark:text-amber-300">ติ๊กอย่างน้อย 1 ประเภทหรือ 1 รุ่นก่อนเริ่ม</p>
+        <p className="text-sm text-amber-700 dark:text-amber-300">หยิบอย่างน้อย 1 ประเภทหรือ 1 รุ่นก่อนเริ่ม</p>
       )}
       <button className="btn-primary" disabled={busy || !canStart} data-testid="start-audit">
         {busy ? 'กำลังเปิดรอบ...' : 'เริ่มตรวจนับ'}
