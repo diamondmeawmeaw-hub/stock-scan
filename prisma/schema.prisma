@@ -227,7 +227,10 @@ model AuditSession {
   id          String      @id @default(cuid())
   name        String
   status      AuditStatus @default(OPEN)
-  categoryId  String? // ถ้าระบุ = นับเฉพาะประเภทนี้, ถ้าไม่ระบุ = นับทั้งคลัง
+  categoryId  String? // ถ้าระบุ = นับเฉพาะประเภทนี้, ถ้าไม่ระบุ = นับทั้งคลัง (รอบเก่า)
+  /// ขอบเขตรอบใหม่แบบเลือกได้หลายค่า - ว่างทั้งคู่ = ทั้งคลัง (รวมกับ categoryId แบบ union)
+  categoryIds String[] @default([])
+  productIds  String[] @default([])
   startedById String
   startedAt   DateTime    @default(now())
   closedAt    DateTime?
