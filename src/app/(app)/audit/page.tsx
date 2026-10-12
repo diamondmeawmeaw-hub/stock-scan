@@ -5,7 +5,7 @@ import { NewAuditForm } from './NewAuditForm'
 export const dynamic = 'force-dynamic'
 
 export default async function AuditListPage() {
-  const [sessions, categories] = await Promise.all([
+  const [sessions, categories, products] = await Promise.all([
     prisma.auditSession.findMany({
       orderBy: { startedAt: 'desc' },
       take: 30,
@@ -16,9 +16,32 @@ export default async function AuditListPage() {
       },
     }),
     prisma.category.findMany({ orderBy: { name: 'asc' } }),
+    prisma.product.findMany({
+      orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+      include: { category: { select: { id: true, name: true } } },
+    }),
   ])
 
   const openSession = sessions.find((s) => s.status === 'OPEN') ?? null
+  const categoryName = new Map(categories.map((c) => [c.id, c.name] as const))
+  const productName = new Map(products.map((p) => [p.id, p.name] as const))
+
+  /** ชื่อขอบเขตแบบย่อ - รอบเก่าใช้ประเภทเดียว รอบใหม่รวมที่ติ๊กไว้ */
+  function scopeLabel(s: {
+    categoryId: string | null
+    categoryIds: string[]
+    productIds: string[]
+    category?: { name: string } | null
+  }): string {
+    if (s.categoryId) return s.category?.name ?? categoryName.get(s.categoryId) ?? 'ทั้งคลัง'
+    const parts = [
+      ...(s.categoryIds ?? []).map((id) => categoryName.get(id) ?? '?'),
+      ...(s.productIds ?? []).map((id) => productName.get(id) ?? '?'),
+    ]
+    if (parts.length === 0) return 'ทั้งคลัง'
+    if (parts.length <= 2) return parts.join(', ')
+    return `${parts.slice(0, 2).join(', ')} + อีก ${parts.length - 2} รายการ`
+  }
 
   return (
     <div className="space-y-6">
@@ -35,7 +58,7 @@ export default async function AuditListPage() {
             <div>
               <div className="font-medium">กำลังนับ: {openSession.name}</div>
               <div className="text-sm text-slate-600 dark:text-slate-300">
-                ขอบเขต {openSession.category?.name ?? 'ทั้งคลัง'} · ยิงแล้ว{' '}
+                ขอบเขต {scopeLabel(openSession)} · ยิงแล้ว{' '}
                 {openSession._count.scans} ชิ้น
               </div>
             </div>
@@ -45,7 +68,16 @@ export default async function AuditListPage() {
           </div>
         </div>
       ) : (
-        <NewAuditForm categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
+        <NewAuditForm
+          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          products={products.map((p) => ({
+            id: p.id,
+            sku: p.sku,
+            name: p.name,
+            categoryId: p.categoryId,
+            categoryName: p.category.name,
+          }))}
+        />
       )}
 
       <div className="card overflow-hidden">
@@ -72,7 +104,7 @@ export default async function AuditListPage() {
                       {s.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{s.category?.name ?? 'ทั้งคลัง'}</td>
+                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{scopeLabel(s)}</td>
                   <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{s.startedBy.displayName}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                     {s.startedAt.toLocaleString('th-TH', {
