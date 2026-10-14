@@ -125,6 +125,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
+              <th className="px-4 py-2 font-medium">ซื้อจาก</th>
               <th className="px-4 py-2 font-medium">วันที่รับเข้า</th>
               <th className="px-4 py-2 font-medium">วันที่เบิกออก</th>
               <th className="px-4 py-2 font-medium">ผู้ซื้อ</th>
@@ -134,6 +135,9 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
             {data.serials.map((s) => (
               <tr key={s.serial} data-testid="serial-row">
                 <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{s.serial}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">
+                  {s.vendorName ?? 'ไม่ระบุ'}
+                </td>
                 <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.receivedAt ? formatThaiDate(s.receivedAt) : '-'}
                 </td>
