@@ -85,10 +85,12 @@ export function SalesFilters({
   customers,
   projects,
   values,
+  exportHrefs,
 }: {
   customers: { id: string; code: string; name: string }[]
   projects: { id: string; customerId: string; name: string; customerLabel: string }[]
   values: Values
+  exportHrefs?: { xlsx: string; pdf: string }
 }) {
   const router = useRouter()
   const [form, setForm] = useState(values)
@@ -207,11 +209,70 @@ export function SalesFilters({
         >
           ล้างตัวกรอง
         </button>
+        {exportHrefs && (
+          <span className="ml-auto flex gap-2">
+            <a
+              href={exportHrefs.xlsx}
+              data-testid="export-xlsx"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <DownloadIcon className="h-4 w-4 text-emerald-600" />
+              โหลด Excel
+            </a>
+            <a
+              href={exportHrefs.pdf}
+              data-testid="export-pdf"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <FileTextIcon className="h-4 w-4 text-red-600" />
+              โหลด PDF
+            </a>
+          </span>
+        )}
       </div>
     </form>
   )
 }
 
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className ?? 'h-4 w-4'}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" x2="12" y1="15" y2="3" />
+    </svg>
+  )
+}
+
+function FileTextIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className ?? 'h-4 w-4'}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </svg>
+  )
+}
 function CalendarIcon({ className }: { className?: string }) {
   return (
     <svg

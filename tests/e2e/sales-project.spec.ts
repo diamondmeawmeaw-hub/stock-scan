@@ -97,6 +97,20 @@ test.describe('โปรเจคของลูกค้า', () => {
       .toBe(project.id)
   })
 
+  test('หน้าขายมีปุ่ม export ตามตัวกรองที่เลือก', async ({ page }) => {
+    const customer = await prisma.customer.create({ data: { code: 'E2E-EX', name: 'ลูกค้า export' } })
+
+    await page.goto(`/sales?customerId=${customer.id}`)
+    await expect(page.getByTestId('export-xlsx')).toHaveAttribute(
+      'href',
+      `/api/sales/export?customerId=${customer.id}&format=xlsx`
+    )
+    await expect(page.getByTestId('export-pdf')).toHaveAttribute(
+      'href',
+      `/api/sales/export?customerId=${customer.id}&format=pdf`
+    )
+  })
+
   test('staff เปิดหน้าประวัติการขาย -> เห็นชื่อโปรเจคอย่างเดียว ไม่มีให้เปลี่ยน', async ({
     page,
   }) => {
