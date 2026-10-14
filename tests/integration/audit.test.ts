@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   GET as getSessionRoute,
   } from '@/app/api/audit/sessions/[id]/route'
+import { POST as auditQuantityRoute } from '@/app/api/audit/sessions/[id]/quantity/route'
 import { POST as closeRoute } from '@/app/api/audit/sessions/[id]/close/route'
 import { POST as auditScanRoute } from '@/app/api/audit/sessions/[id]/scan/route'
 import { GET as listSessionsRoute, POST as openSessionRoute } from '@/app/api/audit/sessions/route'
@@ -260,5 +261,152 @@ describe('การตรวจนับสต็อก (audit)', () => {
     const { body } = await report(session.id)
     expect(body.report.scannedCount).toBe(30)
     expect(body.report.missing.map((m) => m.serial).sort()).toEqual(['NB0001', 'NB0002', 'NB0003'])
+  })
+})
+
+describe('ตรวจนับคละรุ่น/คละอุปกรณ์ (multi-scope)', () => {
+  beforeEach(async () => {
+    fx = await seedFixtures()
+    await giveStock(fx.products.notebook.id, ['NB0001', 'NB0002', 'NB0003'])
+    await giveStock(fx.products.drill.id, ['DRL0001', 'DRL0002'])
+    await giveStock(fx.products.monitor.id, ['MON0001'])
+  })
+
+  it('เปิดรอบคละ -> session เก็บ arrays ครบ', async () => {
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละ',
+      categoryIds: [fx.categories.tool.id],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const saved = await prisma.auditSession.findUniqueOrThrow({ where: { id: res.body.session.id } })
+    expect(saved.categoryIds).toEqual([fx.categories.tool.id])
+    expect(saved.productIds).toEqual([fx.products.notebook.id])
+  })
+
+  it('โหมดกำหนดเองแต่ไม่ติ๊กอะไรเลย -> 400 (ส่ง keys มาว่าง)', async () => {
+    const res = await postJson(openSessionRoute, {
+      name: 'รอบว่าง',
+      categoryIds: [],
+      productIds: [],
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('ยิงใน scope ทั้งสองแบบผ่าน นอก scope โดนปฏิเสธ ปิดรอบ missing ถูก', async () => {
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละ',
+      categoryIds: [fx.categories.tool.id],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const sessionId = res.body.session.id
+
+    // ผ่านทั้งทาง product (NB0001) และทาง category (DRL0001)
+    expect((await auditScan(sessionId, 'NB0001')).body).toMatchObject({
+      accepted: true,
+      result: 'OK',
+    })
+    expect((await auditScan(sessionId, 'DRL0001')).body).toMatchObject({
+      accepted: true,
+      result: 'OK',
+    })
+    // MON0001 อยู่หมวด IT ที่ไม่ได้ติ๊ก -> นอก scope
+    expect((await auditScan(sessionId, 'MON0001')).body).toMatchObject({
+      accepted: false,
+      result: 'NOT_IN_SCOPE',
+    })
+
+    const { body } = await closeSession(sessionId)
+    // expected = NB×3 + DRL×2 (MON ไม่อยู่ใน scope)
+    expect(body.report.missing.map((m) => m.serial).sort()).toEqual([
+      'DRL0002',
+      'NB0002',
+      'NB0003',
+    ])
+    expect(body.report.surplus).toEqual([])
+  })
+
+  it('รอบเก่าแบบ categoryId เดียวยังทำงานเหมือนเดิม', async () => {
+    const session = await openSession({ categoryId: fx.categories.tool.id })
+    expect((await auditScan(session.id, 'DRL0001')).body.accepted).toBe(true)
+    expect((await auditScan(session.id, 'NB0001')).body).toMatchObject({
+      accepted: false,
+      result: 'NOT_IN_SCOPE',
+    })
+  })
+
+  it('ปิดรอบแบบปรับสต็อก -> แตะเฉพาะของใน scope (รวมของนับจำนวน)', async () => {
+    const toolId = fx.categories.tool.id
+    const rack = await prisma.product.create({
+      data: {
+        sku: 'RK-9U-001',
+        name: 'ตู้แร็ค 9U',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+        stockQty: 10,
+      },
+    })
+    const cable = await prisma.product.create({
+      data: {
+        sku: 'TL-CBL-001',
+        name: 'สายแลน',
+        categoryId: toolId,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ม้วน',
+        stockQty: 5,
+      },
+    })
+
+    const res = await postJson<{ session: { id: string } }>(openSessionRoute, {
+      name: 'รอบคละปรับสต็อก',
+      categoryIds: [toolId],
+      productIds: [fx.products.notebook.id],
+    })
+    expect(res.status).toBe(200)
+    const sessionId = res.body.session.id
+
+    expect((await auditScan(sessionId, 'NB0001')).body.accepted).toBe(true)
+    expect((await auditScan(sessionId, 'DRL0001')).body.accepted).toBe(true)
+
+    // กรอกยอดของนับจำนวนใน scope ได้
+    const cableCount = await postJson(auditQuantityRoute, { productId: cable.id, counted: 3 }, { id: sessionId })
+    expect(cableCount.status).toBe(200)
+    // กรอกยอดของนอก scope โดนบล็อก
+    const rackCount = await postJson(auditQuantityRoute, { productId: rack.id, counted: 7 }, { id: sessionId })
+    expect(rackCount.status).toBe(400)
+
+    const { body } = await closeSession(sessionId, true)
+    expect(body.report.missing.map((m) => m.serial).sort()).toEqual([
+      'DRL0002',
+      'NB0002',
+      'NB0003',
+    ])
+
+    // ของหายใน scope ถูกเบิกออก + มี log MISSING
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0002' } })).status
+    ).toBe('OUT')
+    expect(
+      await prisma.scanLog.count({ where: { auditSessionId: sessionId, result: 'MISSING' } })
+    ).toBe(3)
+
+    // ของนอก scope ไม่ถูกแตะเลย
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'MON0001' } })).status
+    ).toBe('IN_STOCK')
+    expect(
+      await prisma.scanLog.count({
+        where: { auditSessionId: sessionId, serial: 'MON0001' },
+      })
+    ).toBe(0) // ไม่ได้ยิง และไม่มี log ใดๆ เกิดกับของนอก scope
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: rack.id } })).stockQty
+    ).toBe(10)
+    // ของนับจำนวนใน scope ถูกปรับตามยอดนับ
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: cable.id } })).stockQty
+    ).toBe(3)
   })
 })

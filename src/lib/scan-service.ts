@@ -7,6 +7,7 @@ import {
   decideScanIn,
   decideScanOut,
   diffAudit,
+  isUnitInScope,
   normalizeSerial,
   validateQuantity,
   validateSerial,
@@ -703,9 +704,42 @@ export async function returnOut(input: {
 
 // ────────────────────────────── ตรวจนับสต็อก ──────────────────────────────
 
+/**
+ * เช็กว่าสินค้าอยู่ในขอบเขตรอบตรวจนับไหม - กฏเดียวใช้ทั้งรอบ
+ * (ติ๊ก product ไว้ หรือ category ของมันถูกติ๊กไว้ = ผ่าน, ว่างทั้งหมด = ทั้งคลัง)
+ */
+export function isInScope(
+  session: { categoryId: string | null; categoryIds: string[]; productIds: string[] },
+  product: { id: string; categoryId: string }
+): boolean {
+  return isUnitInScope(
+    { productId: product.id, categoryId: product.categoryId },
+    {
+      categoryId: session.categoryId,
+      categoryIds: session.categoryIds,
+      productIds: session.productIds,
+    }
+  )
+}
+
+/** ดึง scope ออกจาก session */
+function sessionScope(session: {
+  categoryId: string | null
+  categoryIds: string[]
+  productIds: string[]
+}): { categoryId: string | null; categoryIds: string[]; productIds: string[] } {
+  return {
+    categoryId: session.categoryId,
+    categoryIds: session.categoryIds ?? [],
+    productIds: session.productIds ?? [],
+  }
+}
+
 export async function openAuditSession(input: {
   name: string
   categoryId?: string | null
+  categoryIds?: string[]
+  productIds?: string[]
   userId: string
   note?: string | null
 }) {
@@ -720,10 +754,22 @@ export async function openAuditSession(input: {
     const category = await prisma.category.findUnique({ where: { id: input.categoryId } })
     if (!category) throw new HttpError(400, 'ไม่พบประเภทของที่เลือก')
   }
+  const categoryIds = [...new Set(input.categoryIds ?? [])]
+  const productIds = [...new Set(input.productIds ?? [])]
+  if (categoryIds.length > 0) {
+    const count = await prisma.category.count({ where: { id: { in: categoryIds } } })
+    if (count !== categoryIds.length) throw new HttpError(400, 'มีประเภทของที่เลือกไม่อยู่ในระบบ')
+  }
+  if (productIds.length > 0) {
+    const count = await prisma.product.count({ where: { id: { in: productIds } } })
+    if (count !== productIds.length) throw new HttpError(400, 'มีสินค้าที่เลือกไม่อยู่ในระบบ')
+  }
   return prisma.auditSession.create({
     data: {
       name: input.name.trim(),
       categoryId: input.categoryId ?? null,
+      categoryIds,
+      productIds,
       startedById: input.userId,
       note: input.note ?? null,
     },
@@ -760,6 +806,8 @@ export async function auditScan(input: {
 
     const decision = decideAuditScan(toSnapshot(unit), {
       scopeCategoryId: session.categoryId,
+      scopeCategoryIds: session.categoryIds,
+      scopeProductIds: session.productIds,
       alreadyScanned,
     })
 
@@ -834,8 +882,8 @@ export async function auditQuantityCount(input: {
   if (product.trackingType !== 'QUANTITY') {
     throw new HttpError(400, `สินค้า "${product.name}" นับเป็นรายชิ้น ให้ยิง serial แทนการกรอกยอด`)
   }
-  if (session.categoryId && product.categoryId !== session.categoryId) {
-    throw new HttpError(400, 'สินค้านี้อยู่นอกประเภทของที่กำลังนับรอบนี้')
+  if (!isInScope(sessionScope(session), { id: product.id, categoryId: product.categoryId })) {
+    throw new HttpError(400, 'สินค้านี้อยู่นอกขอบเขตที่กำลังนับรอบนี้')
   }
 
   const at = new Date()
@@ -911,6 +959,8 @@ export type AuditReport = {
   name: string
   status: 'OPEN' | 'CLOSED'
   categoryId: string | null
+  categoryIds: string[]
+  productIds: string[]
   categoryName: string | null
   startedAt: string
   closedAt: string | null
@@ -935,13 +985,31 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
   if (session.status === 'CLOSED' && session.report) {
     // รายงานเก่าที่ปิดก่อนมีระบบนับจำนวนจะไม่มี quantityLines - เติมค่าเริ่มต้นกัน UI พัง
     const cached = session.report as unknown as AuditReport
-    return { ...cached, quantityLines: cached.quantityLines ?? [] }
+    return {
+      ...cached,
+      quantityLines: cached.quantityLines ?? [],
+      categoryIds: cached.categoryIds ?? (cached.categoryId ? [cached.categoryId] : []),
+      productIds: cached.productIds ?? [],
+    }
   }
+
+  const scope = sessionScope(session)
+  // เงื่อนไข "อยู่ในขอบเขต" ระดับ product - ใช้ร่วมกันทั้งของรายชิ้นและของนับจำนวน
+  const scopeCats = [...(scope.categoryId ? [scope.categoryId] : []), ...scope.categoryIds]
+  const scopeOr =
+    scopeCats.length === 0 && scope.productIds.length === 0
+      ? null
+      : {
+          OR: [
+            ...(scopeCats.length > 0 ? [{ categoryId: { in: scopeCats } }] : []),
+            ...(scope.productIds.length > 0 ? [{ id: { in: scope.productIds } }] : []),
+          ],
+        }
 
   const expectedUnits = await prisma.serialUnit.findMany({
     where: {
       status: 'IN_STOCK',
-      ...(session.categoryId ? { product: { categoryId: session.categoryId } } : {}),
+      ...(scopeOr ? { product: scopeOr } : {}),
     },
     include: unitInclude,
   })
@@ -987,7 +1055,7 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
   const quantityProducts = await prisma.product.findMany({
     where: {
       trackingType: 'QUANTITY',
-      ...(session.categoryId ? { categoryId: session.categoryId } : {}),
+      ...(scopeOr ?? {}),
     },
     include: { category: true },
     orderBy: { name: 'asc' },
@@ -1030,6 +1098,8 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     name: session.name,
     status: session.status,
     categoryId: session.categoryId,
+    categoryIds: scope.categoryIds,
+    productIds: scope.productIds,
     categoryName: session.category?.name ?? null,
     startedAt: session.startedAt.toISOString(),
     closedAt: session.closedAt?.toISOString() ?? null,
