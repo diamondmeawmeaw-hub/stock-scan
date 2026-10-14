@@ -55,8 +55,6 @@ export function ProductsClient({
     name: '',
     brand: '',
     categoryId: categories[0]?.id ?? '',
-    trackingType: 'SERIAL',
-    unitLabel: 'ชิ้น',
   })
   const [edit, setEdit] = useState({
     sku: '',
@@ -66,8 +64,7 @@ export function ProductsClient({
     trackingType: 'SERIAL',
     unitLabel: '',
   })
-  // true = กำลังพิมพ์หน่วยนับเอง (ฟอร์มสร้าง / ฟอร์มแก้ไข แยกกัน)
-  const [customUnit, setCustomUnit] = useState(false)
+  // true = กำลังพิมพ์หน่วยนับเอง (ฟอร์มแก้ไข)
   const [customEditUnit, setCustomEditUnit] = useState(false)
 
   async function run(fn: () => Promise<unknown>) {
@@ -85,16 +82,17 @@ export function ProductsClient({
 
   const create = (e: React.FormEvent) => {
     e.preventDefault()
-    if (form.trackingType === 'QUANTITY' && customUnit && !form.unitLabel.trim()) {
-      setError('พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ')
-      return
-    }
     void run(async () => {
+      // สร้างแบบรายชิ้นเสมอ - วิธีนับจริงตัดสินตอนรับเข้าครั้งแรกที่หน้าสแกน
       await api('/api/products', {
         method: 'POST',
         body: JSON.stringify({
-          ...form,
-          unitLabel: form.trackingType === 'QUANTITY' ? form.unitLabel.trim() || 'ชิ้น' : null,
+          sku: form.sku,
+          name: form.name,
+          brand: form.brand || null,
+          categoryId: form.categoryId,
+          trackingType: 'SERIAL',
+          unitLabel: null,
         }),
       })
       setForm({
@@ -102,10 +100,7 @@ export function ProductsClient({
         name: '',
         brand: '',
         categoryId: categories[0]?.id ?? '',
-        trackingType: 'SERIAL',
-        unitLabel: 'ชิ้น',
       })
-      setCustomUnit(false)
     })
   }
 
@@ -180,57 +175,10 @@ export function ProductsClient({
           </div>
         </div>
         <div>
-          <label className="label" htmlFor="tracking">
-            วิธีนับสต็อก
-          </label>
-          <select
-            id="tracking"
-            className="field"
-            value={form.trackingType}
-            onChange={(e) => setForm({ ...form, trackingType: e.target.value })}
-          >
-            <option value="SERIAL">รายชิ้น (ยิง serial)</option>
-            <option value="QUANTITY">นับจำนวน (กรอกตัวเลข)</option>
-          </select>
-        </div>
-        <div>
-          <label className="label" htmlFor="unit">
-            หน่วยนับ
-          </label>
-          <select
-            id="unit"
-            data-testid="unit-select"
-            className="field"
-            disabled={form.trackingType !== 'QUANTITY'}
-            value={customUnit ? UNIT_CUSTOM : isStandardUnit(form.unitLabel) ? form.unitLabel : UNIT_CUSTOM}
-            onChange={(e) => {
-              if (e.target.value === UNIT_CUSTOM) {
-                setCustomUnit(true)
-                setForm({ ...form, unitLabel: '' })
-              } else {
-                setCustomUnit(false)
-                setForm({ ...form, unitLabel: e.target.value })
-              }
-            }}
-          >
-            {UNIT_LABELS.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-            <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
-          </select>
-          {customUnit && form.trackingType === 'QUANTITY' && (
-            <input
-              data-testid="unit-custom"
-              className="field mt-1"
-              placeholder="เช่น ลัง, แพ็ก (1–20 ตัวอักษร)"
-              maxLength={20}
-              required
-              value={form.unitLabel}
-              onChange={(e) => setForm({ ...form, unitLabel: e.target.value })}
-            />
-          )}
+          <span className="label">วิธีนับสต็อก</span>
+          <p className="field bg-slate-50 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            เลือกตอนรับเข้าครั้งแรก
+          </p>
         </div>
       </form>
 
@@ -315,58 +263,18 @@ export function ProductsClient({
                     </select>
                   </td>
                   <td className="px-4 py-2">
-                    <select
-                      className="field"
-                      value={edit.trackingType}
-                      onChange={(e) => setEdit({ ...edit, trackingType: e.target.value })}
-                    >
-                      <option value="SERIAL">รายชิ้น</option>
-                      <option value="QUANTITY">จำนวน</option>
-                    </select>
-                    {edit.trackingType === 'QUANTITY' && (
-                      <>
-                        <select
-                          className="field mt-1"
-                          data-testid="unit-edit-select"
-                          value={
-                            customEditUnit
-                              ? UNIT_CUSTOM
-                              : isStandardUnit(edit.unitLabel)
-                                ? edit.unitLabel
-                                : UNIT_CUSTOM
-                          }
-                          onChange={(e) => {
-                            if (e.target.value === UNIT_CUSTOM) {
-                              setCustomEditUnit(true)
-                              setEdit({ ...edit, unitLabel: '' })
-                            } else {
-                              setCustomEditUnit(false)
-                              setEdit({ ...edit, unitLabel: e.target.value })
-                            }
-                          }}
-                        >
-                          {UNIT_LABELS.map((u) => (
-                            <option key={u} value={u}>
-                              {u}
-                            </option>
-                          ))}
-                          <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
-                        </select>
-                        {(customEditUnit || !isStandardUnit(edit.unitLabel)) && (
-                          <input
-                            className="field mt-1"
-                            data-testid="unit-edit-custom"
-                            placeholder="หน่วยนับเอง (1–20 ตัวอักษร)"
-                            maxLength={20}
-                            value={edit.unitLabel}
-                            onChange={(e) => {
-                              setCustomEditUnit(true)
-                              setEdit({ ...edit, unitLabel: e.target.value })
-                            }}
-                          />
-                        )}
-                      </>
+                    {edit.trackingType === 'QUANTITY' ? (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        จำนวน{edit.unitLabel ? ` (${edit.unitLabel})` : ''}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                        รายชิ้น
+                      </span>
                     )}
+                    <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">
+                      เปลี่ยนวิธีนับที่หน้ารับเข้า (เฉพาะของที่ยังไม่มีประวัติ)
+                    </span>
                   </td>
                   <td className="px-4 py-2">{p.inStock}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
