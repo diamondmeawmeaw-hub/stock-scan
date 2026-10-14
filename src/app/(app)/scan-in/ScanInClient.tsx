@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { ProductPicker } from '@/components/ProductPicker'
+import { UNIT_CUSTOM, UNIT_LABELS } from '@/lib/units'
 import { api } from '@/lib/client'
 
 type ProductOption = {
@@ -157,10 +158,8 @@ export function ScanInClient({
     const nextProduct = products.find((p) => p.id === next) ?? null
     // สลับข้ามชนิด (รายชิ้น <-> นับจำนวน) จะถอด ScanConsole ทิ้ง ของที่ยิงค้างไว้หายหมด
     // แถมแถบเหลืองกับ beforeunload จะค้างหลอก - บล็อกไว้ก่อน ให้ยืนยัน/ลบของค้างให้เสร็จก่อน
-    if (
-      pendingInfo.count > 0 &&
-      (selected?.trackingType ?? 'SERIAL') !== (nextProduct?.trackingType ?? 'SERIAL')
-    ) {
+    // (เทียบวิธีรับจริงที่กำลังใช้ ไม่ใช่ค่าที่เก็บใน DB - ของใหม่ไร้ประวัติวิธีใน DB ยังเป็น SERIAL)
+    if (pendingInfo.count > 0 && effectiveTracking !== (nextProduct?.trackingType ?? 'SERIAL')) {
       window.alert(
         `ยังมี ${pendingInfo.count} รายการรอ confirm อยู่ - กดยืนยันบันทึกหรือลบออกก่อน แล้วค่อยเปลี่ยนชนิดสินค้า (ไม่งั้นของที่ยิงค้างไว้จะหาย)`
       )
@@ -178,6 +177,7 @@ export function ScanInClient({
       if (!ok) return
     }
     setProductId(next)
+    setQty('')
     setQtyMessage(null)
     setReceiveMode('SERIAL')
     setReceiveUnit('ชิ้น')
@@ -203,33 +203,50 @@ export function ScanInClient({
     e.preventDefault()
     if (!selected || qtyBusy) return
     const amount = Number(qty)
+    // เช็คจำนวนก่อน PATCH - กัน PATCH ผ่านแล้ว POST ล้มทิ้ง dead-end ไว้
+    if (!Number.isInteger(amount) || amount < 1 || amount > 999999) {
+      setQtyMessage({ ok: false, text: 'จำนวนต้องเป็นจำนวนเต็ม 1–999999' })
+      return
+    }
+    if (unlocked && receiveCustomUnit && !receiveUnit.trim()) {
+      setQtyMessage({ ok: false, text: 'พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ' })
+      return
+    }
     setQtyBusy(true)
     setQtyMessage(null)
     try {
       // สินค้ายังไม่มีประวัติ + เลือกรับแบบจำนวนครั้งแรก = ล็อกวิธีนับก่อนรับของ
       // (PATCH ล้ม = หยุดเลย ไม่รับของ วิธีนับยังไม่ล็อก)
+      let patched = false
       if (unlocked && selected.trackingType !== 'QUANTITY') {
         const unit = receiveCustomUnit ? receiveUnit.trim() || 'ชิ้น' : receiveUnit
         await api(`/api/products/${selected.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ trackingType: 'QUANTITY', unitLabel: unit }),
         })
+        patched = true
       }
-      const res = await api<{
-        message: string
-        productInStock: number
-        quantity: number
-      }>('/api/quantity/in', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: selected.id,
-          quantity: amount,
-          vendorId: vendorId || null,
-          note: note || null,
-        }),
-      })
-      setQtyMessage({ ok: true, text: res.message })
-      setQty('')
+      try {
+        const res = await api<{
+          message: string
+          productInStock: number
+          quantity: number
+        }>('/api/quantity/in', {
+          method: 'POST',
+          body: JSON.stringify({
+            productId: selected.id,
+            quantity: amount,
+            vendorId: vendorId || null,
+            note: note || null,
+          }),
+        })
+        setQtyMessage({ ok: true, text: res.message })
+        setQty('')
+      } catch (error) {
+        // PATCH ผ่านแต่รับของล้ม = ล็อกไปแล้ว ต้องโหลดสถานะจริงมาโชว์ กันค้างหน้าเก่า
+        if (patched) router.refresh()
+        throw error
+      }
       router.refresh()
     } catch (error) {
       setQtyMessage({
@@ -361,9 +378,9 @@ export function ScanInClient({
                   id="receive-unit"
                   data-testid="receive-unit"
                   className="field"
-                  value={receiveCustomUnit ? '__custom__' : receiveUnit}
+                  value={receiveCustomUnit ? UNIT_CUSTOM : receiveUnit}
                   onChange={(e) => {
-                    if (e.target.value === '__custom__') {
+                    if (e.target.value === UNIT_CUSTOM) {
                       setReceiveCustomUnit(true)
                       setReceiveUnit('')
                     } else {
@@ -372,12 +389,12 @@ export function ScanInClient({
                     }
                   }}
                 >
-                  {['ชิ้น', 'อัน', 'เครื่อง', 'กล่อง', 'เมตร', 'ม้วน', 'ชุด', 'ตู้', 'ใบ'].map((u) => (
+                  {UNIT_LABELS.map((u) => (
                     <option key={u} value={u}>
                       {u}
                     </option>
                   ))}
-                  <option value="__custom__">อื่นๆ (พิมพ์เอง)</option>
+                  <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
                 </select>
                 {receiveCustomUnit && (
                   <input

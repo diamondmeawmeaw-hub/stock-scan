@@ -19,14 +19,6 @@ type Product = {
 
 type Category = { id: string; code: string; name: string }
 
-/** หน่วยนับมาตรฐาน - กันสะกดมั่ว (ชิ้น/อัน/ใบ ปนกัน) ค่าเก่าที่เพี้ยนอยู่แล้วแสดงตามเดิม ไม่บังคับแก้ */
-const UNIT_LABELS = ['ชิ้น', 'อัน', 'เครื่อง', 'กล่อง', 'เมตร', 'ม้วน', 'ชุด', 'ตู้', 'ใบ'] as const
-const UNIT_CUSTOM = '__custom__'
-
-function isStandardUnit(value: string): boolean {
-  return (UNIT_LABELS as readonly string[]).includes(value)
-}
-
 export function ProductsClient({
   products,
   categories,
@@ -64,8 +56,6 @@ export function ProductsClient({
     trackingType: 'SERIAL',
     unitLabel: '',
   })
-  // true = กำลังพิมพ์หน่วยนับเอง (ฟอร์มแก้ไข)
-  const [customEditUnit, setCustomEditUnit] = useState(false)
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true)
@@ -282,17 +272,12 @@ export function ProductsClient({
                       className="btn-primary mr-2"
                       disabled={busy}
                       onClick={() => {
-                        if (edit.trackingType === 'QUANTITY' && customEditUnit && !edit.unitLabel.trim()) {
-                          setError('พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ')
-                          return
-                        }
                         void run(async () => {
                           await api(`/api/products/${p.id}`, {
                             method: 'PATCH',
                             body: JSON.stringify(edit),
                           })
                           setEditingId(null)
-                          setCustomEditUnit(false)
                         })
                       }}
                     >
@@ -302,7 +287,6 @@ export function ProductsClient({
                       className="btn-ghost"
                       onClick={() => {
                         setEditingId(null)
-                        setCustomEditUnit(false)
                       }}
                     >
                       ยกเลิก
@@ -337,7 +321,6 @@ export function ProductsClient({
                       className="btn-ghost mr-2"
                       onClick={() => {
                         setEditingId(p.id)
-                        setCustomEditUnit(!isStandardUnit(p.unitLabel ?? 'ชิ้น'))
                         setEdit({
                           sku: p.sku,
                           name: p.name,

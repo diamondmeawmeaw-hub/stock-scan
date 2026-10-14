@@ -222,4 +222,44 @@ describe('วิธีนับล็อกหลังรับครั้ง�
     )
     expect((await qtyIn(p.id, 5)).status).toBe(400)
   })
+
+  it('PATCH ผ่านแต่รับของล้ม (จำนวน 0) -> ล็อกเป็นนับจำนวนแล้ว ของไม่เข้า', async () => {
+    const p = await createBare('NEW-PF-001')
+    expect(
+      (
+        await patchJson(
+          patchProductRoute,
+          { trackingType: 'QUANTITY', unitLabel: 'กล่อง' },
+          { id: p.id }
+        )
+      ).status
+    ).toBe(200)
+    // จำนวน 0 โดน route ปัดตก แต่ PATCH เกิดไปแล้ว
+    expect((await qtyIn(p.id, 0)).status).toBe(400)
+
+    const saved = await prisma.product.findUniqueOrThrow({ where: { id: p.id } })
+    expect(saved.trackingType).toBe('QUANTITY')
+    expect(saved.stockQty).toBe(0)
+  })
+
+  it('log ปฏิเสธ (ยิงซ้ำของคนอื่น) ไม่ล็อกวิธีนับ', async () => {
+    const p = await createBare('NEW-REJ-001')
+    const other = await prisma.product.create({
+      data: { sku: 'OTHER-001', name: 'other', categoryId: fx.categories.it.id },
+    })
+    await postJson(scanInRoute, { serial: 'DUP0001', productId: other.id })
+    const dup = await postJson(scanInRoute, { serial: 'DUP0001', productId: p.id })
+    expect(dup.body).toMatchObject({ accepted: false })
+
+    // p ยังไม่มีของ/ยอด/log รับจริง -> เปลี่ยนวิธีนับได้อยู่
+    expect(
+      (
+        await patchJson(
+          patchProductRoute,
+          { trackingType: 'QUANTITY', unitLabel: 'ชิ้น' },
+          { id: p.id }
+        )
+      ).status
+    ).toBe(200)
+  })
 })

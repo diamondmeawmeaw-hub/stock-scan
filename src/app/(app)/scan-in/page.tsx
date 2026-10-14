@@ -12,8 +12,9 @@ export default async function ScanInPage() {
         _count: {
           select: {
             units: { where: { status: 'IN_STOCK' } },
-            // มีประวัติแล้วหรือยัง (log อย่างใดอย่างหนึ่ง) - มี = วิธีนับล็อกแล้ว
-            scanLogs: true,
+            // มีประวัติแล้วหรือยัง - นับเฉพาะ log รับ/เบิกจริง ไม่นับ log ปฏิเสธ/ตรวจนับ
+            // (ยิงผิด/ยิงซ้ำไม่ควรล็อกวิธีนับของสินค้าใหม่)
+            scanLogs: { where: { accepted: true, type: { in: ['IN', 'OUT'] } } },
           },
         },
       },
