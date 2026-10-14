@@ -9,7 +9,13 @@ export default async function ScanInPage() {
       orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
       include: {
         category: true,
-        _count: { select: { units: { where: { status: 'IN_STOCK' } } } },
+        _count: {
+          select: {
+            units: { where: { status: 'IN_STOCK' } },
+            // มีประวัติแล้วหรือยัง (log อย่างใดอย่างหนึ่ง) - มี = วิธีนับล็อกแล้ว
+            scanLogs: true,
+          },
+        },
       },
     }),
     prisma.vendor.findMany({
@@ -37,6 +43,9 @@ export default async function ScanInPage() {
           trackingType: p.trackingType,
           unitLabel: p.unitLabel,
           inStock: p.trackingType === 'QUANTITY' ? p.stockQty : p._count.units,
+          // มีของค้างหรือยอดคงเหลือหรือเคยมีประวัติ = วิธีนับล็อกแล้ว
+          hasHistory:
+            p.stockQty !== 0 || p._count.units > 0 || p._count.scanLogs > 0,
         }))}
       />
     </div>

@@ -8,22 +8,22 @@ test.describe('สินค้านับจำนวน (quantity)', () => {
   test('สร้างสินค้าแบบจำนวน -> รับเข้าแบบกรอก -> เบิกออกแบบกรอก (ของหมดกดไม่ได้)', async ({
     page,
   }) => {
-    // 1) สร้างสินค้าแบบนับจำนวนที่หน้าสินค้า
+    // 1) สร้างสินค้าที่หน้าสินค้า (ไม่มีให้เลือกวิธีนับแล้ว) แล้วเลือกวิธีรับครั้งแรกที่หน้ารับเข้า
     await page.goto('/products')
     await page.locator('#sku').fill('RK-E2E-9U')
     await page.locator('#name').fill('ตู้แร็ค E2E')
-    await page.locator('#tracking').selectOption('QUANTITY')
-    await page.getByTestId('unit-select').selectOption('ตู้')
     await page.getByRole('button', { name: 'เพิ่ม' }).click()
     await expect(page.getByText('RK-E2E-9U')).toBeVisible()
 
     const product = await prisma.product.findUniqueOrThrow({ where: { sku: 'RK-E2E-9U' } })
-    expect(product.trackingType).toBe('QUANTITY')
+    expect(product.trackingType).toBe('SERIAL')
 
-    // 2) รับเข้า 5 ตู้
+    // 2) รับเข้า 5 ตู้ (เลือกวิธีกรอกจำนวน + หน่วยตู้ ครั้งแรก)
     await page.goto('/scan-in')
     await page.getByTestId('product-select').fill('RK-E2E')
     await page.getByTestId('product-option').first().click()
+    await page.getByTestId('receive-mode-quantity').click()
+    await page.getByTestId('receive-unit').selectOption('ตู้')
     await page.getByTestId('quantity-input').fill('5')
     await page.getByTestId('quantity-in-form').getByRole('button', { name: 'รับเข้า' }).click()
     await expect(page.getByTestId('quantity-message')).toContainText('คงเหลือ 5')
