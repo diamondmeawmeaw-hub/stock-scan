@@ -220,6 +220,7 @@ async function OutViewWithFilters({ outFilters }: { outFilters: StockViewFilters
           unitLabel: p.unitLabel,
           inStock: 0,
           out: p.out,
+          vendorName: p.vendorName,
         })),
         totalInStock: c.totalOut,
       }))}

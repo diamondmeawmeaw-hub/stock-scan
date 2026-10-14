@@ -1222,6 +1222,8 @@ export type StockReportRow = {
     unitLabel: string | null
     inStock: number
     out: number
+    /** ชื่อผู้ขายของของที่เหลือ (เจ้าเดียว/หลายเจ้า) หรือใบรับเข้าล่าสุด (ของนับจำนวน), null = ไม่ระบุ */
+    vendorName: string | null
   }[]
   totalInStock: number
 }
@@ -1278,6 +1280,50 @@ async function sumOutQuantity(
   return new Map(
     outGrouped.map((g) => [g.productId!, Math.max(0, (g._sum.quantity ?? 0) - (returned.get(g.productId!) ?? 0))])
   )
+}
+
+/**
+ * ชื่อผู้ขายจากใบรับเข้าล่าสุดของสินค้านับจำนวน (ของแบบนี้ไม่มี vendor ติดตัว)
+ * ไม่มีใบรับเข้าที่ระบุผู้ขายเลย = null (ให้ UI โชว์ "ไม่ระบุ")
+ */
+export async function quantityVendorNames(productIds: string[]): Promise<Map<string, string>> {
+  if (productIds.length === 0) return new Map()
+  const logs = await prisma.scanLog.findMany({
+    where: { productId: { in: productIds }, type: 'IN', accepted: true, vendorId: { not: null } },
+    orderBy: { createdAt: 'desc' },
+    distinct: ['productId'],
+    include: { vendor: { select: { name: true } } },
+  })
+  const map = new Map<string, string>()
+  for (const log of logs) {
+    if (log.productId && log.vendor?.name) map.set(log.productId, log.vendor.name)
+  }
+  return map
+}
+
+/** ชื่อผู้ขายของของรายชิ้นที่เหลืออยู่ - เจ้าเดียวโชว์ชื่อ คละเจ้าโชว์ "หลายเจ้า" ไม่มีโชว์ null */
+export function serialVendorName(vendorNames: (string | null)[]): string | null {
+  const names = [...new Set(vendorNames.filter((n): n is string => !!n))]
+  if (names.length === 0) return null
+  if (names.length > 1) return 'หลายเจ้า'
+  return names[0]
+}
+
+/**
+ * สินค้านับจำนวนที่เคยรับเข้าจาก vendor นี้
+ * (ยอด stockQty แยกตามเจ้าไม่ได้เพราะใบเบิกไม่มี vendor - ใช้ความเกี่ยวข้องแทน:
+ * กรอง vendor แล้วโชว์เฉพาะสินค้าที่เคยรับเข้าจากเจ้านั้น)
+ */
+export async function quantityVendorTraffic(
+  productIds: string[],
+  vendorId: string
+): Promise<Set<string>> {
+  if (productIds.length === 0) return new Set()
+  const grouped = await prisma.scanLog.groupBy({
+    by: ['productId'],
+    where: { productId: { in: productIds }, type: 'IN', accepted: true, vendorId },
+  })
+  return new Set(grouped.map((g) => g.productId!))
 }
 
 export async function buildStockReport(filters: StockReportFilters = {}): Promise<{
@@ -1377,8 +1423,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         orderBy: { name: 'asc' },
         include: {
           units: hasUnitFilter
-            ? { where: unitWhere, select: { status: true } }
-            : { select: { status: true } },
+            ? { where: unitWhere, select: { status: true, vendor: { select: { name: true } } } }
+            : { select: { status: true, vendor: { select: { name: true } } } },
         },
       },
     },
@@ -1388,10 +1434,16 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   const quantityIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const outQty = await sumOutQuantity(quantityIds, {
-    vendorId,
-    customerId: filters.customerId,
-  })
+  const [outQty, qtyVendors, qtyTraffic] = await Promise.all([
+    sumOutQuantity(quantityIds, {
+      vendorId,
+      customerId: filters.customerId,
+    }),
+    quantityVendorNames(quantityIds),
+    vendorId && !customerSerials && quantityIds.length > 0
+      ? quantityVendorTraffic(quantityIds, vendorId)
+      : Promise.resolve(null as Set<string> | null),
+  ])
 
   const rows: StockReportRow[] = categories.map((c) => {
     const products = c.products.map((p) => {
@@ -1408,9 +1460,11 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
           unitLabel: p.unitLabel,
           inStock,
           out,
+          vendorName: qtyVendors.get(p.id) ?? null,
         }
       }
-      const inStock = p.units.filter((u) => u.status === 'IN_STOCK').length
+      const inStockUnits = p.units.filter((u) => u.status === 'IN_STOCK')
+      const inStock = inStockUnits.length
       return {
         productId: p.id,
         sku: p.sku,
@@ -1420,6 +1474,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         unitLabel: null,
         inStock,
         out: p.units.length - inStock,
+        vendorName: serialVendorName(inStockUnits.map((u) => u.vendor?.name ?? null)),
       }
     })
     return {
@@ -1432,11 +1487,16 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   })
 
   // มีตัวกรองอยู่ = ซ่อนประเภทที่ไม่มีสินค้าเข้าเงื่อนไข ไม่ให้รกจอ
+  // (ของนับจำนวนแยกยอดตามเจ้าไม่ได้ - ตอนกรอง vendor โชว์เฉพาะตัวที่เคยรับเข้าจากเจ้านี้)
   const hasFilter = vendorId || customerSerials
   const filtered = hasFilter
     ? rows
         .map((r) => {
-          const products = r.products.filter((p) => p.inStock + p.out > 0)
+          const products = r.products.filter((p) =>
+            p.trackingType === 'QUANTITY' && vendorId && !customerSerials
+              ? (qtyTraffic?.has(p.productId) ?? false) && p.inStock + p.out > 0
+              : p.inStock + p.out > 0
+          )
           return {
             ...r,
             products,
@@ -1467,6 +1527,8 @@ export type OutReportRow = {
     trackingType: 'SERIAL' | 'QUANTITY'
     unitLabel: string | null
     out: number
+    /** ชื่อผู้ขายของที่เบิกออก (serial) / ใบรับเข้าล่าสุด (นับจำนวน), null = ไม่ระบุ */
+    vendorName: string | null
   }[]
   totalOut: number
 }
@@ -1567,7 +1629,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
         where: finalWhere,
         orderBy: { name: 'asc' },
         include: {
-          units: { where: unitWhere, select: { status: true } },
+          units: { where: unitWhere, select: { status: true, vendor: { select: { name: true } } } },
         },
       },
     },
@@ -1577,10 +1639,13 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
   const outQuantityIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const outQtySums = await sumOutQuantity(outQuantityIds, {
-    vendorId,
-    customerId: filters.customerId,
-  })
+  const [outQtySums, outQtyVendors] = await Promise.all([
+    sumOutQuantity(outQuantityIds, {
+      vendorId,
+      customerId: filters.customerId,
+    }),
+    quantityVendorNames(outQuantityIds),
+  ])
 
   const rows: OutReportRow[] = categories.map((c) => {
     const products = c.products
@@ -1594,6 +1659,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
             trackingType: 'QUANTITY' as const,
             unitLabel: p.unitLabel,
             out: outQtySums.get(p.id) ?? 0,
+            vendorName: outQtyVendors.get(p.id) ?? null,
           }
         }
         return {
@@ -1604,6 +1670,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
           trackingType: 'SERIAL' as const,
           unitLabel: null,
           out: p.units.length,
+          vendorName: serialVendorName(p.units.map((u) => u.vendor?.name ?? null)),
         }
       })
       .filter((p) => p.out > 0)
@@ -1682,6 +1749,8 @@ export type StockReportDetailedProduct = {
   unitLabel: string | null
   inStock: number
   out: number
+  /** เหมือน StockReportRow - ชื่อผู้ขายของของที่เหลือ/ใบรับเข้าล่าสุด, null = ไม่ระบุ */
+  vendorName: string | null
   serials: SerialWithHistory[]
 }
 
@@ -1841,10 +1910,16 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   const detailedQtyIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const detailedOutQty = await sumOutQuantity(detailedQtyIds, {
-    vendorId,
-    customerId: filters.customerId,
-  })
+  const [detailedOutQty, detailedQtyVendors, detailedQtyTraffic] = await Promise.all([
+    sumOutQuantity(detailedQtyIds, {
+      vendorId,
+      customerId: filters.customerId,
+    }),
+    quantityVendorNames(detailedQtyIds),
+    vendorId && !customerSerials && detailedQtyIds.length > 0
+      ? quantityVendorTraffic(detailedQtyIds, vendorId)
+      : Promise.resolve(null as Set<string> | null),
+  ])
 
   const rows: StockReportDetailedRow[] = categories.map((c) => {
     const products: StockReportDetailedProduct[] = c.products.map((p) => {
@@ -1860,6 +1935,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
           unitLabel: p.unitLabel,
           inStock,
           out,
+          vendorName: detailedQtyVendors.get(p.id) ?? null,
           serials: [],
         }
       }
@@ -1873,6 +1949,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
       const unitsToShow = customerSerials
         ? p.units.filter((u) => customerSerials!.has(u.serial) && u.status === 'IN_STOCK')
         : p.units.filter((u) => u.status === 'IN_STOCK')
+      const inStockUnits = unitsToShow.filter((u) => u.status === 'IN_STOCK')
       const serials: SerialWithHistory[] = unitsToShow.map((u) => ({
         serial: u.serial,
         status: u.status,
@@ -1890,6 +1967,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         unitLabel: null,
         inStock,
         out: countedUnits.length - inStock,
+        vendorName: serialVendorName(inStockUnits.map((u) => u.vendor?.name ?? null)),
         serials,
       }
     })
@@ -1906,7 +1984,11 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   const filtered = hasFilter
     ? rows
         .map((r) => {
-          const products = r.products.filter((p) => p.inStock + p.out > 0)
+          const products = r.products.filter((p) =>
+            p.trackingType === 'QUANTITY' && vendorId && !customerSerials
+              ? (detailedQtyTraffic?.has(p.productId) ?? false) && p.inStock + p.out > 0
+              : p.inStock + p.out > 0
+          )
           return {
             ...r,
             products,

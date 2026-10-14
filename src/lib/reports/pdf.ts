@@ -103,13 +103,14 @@ export function stockToPdf(report: StockReport, meta: ExportMeta): Promise<Buffe
     content.push({
       table: {
         headerRows: 1,
-        widths: [80, '*', 90, 55, 70],
+        widths: [70, '*', 70, 70, 50, 60],
         body: [
-          [th('SKU'), th('สินค้า'), th('แบรนด์'), th('คงเหลือ', true), th('เบิกออกไปแล้ว', true)],
+          [th('SKU'), th('สินค้า'), th('แบรนด์'), th('ซื้อจาก'), th('คงเหลือ', true), th('เบิกออกไปแล้ว', true)],
           ...category.products.map((p): TableCell[] => [
             p.sku,
             p.name,
             p.brand ?? '-',
+            p.vendorName ?? 'ไม่ระบุ',
             num(p.inStock),
             num(p.out),
           ]),
@@ -171,6 +172,7 @@ export function stockDetailedToPdf(report: StockReportDetailed, meta: ExportMeta
         `${p.sku} · ${p.name}`,
         p.brand ? ` (${p.brand})` : '',
         ` · คงเหลือ ${p.inStock} / เบิก ${p.out}`,
+        ` · ซื้อจาก ${p.vendorName ?? 'ไม่ระบุ'}`,
       ].join('')
       content.push({
         text: headerParts,

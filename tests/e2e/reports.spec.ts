@@ -31,6 +31,14 @@ test.describe('รายงาน', () => {
     await expect(page.getByTestId('stock-empty')).toBeVisible()
   })
 
+  test('ตารางคงเหลือมีคอลัมน์ซื้อจาก', async ({ page, data: _data }) => {
+    await loginAs(page, 'staff')
+    await page.goto('/reports')
+
+    const header = page.locator('[data-testid="report-category"] table thead tr').first()
+    await expect(header).toContainText('ซื้อจาก')
+  })
+
   test('ดูความเคลื่อนไหวของวันนี้หลังยิงรับเข้า', async ({ page, data }) => {
     await loginAs(page, 'staff')
     await page.goto('/scan-in')

@@ -109,6 +109,7 @@ function CategorySection({
                 <th className="px-4 py-2 font-medium">SKU</th>
                 <th className="px-4 py-2 font-medium">สินค้า</th>
                 <th className="px-4 py-2 font-medium">แบรนด์</th>
+                <th className="px-4 py-2 font-medium">ซื้อจาก</th>
                 {isOut ? (
                   <th className="px-4 py-2 text-right font-medium">เบิกออก</th>
                 ) : (
@@ -137,6 +138,7 @@ function CategorySection({
                         )}
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{p.vendorName ?? 'ไม่ระบุ'}</td>
                       {isOut ? (
                         <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
                           {p.out}
@@ -166,7 +168,7 @@ function CategorySection({
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={isOut ? 5 : 6} className="p-0">
+                        <td colSpan={isOut ? 6 : 7} className="p-0">
                           <SerialDetailPanel
                             productId={p.productId}
                             filters={filters}
