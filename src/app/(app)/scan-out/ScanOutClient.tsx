@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ScanConsole, type ScanOutcomeLike } from '@/components/ScanConsole'
+import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { ProductPicker } from '@/components/ProductPicker'
 import { OUT_REASONS, api } from '@/lib/client'
 
@@ -76,24 +76,85 @@ export function ScanOutClient({
   const [qty, setQty] = useState('')
   const [qtyBusy, setQtyBusy] = useState(false)
   const [qtyMessage, setQtyMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  // จำนวนของค้าง confirm - เตือนตอนปิดแท็บ
+  const [pendingCount, setPendingCount] = useState(0)
 
   const selectedQty = quantityProducts.find((p) => p.id === qtyProductId) ?? null
   const maxQty = selectedQty?.inStock ?? 0
 
-  const onScan = useCallback(
-    async (serial: string): Promise<ScanOutcomeLike> =>
-      api<ScanOutcomeLike>('/api/scan/out', {
-        method: 'POST',
-        body: JSON.stringify({
-          serial,
-          reason,
-          customerId: customerId || null,
-          projectId: projectId || null,
-          note: note || null,
-        }),
-      }),
-    [reason, customerId, projectId, note]
-  )
+  /**
+   * ค่าฟอร์มล่าสุดแบบ ref - onScan ถูกเรียกตอน drain คิว ซึ่ง closure อาจเก่ากว่าค่าบนจอ
+   * (ยิงเบิ้ลรัวๆ แล้วเปลี่ยนเหตุผล/ลูกค้ากลางคัน) อ่านจาก ref ที่สดเสมอ ของแต่ละชิ้นจึงผูกถูกชุด
+   */
+  const formRef = useRef({ reason: 'SALE', customerId: '', projectId: '', note: '' })
+  useEffect(() => {
+    formRef.current = { reason, customerId, projectId, note }
+  })
+
+  const onScan = useCallback(async (serial: string): Promise<ScanOutcomeLike> => {
+    // ยังไม่เบิกจริง แค่เข้าคิวรอบันทึก - snapshot ค่าตอนยิงของชิ้นนี้ไว้
+    const snap = formRef.current
+    return {
+      accepted: true,
+      result: 'PENDING',
+      message: 'รอยืนยันการเบิกออก',
+      serial,
+      product: null,
+      reason: snap.reason,
+      customerId: snap.customerId || null,
+      projectId: snap.projectId || null,
+      note: snap.note || null,
+    } as ScanOutcomeLike
+  }, [])
+
+  const onConfirm = useCallback(async (items: FeedItem[]) => {
+    const outcomes: ScanOutcomeLike[] = []
+    for (const item of items) {
+      // ใช้ค่าที่ snapshot ไว้ตอนยิงของชิ้นนั้น ไม่ใช่ค่าปัจจุบันบนฟอร์ม
+      const snap = item as ScanOutcomeLike & {
+        reason?: string
+        customerId?: string | null
+        projectId?: string | null
+      }
+      try {
+        outcomes.push(await api<ScanOutcomeLike>('/api/scan/out', {
+          method: 'POST',
+          body: JSON.stringify({
+            serial: item.serial,
+            reason: snap.reason ?? formRef.current.reason,
+            customerId: snap.customerId ?? null,
+            projectId: snap.projectId ?? null,
+            note: item.note ?? null,
+          }),
+        }))
+      } catch (error) {
+        outcomes.push({
+          accepted: false,
+          result: 'ERROR',
+          message: error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ',
+          serial: item.serial,
+        })
+      }
+    }
+    return outcomes
+  }, [])
+
+  // ลบออกจากคิว = ยังไม่เคยเบิกจริง แค่เอาออกจากรายการ ไม่ต้องเรียก API
+  const onDelete = useCallback(async () => {}, [])
+
+  const handleFeedChange = useCallback((items: FeedItem[]) => {
+    setPendingCount(items.length)
+  }, [])
+
+  // กันเผลอเปลี่ยนหน้า/ปิดแท็บทั้งที่ยังมีของรอ confirm (ของจะไม่ถูกเบิก)
+  useEffect(() => {
+    if (pendingCount === 0) return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [pendingCount])
 
   async function submitQuantity(e: React.FormEvent) {
     e.preventDefault()
@@ -260,7 +321,11 @@ export function ScanOutClient({
       {mode === 'SERIAL' ? (
         <ScanConsole
           onScan={onScan}
+          onDelete={onDelete}
+          onConfirm={onConfirm}
+          onFeedChange={handleFeedChange}
           label="ยิง serial ที่จะเบิกออก"
+          rejectDuplicateInFeed
         />
       ) : (
         <form onSubmit={submitQuantity} className="card-pop space-y-3 p-4 sm:p-5" data-testid="quantity-out-form">

@@ -1,4 +1,4 @@
-import { expect, focusScanner, loginAs, logout, prisma, scan, test } from './fixtures'
+import { confirmScan, expect, focusScanner, loginAs, logout, prisma, scan, scanFeedRows, test } from './fixtures'
 
 /** ยิงแล้วไม่รอผลจากหน้าจอ ต้องรอ log โผล่ในฐานก่อนค่อยตรวจ */
 async function waitForSaleLog(serial: string) {
@@ -36,6 +36,8 @@ test.describe('โปรเจคของลูกค้า', () => {
     await focusScanner(page)
     await scan(page, 'NB-0001')
 
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
     const log = await waitForSaleLog('NB-0001')
     expect(log.customerId).toBe(customer.id)
     expect(log.projectId).toBeTruthy()
@@ -81,6 +83,8 @@ test.describe('โปรเจคของลูกค้า', () => {
     await focusScanner(page)
     await scan(page, 'NB-0002')
 
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
     const log = await waitForSaleLog('NB-0002')
     expect(log.projectId).toBeNull()
 
@@ -102,6 +106,8 @@ test.describe('โปรเจคของลูกค้า', () => {
     await page.getByTestId('customer-select').selectOption(customer.id)
     await focusScanner(page)
     await scan(page, 'NB-0003')
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
     await waitForSaleLog('NB-0003')
 
     await page.goto('/sales')
