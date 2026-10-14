@@ -1,7 +1,9 @@
 import {
+  confirmScan,
   expect,
   loginAs,
   scanBurst,
+  scanFeedRows,
   STOCK,
   test,
   unitBySerial,
@@ -15,10 +17,11 @@ test.describe('คืนของที่เบิกผิด (return)', () =>
   test('เบิกออกแล้วกดคืนของในหน้าประวัติ -> กลับ IN_STOCK', async ({ page }) => {
     const serial = STOCK.notebook[0]
 
-    // 1) เบิกออกผ่านหน้าเว็บ (scan-out ยิงแล้วเข้าคลังทันที ไม่มี confirm)
+    // 1) เบิกออกผ่านหน้าเว็บ (scan-out เข้าคิวรอบันทึกก่อน ต้องกดยืนยัน)
     await page.goto('/scan-out')
     await scanBurst(page, [serial])
-    await expect(page.getByTestId('scan-last')).toContainText('เบิกออก')
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
     expect((await unitBySerial(serial))?.status).toBe('OUT')
 
     // 2) เปิดประวัติของชิ้นนี้แล้วกดคืน

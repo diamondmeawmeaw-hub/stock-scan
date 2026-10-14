@@ -1,4 +1,4 @@
-import { confirmScan, expect, loginAs, prisma, scanBurst, selectProduct, STOCK, test } from './fixtures'
+import { confirmScan, expect, loginAs, prisma, scanBurst, scanFeedRows, selectProduct, STOCK, test } from './fixtures'
 
 test.describe('ประวัติการสแกนที่หน้าค้นหา serial', () => {
   test('กรองตามประเภท ผู้สแกน และ serial ได้', async ({ page, data }) => {
@@ -14,6 +14,8 @@ test.describe('ประวัติการสแกนที่หน้า�
     await page.goto('/scan-out')
     await scanBurst(page, ['LOG-0001'])
     await expect(page.getByTestId('scan-pending')).toHaveCount(0)
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
 
     await page.goto('/serials')
     await expect(page.getByTestId('scan-log-row')).toHaveCount(3)
@@ -79,6 +81,8 @@ test.describe('ประวัติการสแกนที่หน้า�
     await page.goto('/scan-out')
     await scanBurst(page, [STOCK.notebook[0]])
     await expect(page.getByTestId('scan-pending')).toHaveCount(0)
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
 
     await page.goto('/serials')
     await page.getByTestId('scan-log-row').first().getByRole('link').click()
