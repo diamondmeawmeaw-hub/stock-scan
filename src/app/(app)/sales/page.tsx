@@ -133,24 +133,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
           customerLabel: `${p.customer.code} · ${p.customer.name}`,
         }))}
         values={{ customerId, projectId, q, from, to }}
+        exportHrefs={{ xlsx: exportHref('xlsx'), pdf: exportHref('pdf') }}
       />
-
-      <div className="flex flex-wrap gap-2">
-        <a
-          href={exportHref('xlsx')}
-          data-testid="export-xlsx"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950"
-        >
-          โหลด Excel
-        </a>
-        <a
-          href={exportHref('pdf')}
-          data-testid="export-pdf"
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950"
-        >
-          โหลด PDF
-        </a>
-      </div>
 
       {logs.length === 0 ? (
         <p

@@ -85,10 +85,12 @@ export function SalesFilters({
   customers,
   projects,
   values,
+  exportHrefs,
 }: {
   customers: { id: string; code: string; name: string }[]
   projects: { id: string; customerId: string; name: string; customerLabel: string }[]
   values: Values
+  exportHrefs?: { xlsx: string; pdf: string }
 }) {
   const router = useRouter()
   const [form, setForm] = useState(values)
