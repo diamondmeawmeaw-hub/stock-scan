@@ -29,33 +29,19 @@ test.describe('ค้นหาสินค้า (product search)', () => {
   })
 })
 
-test.describe('หน่วยนับมาตรฐาน (unit labels)', () => {
+test.describe('วิธีนับตัดสินตอนรับเข้า (first-receipt tracking)', () => {
   test.beforeEach(async ({ page, data: _data }) => {
     await loginAs(page, 'staff')
     await page.goto('/products')
   })
 
-  test('สร้างของนับจำนวนด้วยหน่วยมาตรฐาน + หน่วยพิมพ์เอง', async ({ page, data: _data }) => {
+  test('ฟอร์มเพิ่มไม่มีให้เลือกวิธีนับ สร้างได้เลย default รายชิ้น', async ({ page }) => {
     const form = page.getByTestId('product-form')
-    await page.locator('#tracking').selectOption('QUANTITY')
-
-    // หน่วยมาตรฐาน: เลือก "กล่อง" จากรายการ
+    await expect(page.locator('#tracking')).toHaveCount(0)
     await form.locator('#sku').fill('BX-E2E-001')
     await form.locator('#name').fill('กล่องเทส')
-    await page.getByTestId('unit-select').selectOption('กล่อง')
     await form.getByRole('button', { name: 'เพิ่ม' }).click()
     await expect(page.getByText('BX-E2E-001')).toBeVisible()
-    await expect(page.getByText('(กล่อง)')).toBeVisible()
-
-    // หน่วยพิมพ์เอง: เลือกอื่นๆ แล้วพิมพ์ "ลัง"
-    await page.locator('#tracking').selectOption('QUANTITY')
-    await form.locator('#sku').fill('BX-E2E-002')
-    await form.locator('#name').fill('ลังเทส')
-    await page.getByTestId('unit-select').selectOption('__custom__')
-    await page.getByTestId('unit-custom').fill('ลัง')
-    await form.getByRole('button', { name: 'เพิ่ม' }).click()
-    await expect(page.getByText('BX-E2E-002')).toBeVisible()
-    await expect(page.getByText('(ลัง)')).toBeVisible()
   })
 })
 

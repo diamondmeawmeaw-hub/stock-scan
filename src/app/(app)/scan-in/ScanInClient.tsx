@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { ProductPicker } from '@/components/ProductPicker'
+import { UNIT_CUSTOM, UNIT_LABELS } from '@/lib/units'
 import { api } from '@/lib/client'
 
 type ProductOption = {
@@ -14,6 +15,8 @@ type ProductOption = {
   trackingType: 'SERIAL' | 'QUANTITY'
   unitLabel: string | null
   inStock: number
+  /** มีของ/ยอด/ประวัติแล้ว = วิธีนับล็อก เปลี่ยนไม่ได้ */
+  hasHistory: boolean
 }
 
 type VendorOption = { id: string; code: string; name: string }
@@ -32,6 +35,10 @@ export function ScanInClient({
   const [qty, setQty] = useState('')
   const [qtyBusy, setQtyBusy] = useState(false)
   const [qtyMessage, setQtyMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  // วิธีรับของสินค้าที่ยังไม่มีประวัติ - สลับได้อิสระจนกว่าจะบันทึกสำเร็จครั้งแรก
+  const [receiveMode, setReceiveMode] = useState<'SERIAL' | 'QUANTITY'>('SERIAL')
+  const [receiveUnit, setReceiveUnit] = useState('ชิ้น')
+  const [receiveCustomUnit, setReceiveCustomUnit] = useState(false)
   const router = useRouter()
   // สรุปของค้าง confirm ไว้เตือนตอนเปลี่ยนสินค้า (มาจาก feed ใน ScanConsole)
   const [pendingInfo, setPendingInfo] = useState<{
@@ -54,6 +61,9 @@ export function ScanInClient({
   })
 
   const selected = products.find((p) => p.id === productId) ?? null
+  // สินค้ามีประวัติแล้วใช้วิธีเดิมของมัน - ยังไม่มีให้เลือกวิธีรับเอง
+  const unlocked = !!selected && !selected.hasHistory
+  const effectiveTracking = !selected ? 'SERIAL' : unlocked ? receiveMode : selected.trackingType
 
   const onScan = useCallback(async (serial: string): Promise<ScanOutcomeLike> => {
     // snapshot ค่าตอนยิงของชิ้นนี้ - ต่อให้เปลี่ยนฟอร์มก่อนกดยืนยัน ของชิ้นนี้ก็ยังผูกค่าเดิม
@@ -105,8 +115,11 @@ export function ScanInClient({
           })
         }
       }
+      // รับสำเร็จ = สินค้าอาจล็อกวิธีนับแล้ว โหลดข้อมูลใหม่ให้ tabs หาย/คงตามจริง
+      if (outcomes.some((o) => o.accepted)) router.refresh()
       return outcomes
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
 
@@ -145,10 +158,8 @@ export function ScanInClient({
     const nextProduct = products.find((p) => p.id === next) ?? null
     // สลับข้ามชนิด (รายชิ้น <-> นับจำนวน) จะถอด ScanConsole ทิ้ง ของที่ยิงค้างไว้หายหมด
     // แถมแถบเหลืองกับ beforeunload จะค้างหลอก - บล็อกไว้ก่อน ให้ยืนยัน/ลบของค้างให้เสร็จก่อน
-    if (
-      pendingInfo.count > 0 &&
-      (selected?.trackingType ?? 'SERIAL') !== (nextProduct?.trackingType ?? 'SERIAL')
-    ) {
+    // (เทียบวิธีรับจริงที่กำลังใช้ ไม่ใช่ค่าที่เก็บใน DB - ของใหม่ไร้ประวัติวิธีใน DB ยังเป็น SERIAL)
+    if (pendingInfo.count > 0 && effectiveTracking !== (nextProduct?.trackingType ?? 'SERIAL')) {
       window.alert(
         `ยังมี ${pendingInfo.count} รายการรอ confirm อยู่ - กดยืนยันบันทึกหรือลบออกก่อน แล้วค่อยเปลี่ยนชนิดสินค้า (ไม่งั้นของที่ยิงค้างไว้จะหาย)`
       )
@@ -166,33 +177,76 @@ export function ScanInClient({
       if (!ok) return
     }
     setProductId(next)
+    setQty('')
+    setQtyMessage(null)
+    setReceiveMode('SERIAL')
+    setReceiveUnit('ชิ้น')
+    setReceiveCustomUnit(false)
+  }
+
+  // สลับวิธีรับทั้งที่มีของค้างในคิว = ของในคิวผูกวิธีเดิม ของใหม่ผูกวิธีใหม่ กันงงให้เคลียร์ก่อน
+  function handleReceiveModeChange(next: 'SERIAL' | 'QUANTITY') {
+    if (next === receiveMode) return
+    if (pendingInfo.count > 0) {
+      window.alert(
+        `ยังมี ${pendingInfo.count} รายการรอ confirm อยู่ - กดยืนยันบันทึกหรือลบออกก่อน แล้วค่อยสลับวิธีรับ (ไม่งั้นของที่ยิงค้างไว้จะหาย)`
+      )
+      return
+    }
+    setReceiveMode(next)
     setQtyMessage(null)
   }
 
-  const isQuantity = selected?.trackingType === 'QUANTITY'
+  const isQuantity = effectiveTracking === 'QUANTITY' && !!selected
 
   async function submitQuantity(e: React.FormEvent) {
     e.preventDefault()
     if (!selected || qtyBusy) return
     const amount = Number(qty)
+    // เช็คจำนวนก่อน PATCH - กัน PATCH ผ่านแล้ว POST ล้มทิ้ง dead-end ไว้
+    if (!Number.isInteger(amount) || amount < 1 || amount > 999999) {
+      setQtyMessage({ ok: false, text: 'จำนวนต้องเป็นจำนวนเต็ม 1–999999' })
+      return
+    }
+    if (unlocked && receiveCustomUnit && !receiveUnit.trim()) {
+      setQtyMessage({ ok: false, text: 'พิมพ์หน่วยนับเอง (1–20 ตัวอักษร) หรือเลือกจากรายการ' })
+      return
+    }
     setQtyBusy(true)
     setQtyMessage(null)
     try {
-      const res = await api<{
-        message: string
-        productInStock: number
-        quantity: number
-      }>('/api/quantity/in', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: selected.id,
-          quantity: amount,
-          vendorId: vendorId || null,
-          note: note || null,
-        }),
-      })
-      setQtyMessage({ ok: true, text: res.message })
-      setQty('')
+      // สินค้ายังไม่มีประวัติ + เลือกรับแบบจำนวนครั้งแรก = ล็อกวิธีนับก่อนรับของ
+      // (PATCH ล้ม = หยุดเลย ไม่รับของ วิธีนับยังไม่ล็อก)
+      let patched = false
+      if (unlocked && selected.trackingType !== 'QUANTITY') {
+        const unit = receiveCustomUnit ? receiveUnit.trim() || 'ชิ้น' : receiveUnit
+        await api(`/api/products/${selected.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ trackingType: 'QUANTITY', unitLabel: unit }),
+        })
+        patched = true
+      }
+      try {
+        const res = await api<{
+          message: string
+          productInStock: number
+          quantity: number
+        }>('/api/quantity/in', {
+          method: 'POST',
+          body: JSON.stringify({
+            productId: selected.id,
+            quantity: amount,
+            vendorId: vendorId || null,
+            note: note || null,
+          }),
+        })
+        setQtyMessage({ ok: true, text: res.message })
+        setQty('')
+      } catch (error) {
+        // PATCH ผ่านแต่รับของล้ม = ล็อกไปแล้ว ต้องโหลดสถานะจริงมาโชว์ กันค้างหน้าเก่า
+        if (patched) router.refresh()
+        throw error
+      }
       router.refresh()
     } catch (error) {
       setQtyMessage({
@@ -224,8 +278,14 @@ export function ScanInClient({
           />
           {selected && (
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              ตอนนี้ในคลังมี {selected.inStock} {selected.trackingType === 'QUANTITY' ? (selected.unitLabel ?? 'ชิ้น') : 'ชิ้น'}
-              {selected.trackingType === 'QUANTITY' ? ' (สินค้านับจำนวน)' : ''}
+              {unlocked ? (
+                <>สินค้าใหม่ (ยังไม่มีประวัติ) - เลือกวิธีรับข้างล่าง สลับได้จนกว่าจะบันทึกสำเร็จครั้งแรก</>
+              ) : (
+                <>
+                  ตอนนี้ในคลังมี {selected.inStock} {selected.trackingType === 'QUANTITY' ? (selected.unitLabel ?? 'ชิ้น') : 'ชิ้น'}
+                  {selected.trackingType === 'QUANTITY' ? ' (สินค้านับจำนวน)' : ''}
+                </>
+              )}
             </p>
           )}
         </div>
@@ -267,6 +327,35 @@ export function ScanInClient({
         </div>
       </div>
 
+      {selected && unlocked && (
+        <div className="flex gap-2" role="tablist" aria-label="วิธีรับของ" data-testid="receive-mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={receiveMode === 'SERIAL'}
+            data-testid="receive-mode-serial"
+            onClick={() => handleReceiveModeChange('SERIAL')}
+            className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
+              receiveMode === 'SERIAL' ? 'border-sky-400 bg-sky-300 text-sky-950 dark:border-sky-600 dark:bg-sky-800 dark:text-sky-100' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            ยิง serial (รายชิ้น)
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={receiveMode === 'QUANTITY'}
+            data-testid="receive-mode-quantity"
+            onClick={() => handleReceiveModeChange('QUANTITY')}
+            className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold transition ${
+              receiveMode === 'QUANTITY' ? 'border-sky-400 bg-sky-300 text-sky-950 dark:border-sky-600 dark:bg-sky-800 dark:text-sky-100' : 'border-sky-200 bg-white text-slate-600 hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            กรอกจำนวน
+          </button>
+        </div>
+      )}
+
       {pendingInfo.count > 0 && (
         <div
           data-testid="pending-notice"
@@ -279,9 +368,50 @@ export function ScanInClient({
 
       {isQuantity && selected ? (
         <form onSubmit={submitQuantity} className="card-pop space-y-3 p-4 sm:p-5" data-testid="quantity-in-form">
+          {unlocked && (
+            <div>
+              <label className="label" htmlFor="receive-unit">
+                หน่วยนับ (ล็อกพร้อมวิธีนับตอนบันทึกครั้งแรก)
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="receive-unit"
+                  data-testid="receive-unit"
+                  className="field"
+                  value={receiveCustomUnit ? UNIT_CUSTOM : receiveUnit}
+                  onChange={(e) => {
+                    if (e.target.value === UNIT_CUSTOM) {
+                      setReceiveCustomUnit(true)
+                      setReceiveUnit('')
+                    } else {
+                      setReceiveCustomUnit(false)
+                      setReceiveUnit(e.target.value)
+                    }
+                  }}
+                >
+                  {UNIT_LABELS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                  <option value={UNIT_CUSTOM}>อื่นๆ (พิมพ์เอง)</option>
+                </select>
+                {receiveCustomUnit && (
+                  <input
+                    data-testid="receive-unit-custom"
+                    className="field"
+                    placeholder="เช่น ลัง (1–20 ตัวอักษร)"
+                    maxLength={20}
+                    value={receiveUnit}
+                    onChange={(e) => setReceiveUnit(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="qty">
-              จำนวนที่รับเข้า ({selected.unitLabel ?? 'ชิ้น'})
+              จำนวนที่รับเข้า ({unlocked ? (receiveCustomUnit ? receiveUnit.trim() || 'ชิ้น' : receiveUnit) : (selected.unitLabel ?? 'ชิ้น')})
             </label>
             <div className="flex gap-2">
               <input

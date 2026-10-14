@@ -22,7 +22,12 @@ export async function PATCH(request: Request, { params }: Params) {
     const data = updateSchema.parse(await readJson(request))
     const existing = await prisma.product.findUnique({
       where: { id },
-      include: { _count: { select: { units: true, scanLogs: true } } },
+      // นับประวัติเฉพาะ log รับ/เบิกจริง - log ปฏิเสธ (ยิงผิด/ยิงซ้ำ) ไม่ควรล็อกวิธีนับ
+      include: {
+        _count: {
+          select: { units: true, scanLogs: { where: { accepted: true, type: { in: ['IN', 'OUT'] } } } },
+        },
+      },
     })
     if (!existing) throw new HttpError(404, 'ไม่พบสินค้านี้')
     // สลับวิธีนับสต็อกได้เฉพาะตอนยังไม่มีของและยังไม่มีประวัติ กันยอดเก่าหาย/เพี้ยน
