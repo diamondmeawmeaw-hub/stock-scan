@@ -125,7 +125,10 @@ export function ScanInClient({
 
   const onDelete = useCallback(
     async (item: ScanOutcomeLike) => {
-      if (!item.scanLogId) return
+      // ลบออกจากคิว = แค่เอารายการนี้ออกจากจอ
+      // เรียก undo คืนของจริงเฉพาะแถวที่รับเข้าสำเร็จ (แถว fail ไม่มีของเข้าคลังตั้งแต่แรก)
+      if (!item.scanLogId || !item.accepted) return
+      if (item.result !== 'CREATED' && item.result !== 'RETURNED') return
       await api('/api/scan/undo', {
         method: 'POST',
         body: JSON.stringify({ scanLogId: item.scanLogId }),

@@ -385,7 +385,7 @@ export function ScanConsole({
                     {item.message}
                   </td>
                   <td className="px-2 py-2 text-center">
-                    {onDelete && item.accepted && (
+                    {onDelete && (
                       <button
                         type="button"
                         onClick={() => handleDelete(item)}
