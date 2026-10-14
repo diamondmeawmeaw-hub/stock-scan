@@ -6,6 +6,7 @@ export type ExportMeta = {
   brand?: string | null
   vendorName?: string | null
   customerName?: string | null
+  projectName?: string | null
   timePeriod?: TimePeriod | null
   q?: string | null
   /** เวลาที่ออกรายงาน - ส่งเข้ามาเพื่อให้เทสกำหนดค่าคงที่ได้ */
@@ -40,6 +41,7 @@ export function filterSummary(meta: ExportMeta): string {
   if (meta.brand) parts.push(`แบรนด์: ${meta.brand}`)
   if (meta.vendorName) parts.push(`ผู้จำหน่าย: ${meta.vendorName}`)
   if (meta.customerName) parts.push(`ผู้ซื้อ: ${meta.customerName}`)
+  if (meta.projectName) parts.push(`โปรเจค: ${meta.projectName}`)
   if (meta.timePeriod && meta.timePeriod !== 'all') {
     parts.push(`ช่วงเวลา: ${TIME_PERIOD_LABELS[meta.timePeriod] ?? meta.timePeriod}`)
   }

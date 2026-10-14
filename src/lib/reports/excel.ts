@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import type { MovementDetailReport, OutReportDetailed, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, OutReportDetailed, SalesReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 
 type StockReport = { categories: StockReportRow[]; grandTotalInStock: number }
@@ -415,6 +415,59 @@ export async function outDetailedToExcel(report: OutReportDetailed, meta: Export
 
   const grand = sheet.addRow(['รวมทั้งหมด', '', '', '', report.grandTotalOut])
   grand.font = { bold: true }
+
+  return toBuffer(wb)
+}
+
+// ─────────────────────── ประวัติการขาย (Excel) ───────────────────────
+
+export async function salesToExcel(report: SalesReport, meta: ExportMeta): Promise<Buffer> {
+  const wb = newWorkbook()
+  const sheet = wb.addWorksheet('ประวัติการขาย')
+  sheet.columns = [
+    { width: 18 }, // A: เวลา
+    { width: 22 }, // B: ลูกค้า
+    { width: 20 }, // C: โปรเจค
+    { width: 18 }, // D: Serial
+    { width: 28 }, // E: สินค้า
+    { width: 10 }, // F: จำนวน
+    { width: 14 }, // G: ผู้ทำรายการ
+    { width: 22 }, // H: หมายเหตุ
+    { width: 12 }, // I: สถานะ
+  ]
+
+  writeTitle(
+    sheet,
+    'รายงานประวัติการขาย',
+    `ขายทั้งหมด ${report.total.toLocaleString('th-TH')} รายการ`,
+    meta
+  )
+
+  if (report.rows.length === 0) {
+    sheet.addRow(['ไม่มีประวัติการขายตามเงื่อนไขที่เลือก'])
+    return toBuffer(wb)
+  }
+
+  const headerRow = sheet.addRow(['เวลา', 'ลูกค้า', 'โปรเจค', 'Serial', 'สินค้า', 'จำนวน', 'ผู้ทำรายการ', 'หมายเหตุ', 'สถานะ'])
+  styleHeader(headerRow)
+  sheet.views = [{ state: 'frozen', ySplit: headerRow.number }]
+
+  for (const r of report.rows) {
+    sheet.addRow([
+      thaiDateTimeShort(r.at),
+      r.customerName ?? '-',
+      r.projectName ?? '-',
+      r.serial ?? '-',
+      r.sku ? `${r.productName} (${r.sku})` : r.productName,
+      r.quantity,
+      r.userName,
+      r.note ?? '-',
+      r.reversed ? 'คืนแล้ว' : 'ขาย',
+    ])
+  }
+
+  const total = sheet.addRow(['', '', '', '', '', '', 'รวม', `${report.total} รายการ`, ''])
+  total.font = { bold: true }
 
   return toBuffer(wb)
 }

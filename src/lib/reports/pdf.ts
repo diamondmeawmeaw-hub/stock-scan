@@ -1,6 +1,6 @@
 import PdfPrinter from 'pdfmake'
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { MovementDetailReport, OutReportDetailed, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, OutReportDetailed, SalesReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 import { SARABUN_BOLD_BASE64, SARABUN_REGULAR_BASE64 } from './sarabun-font'
 
@@ -360,6 +360,61 @@ export function outDetailedToPdf(report: OutReportDetailed, meta: ExportMeta): P
 
   content.push({
     text: `รวมทั้งหมด ${report.grandTotalOut.toLocaleString('th-TH')} ชิ้น`,
+    style: 'section',
+    alignment: 'right',
+  })
+
+  return render(content)
+}
+
+// ─────────────────────── ประวัติการขาย (PDF) ───────────────────────
+
+export function salesToPdf(report: SalesReport, meta: ExportMeta): Promise<Buffer> {
+  const content: Content[] = header(
+    'รายงานประวัติการขาย',
+    `ขายทั้งหมด ${report.total.toLocaleString('th-TH')} รายการ`,
+    meta
+  )
+
+  if (report.rows.length === 0) {
+    content.push({ text: 'ไม่มีประวัติการขายตามเงื่อนไขที่เลือก', style: 'empty' })
+    return render(content)
+  }
+
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: [70, 80, 80, 70, '*', 35, 60, 40],
+      body: [
+        [
+          th('เวลา'),
+          th('ลูกค้า'),
+          th('โปรเจค'),
+          th('Serial'),
+          th('สินค้า'),
+          th('จำนวน', true),
+          th('ผู้ทำรายการ'),
+          th('สถานะ'),
+        ],
+        ...report.rows.map(
+          (r): TableCell[] => [
+            thaiDateTimeShort(r.at),
+            r.customerName ?? '-',
+            r.projectName ?? '-',
+            r.serial ?? '-',
+            r.sku ? `${r.productName} (${r.sku})` : r.productName,
+            num(r.quantity),
+            r.userName,
+            r.reversed ? 'คืนแล้ว' : 'ขาย',
+          ]
+        ),
+      ],
+    },
+    layout: TABLE_LAYOUT,
+  })
+
+  content.push({
+    text: `รวมทั้งหมด ${report.total.toLocaleString('th-TH')} รายการ`,
     style: 'section',
     alignment: 'right',
   })

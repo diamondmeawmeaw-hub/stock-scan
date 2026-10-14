@@ -2376,6 +2376,96 @@ export async function listScanUsers(): Promise<{ id: string; displayName: string
   })
 }
 
+// ─────────────────────── ประวัติการขาย (เบิกออกเหตุผล SALE) ───────────────────────
+
+export type SaleRow = {
+  id: string
+  at: string
+  serial: string | null
+  quantity: number
+  productName: string
+  sku: string | null
+  customerName: string | null
+  projectName: string | null
+  userName: string
+  note: string | null
+  reversed: boolean
+}
+
+export type SalesReport = {
+  rows: SaleRow[]
+  total: number
+}
+
+export type SalesReportFilters = {
+  customerId?: string | null
+  projectId?: string | null
+  q?: string | null
+  from?: Date | null
+  to?: Date | null
+}
+
+/** ประวัติการขายตามตัวกรอง (เหมือนหน้าขาย แต่ไม่จำกัด 200 แถว - export ต้องได้ครบ) */
+export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReport> {
+  const q = filters.q?.trim()
+  const where: Prisma.ScanLogWhereInput = {
+    type: 'OUT',
+    reason: 'SALE',
+    accepted: true,
+    ...(filters.customerId ? { customerId: filters.customerId } : {}),
+    ...(filters.projectId ? { projectId: filters.projectId } : {}),
+    ...(filters.from || filters.to
+      ? {
+          createdAt: {
+            ...(filters.from ? { gte: filters.from } : {}),
+            ...(filters.to ? { lte: filters.to } : {}),
+          },
+        }
+      : {}),
+    ...(q
+      ? {
+          OR: [
+            { serial: { contains: q, mode: 'insensitive' } },
+            { product: { name: { contains: q, mode: 'insensitive' } } },
+            { product: { sku: { contains: q, mode: 'insensitive' } } },
+            { customer: { name: { contains: q, mode: 'insensitive' } } },
+            { customer: { code: { contains: q, mode: 'insensitive' } } },
+            { note: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  }
+
+  const logs = await prisma.scanLog.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      customer: true,
+      product: true,
+      project: { select: { name: true } },
+      user: { select: { displayName: true } },
+      reversedBy: { select: { id: true } },
+    },
+  })
+
+  return {
+    total: logs.length,
+    rows: logs.map((log) => ({
+      id: log.id,
+      at: log.createdAt.toISOString(),
+      serial: log.serial,
+      quantity: log.quantity,
+      productName: log.product?.name ?? '-',
+      sku: log.product?.sku ?? null,
+      customerName: log.customer ? `${log.customer.code} · ${log.customer.name}` : null,
+      projectName: log.project?.name ?? null,
+      userName: log.user.displayName,
+      note: log.note,
+      reversed: log.reversedBy !== null,
+    })),
+  }
+}
+
 // ─────────────────────── รายงานความเคลื่อนไหวตามช่วงวัน ───────────────────────
 
 export type MovementReportRow = {

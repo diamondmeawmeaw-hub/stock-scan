@@ -95,6 +95,19 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     },
   })
 
+  // ลิงก์ export ใช้ตัวกรองชุดเดียวกับที่เห็นบนจอ
+  const exportQuery = new URLSearchParams()
+  if (customerId) exportQuery.set('customerId', customerId)
+  if (projectId) exportQuery.set('projectId', projectId)
+  if (q) exportQuery.set('q', q)
+  if (from) exportQuery.set('from', from)
+  if (to) exportQuery.set('to', to)
+  const exportHref = (format: 'xlsx' | 'pdf') => {
+    const query = new URLSearchParams(exportQuery)
+    query.set('format', format)
+    return `/api/sales/export?${query}`
+  }
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm dark:border-sky-900 dark:from-sky-950 dark:via-slate-900 dark:to-slate-900">
@@ -121,6 +134,23 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
         }))}
         values={{ customerId, projectId, q, from, to }}
       />
+
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={exportHref('xlsx')}
+          data-testid="export-xlsx"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950"
+        >
+          โหลด Excel
+        </a>
+        <a
+          href={exportHref('pdf')}
+          data-testid="export-pdf"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950"
+        >
+          โหลด PDF
+        </a>
+      </div>
 
       {logs.length === 0 ? (
         <p
