@@ -14,8 +14,8 @@ const stockReport = {
       categoryCode: 'IT',
       categoryName: 'อุปกรณ์ไอที',
       products: [
-        { productId: 'p1', sku: 'IT-NB-001', name: 'โน๊ตบุ๊ค', brand: 'Dell', trackingType: 'SERIAL', unitLabel: null, inStock: 2, out: 1 },
-        { productId: 'p2', sku: 'IT-MON-002', name: 'จอมอนิเตอร์', brand: null, trackingType: 'SERIAL', unitLabel: null, inStock: 3, out: 0 },
+        { productId: 'p1', sku: 'IT-NB-001', name: 'โน๊ตบุ๊ค', brand: 'Dell', trackingType: 'SERIAL' as const, unitLabel: null, inStock: 2, out: 1, vendorName: 'SiS' },
+        { productId: 'p2', sku: 'IT-MON-002', name: 'จอมอนิเตอร์', brand: null, trackingType: 'SERIAL' as const, unitLabel: null, inStock: 3, out: 0, vendorName: null },
       ],
       totalInStock: 5,
     },
@@ -83,10 +83,10 @@ describe('export ยอดคงเหลือเป็น Excel', () => {
     expect(rows[0][0]).toBe('รายงานยอดคงเหลือ')
 
     const header = rows.find((r) => r[0] === 'SKU')!
-    expect(header).toEqual(['SKU', 'สินค้า', 'แบรนด์', 'คงเหลือ', 'เบิกออกไปแล้ว'])
+    expect(header).toEqual(['SKU', 'สินค้า', 'แบรนด์', 'ซื้อจาก', 'คงเหลือ', 'เบิกออกไปแล้ว'])
 
     const notebook = rows.find((r) => r[0] === 'IT-NB-001')!
-    expect(notebook).toEqual(['IT-NB-001', 'โน๊ตบุ๊ค', 'Dell', 2, 1])
+    expect(notebook).toEqual(['IT-NB-001', 'โน๊ตบุ๊ค', 'Dell', 'SiS', 2, 1])
     // แบรนด์ว่างต้องเป็นขีด ไม่ใช่ช่องว่างเปล่า
     expect(rows.find((r) => r[0] === 'IT-MON-002')![2]).toBe('-')
 
@@ -153,5 +153,41 @@ describe('export เป็น PDF', () => {
     expect(
       isPdf(await movementDetailedToPdf({ ...movementReport, rows: [], totalIn: 0, totalOut: 0 }, META))
     ).toBe('%PDF-')
+  })
+})
+
+describe('คอลัมน์ซื้อจากในรายงานคงเหลือ', () => {
+  const vendorReport = {
+    categories: [
+      {
+        categoryId: 'c1',
+        categoryCode: 'IT',
+        categoryName: 'อุปกรณ์ไอที',
+        products: [
+          { productId: 'p1', sku: 'IT-NB-001', name: 'โน๊ตบุ๊ค', brand: 'Dell', trackingType: 'SERIAL' as const, unitLabel: null, inStock: 2, out: 0, vendorName: 'SiS' },
+          { productId: 'p2', sku: 'IT-MON-002', name: 'จอมอนิเตอร์', brand: null, trackingType: 'SERIAL' as const, unitLabel: null, inStock: 1, out: 0, vendorName: 'หลายเจ้า' },
+          { productId: 'p3', sku: 'CB-001', name: 'สายแลน', brand: null, trackingType: 'QUANTITY' as const, unitLabel: 'ม้วน', inStock: 5, out: 0, vendorName: null },
+        ],
+        totalInStock: 8,
+      },
+    ],
+    grandTotalInStock: 8,
+  }
+
+  it('Excel มีคอลัมน์ซื้อจาก + ไม่ระบุ + หลายเจ้า', async () => {
+    const { rows } = await readSheet(await stockToExcel(vendorReport, META))
+
+    expect(rows.find((r) => r[0] === 'SKU')).toEqual([
+      'SKU', 'สินค้า', 'แบรนด์', 'ซื้อจาก', 'คงเหลือ', 'เบิกออกไปแล้ว',
+    ])
+    expect(rows.find((r) => r[0] === 'IT-NB-001')![3]).toBe('SiS')
+    expect(rows.find((r) => r[0] === 'IT-MON-002')![3]).toBe('หลายเจ้า')
+    expect(rows.find((r) => r[0] === 'CB-001')![3]).toBe('ไม่ระบุ')
+  })
+
+  it('PDF ออกไฟล์ได้', async () => {
+    const buffer = await stockToPdf(vendorReport, META)
+    expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+    expect(buffer.length).toBeGreaterThan(1000)
   })
 })

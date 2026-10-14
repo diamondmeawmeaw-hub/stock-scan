@@ -43,6 +43,7 @@ export async function stockToExcel(report: StockReport, meta: ExportMeta): Promi
     { width: 16 },
     { width: 34 },
     { width: 16 },
+    { width: 16 },
     { width: 12 },
     { width: 16 },
   ]
@@ -62,10 +63,10 @@ export async function stockToExcel(report: StockReport, meta: ExportMeta): Promi
   for (const category of report.categories) {
     const heading = sheet.addRow([`${category.categoryName} (${category.categoryCode})`])
     heading.font = { bold: true, size: 12 }
-    styleHeader(sheet.addRow(['SKU', 'สินค้า', 'แบรนด์', 'คงเหลือ', 'เบิกออกไปแล้ว']))
+    styleHeader(sheet.addRow(['SKU', 'สินค้า', 'แบรนด์', 'ซื้อจาก', 'คงเหลือ', 'เบิกออกไปแล้ว']))
 
     for (const p of category.products) {
-      sheet.addRow([p.sku, p.name, p.brand ?? '-', p.inStock, p.out])
+      sheet.addRow([p.sku, p.name, p.brand ?? '-', p.vendorName ?? 'ไม่ระบุ', p.inStock, p.out])
     }
     if (category.products.length === 0) {
       sheet.addRow(['ยังไม่มีสินค้าในประเภทนี้'])
@@ -184,13 +185,14 @@ export async function stockDetailedToExcel(report: StockReportDetailed, meta: Ex
     }
 
     for (const p of category.products) {
-      // Product row: A=sku, B=name, C=brand, D=inStock, E=out
+      // Product row: A=sku, B=name, C=brand, D=vendor, E=inStock, F=out
       const productRow = sheet.addRow([
         p.sku,
         p.trackingType === 'QUANTITY'
           ? `${p.name} (นับจำนวน${p.unitLabel ? ` · ${p.unitLabel}` : ''})`
           : p.name,
         p.brand ?? '-',
+        p.vendorName ?? 'ไม่ระบุ',
         p.inStock,
         p.out,
       ])

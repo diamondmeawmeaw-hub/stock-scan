@@ -196,4 +196,59 @@ describe('ตัวกรองผู้ขายในรายงาน', () =
     const skus = onlySis.body.categories.flatMap((c: any) => c.products.map((p: any) => p.sku))
     expect(skus).toEqual(['IT-NB-001'])
   })
+
+  it('คอลัมน์ซื้อจาก: เจ้าเดียวโชว์ชื่อ คละเจ้าโชว์หลายเจ้า ไม่มีโชว์ไม่ระบุ', async () => {
+    const sis = await seedVendor()
+    const ingram = await seedVendor('ING', 'Ingram Micro')
+    const scanIn = (serial: string, vendorId: string | null, productId: string) =>
+      postJson(scanInRoute, { serial, productId, vendorId })
+
+    await scanIn('NB0001', sis.id, fx.products.notebook.id)
+    await scanIn('NB0002', ingram.id, fx.products.notebook.id)
+    await scanIn('MON0001', null, fx.products.monitor.id)
+
+    const all = await getJson(stockReportRoute, {}, {})
+    const bySku: Record<string, any> = {}
+    for (const c of all.body.categories) {
+      for (const p of c.products) bySku[p.sku] = p
+    }
+    expect(bySku['IT-NB-001'].vendorName).toBe('หลายเจ้า')
+    // monitor ไม่ระบุ vendor -> vendorName เป็น null (หน้าเว็บโชว์ "ไม่ระบุ")
+    expect(bySku['IT-MON-002'].vendorName).toBeNull()
+  })
+
+  it('กรอง vendor แล้วซ่อนของนับจำนวนที่ไม่เคยรับจากเจ้านั้น', async () => {
+    const sis = await seedVendor()
+    const rack = await prisma.product.create({
+      data: {
+        sku: 'RK-001',
+        name: 'ตู้แร็ค',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+        stockQty: 5,
+      },
+    })
+    // รับเข้าจาก SiS 5 ตู้ (stockQty ตั้งตรง + log รับเข้า)
+    await prisma.scanLog.create({
+      data: {
+        type: 'IN',
+        result: 'OK',
+        accepted: true,
+        quantity: 5,
+        userId: fx.user.id,
+        productId: rack.id,
+        vendorId: sis.id,
+      },
+    })
+
+    const onlySis = await getJson(stockReportRoute, {}, { vendorId: sis.id })
+    const skus = onlySis.body.categories.flatMap((c: any) => c.products.map((p: any) => p.sku))
+    expect(skus).toContain('RK-001')
+
+    const ingram = await seedVendor('ING', 'Ingram Micro')
+    const onlyIngram = await getJson(stockReportRoute, {}, { vendorId: ingram.id })
+    const skus2 = onlyIngram.body.categories.flatMap((c: any) => c.products.map((p: any) => p.sku))
+    expect(skus2).not.toContain('RK-001')
+  })
 })
