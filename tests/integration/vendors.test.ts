@@ -251,4 +251,38 @@ describe('ตัวกรองผู้ขายในรายงาน', () =
     const skus2 = onlyIngram.body.categories.flatMap((c: any) => c.products.map((p: any) => p.sku))
     expect(skus2).not.toContain('RK-001')
   })
+
+  it('กรอง vendor ในแท็บเบิกออกแล้ว ของนับจำนวนที่ขายไปยังโชว์อยู่', async () => {
+    const sis = await seedVendor()
+    const rack = await prisma.product.create({
+      data: {
+        sku: 'RK-001',
+        name: 'ตู้แร็ค',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+        stockQty: 3,
+      },
+    })
+    // รับ 5 เบิก 2 (ใบเบิกไม่มี vendorId ตามจริง)
+    await prisma.scanLog.create({
+      data: { type: 'IN', result: 'OK', accepted: true, quantity: 5, userId: fx.user.id, productId: rack.id, vendorId: sis.id },
+    })
+    await prisma.scanLog.create({
+      data: { type: 'OUT', result: 'OK', accepted: true, quantity: 2, userId: fx.user.id, productId: rack.id },
+    })
+
+    const { buildOutReport } = await import('@/lib/scan-service')
+    const bySku = (r: Awaited<ReturnType<typeof buildOutReport>>) => {
+      const map: Record<string, any> = {}
+      for (const c of r.categories) for (const p of c.products) map[p.sku] = p
+      return map
+    }
+    expect(bySku(await buildOutReport({}))['RK-001'].out).toBe(2)
+    // กรองเจ้าที่รับเข้ามา -> ยังเห็นยอดเบิก 2
+    expect(bySku(await buildOutReport({ vendorId: sis.id }))['RK-001'].out).toBe(2)
+
+    const ingram = await seedVendor('ING', 'Ingram Micro')
+    expect(bySku(await buildOutReport({ vendorId: ingram.id }))['RK-001']).toBeUndefined()
+  })
 })

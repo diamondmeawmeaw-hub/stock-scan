@@ -38,7 +38,7 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
 
   async function patchCustomer(id: string, data: Record<string, unknown>) {
     setBusy(true); setError('')
-    try { await api(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); router.refresh() }
+    try { await api(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); setEditingCustomerId(''); router.refresh() }
     catch (e) { setError(e instanceof Error ? e.message : 'แก้ไขไม่สำเร็จ') }
     finally { setBusy(false) }
   }
@@ -91,11 +91,11 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
                           maxLength={100}
                           onChange={(e) => setEditCustomerName(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') void patchCustomer(c.id, { name: editCustomerName.trim() }).then(() => setEditingCustomerId(''))
+                            if (e.key === 'Enter' && editCustomerName.trim()) void patchCustomer(c.id, { name: editCustomerName.trim() })
                             if (e.key === 'Escape') setEditingCustomerId('')
                           }}
                         />
-                        <button className="btn-primary px-2.5 py-1 text-xs" data-testid="customer-rename-save" disabled={busy} onClick={() => void patchCustomer(c.id, { name: editCustomerName.trim() }).then(() => setEditingCustomerId(''))}>บันทึก</button>
+                        <button className="btn-primary px-2.5 py-1 text-xs" data-testid="customer-rename-save" disabled={busy || !editCustomerName.trim()} onClick={() => void patchCustomer(c.id, { name: editCustomerName.trim() })}>บันทึก</button>
                         <button className="btn-ghost" onClick={() => setEditingCustomerId('')}>ยกเลิก</button>
                       </span>
                     ) : (

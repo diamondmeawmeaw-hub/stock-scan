@@ -136,6 +136,8 @@ export function ScanOutClient({
         })
       }
     }
+    // เบิกสำเร็จ = ยอดคงเหลือ/รายการเปลี่ยนแล้ว โหลดข้อมูลใหม่กัน dropdown ค้าง
+    if (outcomes.some((o) => o.accepted)) router.refresh()
     return outcomes
   }, [])
 
@@ -159,6 +161,11 @@ export function ScanOutClient({
   async function submitQuantity(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedQty || qtyBusy) return
+    const amount = Number(qty)
+    if (!Number.isInteger(amount) || amount < 1 || amount > 999999) {
+      setQtyMessage({ ok: false, text: 'จำนวนต้องเป็นจำนวนเต็ม 1–999999' })
+      return
+    }
     setQtyBusy(true)
     setQtyMessage(null)
     try {
@@ -168,7 +175,7 @@ export function ScanOutClient({
           method: 'POST',
           body: JSON.stringify({
             productId: selectedQty.id,
-            quantity: Number(qty),
+            quantity: amount,
             reason,
             customerId: customerId || null,
             projectId: projectId || null,

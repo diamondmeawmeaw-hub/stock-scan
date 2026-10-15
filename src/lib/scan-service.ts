@@ -1639,12 +1639,15 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
   const outQuantityIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const [outQtySums, outQtyVendors] = await Promise.all([
+  const [outQtySums, outQtyVendors, outQtyTraffic] = await Promise.all([
+    // ใบเบิกไม่มี vendorId จึงนับยอดเบิกแบบไม่กรอง vendor แล้วค่อยกรองแถวด้วย traffic แทน
     sumOutQuantity(outQuantityIds, {
-      vendorId,
       customerId: filters.customerId,
     }),
     quantityVendorNames(outQuantityIds),
+    vendorId && outQuantityIds.length > 0
+      ? quantityVendorTraffic(outQuantityIds, vendorId)
+      : Promise.resolve(null as Set<string> | null),
   ])
 
   const rows: OutReportRow[] = categories.map((c) => {
@@ -1673,7 +1676,11 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
           vendorName: serialVendorName(p.units.map((u) => u.vendor?.name ?? null)),
         }
       })
-      .filter((p) => p.out > 0)
+      .filter((p) =>
+        p.trackingType === 'QUANTITY' && vendorId
+          ? (outQtyTraffic?.has(p.productId) ?? false) && p.out > 0
+          : p.out > 0
+      )
     return {
       categoryId: c.id,
       categoryCode: c.code,
@@ -2169,9 +2176,12 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
   const outDetailedQtySums = await sumOutQuantity(outDetailedQtyIds, {
-    vendorId,
     customerId: filters.customerId,
   })
+  const outDetailedQtyTraffic =
+    vendorId && outDetailedQtyIds.length > 0
+      ? await quantityVendorTraffic(outDetailedQtyIds, vendorId)
+      : null
 
   const rows: OutReportDetailedRow[] = categories
     .filter((c) => c.products.length > 0)
@@ -2208,7 +2218,11 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
             })),
           }
         })
-        .filter((p) => p.out > 0)
+        .filter((p) =>
+          p.trackingType === 'QUANTITY' && vendorId
+            ? (outDetailedQtyTraffic?.has(p.productId) ?? false) && p.out > 0
+            : p.out > 0
+        )
     return {
       categoryId: c.id,
       categoryCode: c.code,

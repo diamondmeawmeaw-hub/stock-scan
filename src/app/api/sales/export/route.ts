@@ -40,8 +40,11 @@ export async function GET(request: Request) {
       to: params.get('to') ?? undefined,
     })
 
-    const range =
-      input.from || input.to ? dayRange(input.from || input.to!, input.to || input.from!) : null
+    const [start, end] =
+      input.from || input.to
+        ? [input.from || input.to!, input.to || input.from!].sort() as [string, string]
+        : [null, null] as const
+    const range = start && end ? dayRange(start, end) : null
     const report = await buildSalesReport({
       customerId: input.customerId,
       projectId: input.projectId,
