@@ -97,6 +97,17 @@ test.describe('โปรเจคของลูกค้า', () => {
       .toBe(project.id)
   })
 
+  test('หน้าลูกค้าเปลี่ยนชื่อลูกค้าได้ inline', async ({ page }) => {
+    const customer = await prisma.customer.create({ data: { code: 'E2E-RN', name: 'ชื่อเก่า' } })
+
+    await page.goto('/customers')
+    await page.getByTestId('customer-rename').click()
+    await page.getByTestId('customer-rename-input').fill('ชื่อใหม่')
+    await page.getByTestId('customer-rename-save').click()
+    await expect(page.getByTestId('customer-rename')).toHaveCount(1)
+    expect((await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } })).name).toBe('ชื่อใหม่')
+  })
+
   test('หน้าขายมีปุ่ม export ตามตัวกรองที่เลือก', async ({ page }) => {
     const customer = await prisma.customer.create({ data: { code: 'E2E-EX', name: 'ลูกค้า export' } })
 

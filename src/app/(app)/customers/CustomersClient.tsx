@@ -25,11 +25,21 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
   const [expandedId, setExpandedId] = useState('')
   const [editingId, setEditingId] = useState('')
   const [editName, setEditName] = useState('')
+  // ลูกค้าที่กำลังเปลี่ยนชื่อ
+  const [editingCustomerId, setEditingCustomerId] = useState('')
+  const [editCustomerName, setEditCustomerName] = useState('')
 
   async function save(data: unknown, reset = false) {
     setBusy(true); setError('')
     try { await api('/api/customers', { method: 'POST', body: JSON.stringify(data) }); if (reset) setForm({ code: '', name: '', note: '' }); router.refresh() }
     catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ') }
+    finally { setBusy(false) }
+  }
+
+  async function patchCustomer(id: string, data: Record<string, unknown>) {
+    setBusy(true); setError('')
+    try { await api(`/api/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); router.refresh() }
+    catch (e) { setError(e instanceof Error ? e.message : 'แก้ไขไม่สำเร็จ') }
     finally { setBusy(false) }
   }
 
@@ -66,11 +76,35 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
           {customers.map((c) => {
             const list = projects.filter((p) => p.customerId === c.id)
             const expanded = expandedId === c.id
+            const editingCustomer = editingCustomerId === c.id
             return (
               <Fragment key={c.id}>
                 <tr className={!c.active ? 'text-slate-400 dark:text-slate-500' : ''}>
                   <td className="px-4 py-2 font-mono">{c.code}</td>
-                  <td className="px-4 py-2">{c.name}</td>
+                  <td className="px-4 py-2">
+                    {editingCustomer ? (
+                      <span className="flex items-center gap-1.5">
+                        <input
+                          className="field max-w-56"
+                          data-testid="customer-rename-input"
+                          value={editCustomerName}
+                          maxLength={100}
+                          onChange={(e) => setEditCustomerName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void patchCustomer(c.id, { name: editCustomerName.trim() }).then(() => setEditingCustomerId(''))
+                            if (e.key === 'Escape') setEditingCustomerId('')
+                          }}
+                        />
+                        <button className="btn-primary px-2.5 py-1 text-xs" data-testid="customer-rename-save" disabled={busy} onClick={() => void patchCustomer(c.id, { name: editCustomerName.trim() }).then(() => setEditingCustomerId(''))}>บันทึก</button>
+                        <button className="btn-ghost" onClick={() => setEditingCustomerId('')}>ยกเลิก</button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        {c.name}
+                        <button className="btn-ghost px-2 py-0.5 text-xs" data-testid="customer-rename" onClick={() => { setEditingCustomerId(c.id); setEditCustomerName(c.name) }}>เปลี่ยนชื่อ</button>
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2">{c.note ?? '-'}</td>
                   <td className="px-4 py-2 text-right">{c.saleCount}</td>
                   <td className="px-4 py-2 text-right">
