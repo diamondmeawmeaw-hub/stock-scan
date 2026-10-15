@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       vendorId: input.vendorId,
       q: input.q,
       customerId: input.customerId,
-      timePeriod: (input.timePeriod || '30d') as StockReportFilters['timePeriod'],
+      timePeriod: (input.timePeriod || 'all') as StockReportFilters['timePeriod'],
     }
 
     // Verify product exists and passes filters

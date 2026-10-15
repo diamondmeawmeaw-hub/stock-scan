@@ -25,7 +25,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
   const vendorId = one(params, 'vendorId')
   const q = one(params, 'q')
   const customerId = one(params, 'customerId')
-  const timePeriod = (one(params, 'timePeriod') || '30d') as TimePeriod
+  const timePeriod = (one(params, 'timePeriod') || 'all') as TimePeriod
 
   const today = todayInThailand()
   const rawFrom = one(params, 'from')
@@ -138,7 +138,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
           vendorId,
           q,
           customerId,
-          timePeriod: view === 'stock' ? timePeriod : '30d',
+          timePeriod,
           from: start,
           to: end,
         }}

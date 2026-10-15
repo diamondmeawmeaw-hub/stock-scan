@@ -62,7 +62,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
       if (filters.vendorId) params.set('vendorId', filters.vendorId)
       if (filters.q) params.set('q', filters.q)
       if (filters.customerId) params.set('customerId', filters.customerId)
-      if (filters.timePeriod && filters.timePeriod !== '30d') {
+      if (filters.timePeriod && filters.timePeriod !== 'all') {
         params.set('timePeriod', filters.timePeriod)
       }
 

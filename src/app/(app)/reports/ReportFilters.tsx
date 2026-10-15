@@ -124,7 +124,7 @@ export function ReportFilters({
     if (next.vendorId) query.set('vendorId', next.vendorId)
     if (next.q.trim()) query.set('q', next.q.trim())
     if (next.customerId) query.set('customerId', next.customerId)
-    if (next.timePeriod && next.timePeriod !== '30d') query.set('timePeriod', next.timePeriod)
+    if (next.timePeriod && next.timePeriod !== 'all') query.set('timePeriod', next.timePeriod)
     if (view === 'movement') {
       query.set('from', next.from)
       query.set('to', next.to)
@@ -285,7 +285,7 @@ export function ReportFilters({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           data-testid="clear-filters"
           onClick={() => {
-            const cleared = { ...form, categoryId: '', brand: '', vendorId: '', q: '', customerId: '', timePeriod: '30d' }
+            const cleared = { ...form, categoryId: '', brand: '', vendorId: '', q: '', customerId: '', timePeriod: 'all' }
             setForm(cleared)
             apply(cleared)
           }}

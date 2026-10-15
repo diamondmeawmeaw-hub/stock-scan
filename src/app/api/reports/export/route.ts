@@ -74,7 +74,7 @@ async function buildStock(
   input: Awaited<ReturnType<typeof querySchema.parse>> & { view: 'stock' },
   format: 'xlsx' | 'pdf'
 ): Promise<[Buffer, string]> {
-  const timePeriod = (input.timePeriod || '30d') as TimePeriod
+  const timePeriod = (input.timePeriod || 'all') as TimePeriod
   const filters = {
     categoryId: input.categoryId,
     brand: input.brand,
@@ -94,7 +94,7 @@ async function buildOut(
   input: Awaited<ReturnType<typeof querySchema.parse>> & { view: 'out' },
   format: 'xlsx' | 'pdf'
 ): Promise<[Buffer, string]> {
-  const timePeriod = (input.timePeriod || '30d') as TimePeriod
+  const timePeriod = (input.timePeriod || 'all') as TimePeriod
   const filters = {
     categoryId: input.categoryId,
     brand: input.brand,
