@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ExportButton } from '@/components/ExportButton'
 import { prisma } from '@/lib/prisma'
 import { dayRange, isValidDateInput, shiftDays, todayInThailand, type TimePeriod } from '@/lib/date-range'
 import { buildMovementDetail, buildOutReport, buildStockReport, listBrands, listCustomers, listVendors } from '@/lib/scan-service'
@@ -61,6 +62,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
     })}`
   }
 
+  const exportPayload = (format: 'xlsx' | 'pdf') =>
+    view === 'movement'
+      ? { type: 'reports', view, format, ...movementFilters, from: start, to: end }
+      : { type: 'reports', view, format, ...(view === 'out' ? outFilters : stockFilters) }
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm dark:border-sky-900 dark:from-sky-950 dark:via-slate-900 dark:to-slate-900">
@@ -105,22 +111,20 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         </nav>
 
         <div className="flex gap-2">
-          <a
+          <ExportButton
             href={exportHref('xlsx')}
-            data-testid="export-xlsx"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <DownloadIcon className="h-4 w-4 text-emerald-600" />
-            โหลด Excel
-          </a>
-          <a
+            payload={exportPayload('xlsx')}
+            format="xlsx"
+            label="โหลด Excel"
+            testId="export-xlsx"
+          />
+          <ExportButton
             href={exportHref('pdf')}
-            data-testid="export-pdf"
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <FileTextIcon className="h-4 w-4 text-red-600" />
-            โหลด PDF
-          </a>
+            payload={exportPayload('pdf')}
+            format="pdf"
+            label="โหลด PDF"
+            testId="export-pdf"
+          />
         </div>
       </div>
 
@@ -346,46 +350,6 @@ function BarChartIcon({ className }: { className?: string }) {
       <line x1="12" x2="12" y1="20" y2="10" />
       <line x1="18" x2="18" y1="20" y2="4" />
       <line x1="6" x2="6" y1="20" y2="16" />
-    </svg>
-  )
-}
-
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className ?? 'h-5 w-5'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M12 15V3" />
-    </svg>
-  )
-}
-
-function FileTextIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className ?? 'h-5 w-5'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
-      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
-      <path d="M10 9H8" />
     </svg>
   )
 }

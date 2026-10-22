@@ -7,7 +7,9 @@
  * เพื่อให้ทุกเคสเริ่มจากสถานะเดียวกันไม่ว่าจะรันเดี่ยวหรือรันทั้งชุด
  */
 import { execFileSync } from 'node:child_process'
+import { rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import { E2E_BASE_URL, E2E_DATABASE_URL } from './env'
 
 function parseDbName(url: string): { adminUrl: string; dbName: string } {
@@ -75,6 +77,8 @@ async function warmUpRoutes() {
 
 export default async function globalSetup() {
   await ensureDatabase()
+  // ไฟล์ export ของ e2e เก็บแยกและเริ่มใหม่ทุกครั้งที่รันชุดเทส
+  await rm(path.join(process.cwd(), '.next-e2e', 'exports'), { recursive: true, force: true })
   // เรียกไฟล์ CLI ของ prisma ด้วย node ตรงๆ - ข้ามปัญหา .cmd/shell บน Windows
   const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js')
   execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], {

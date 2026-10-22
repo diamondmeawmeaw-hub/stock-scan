@@ -72,6 +72,7 @@ model User {
   scanLogs      ScanLog[]
   auditSessions AuditSession[]
   serialImages  SerialImage[]
+  exportJobs    ExportJob[]
 }
 
 /// ลูกค้าที่ซื้อสินค้า
@@ -267,4 +268,37 @@ model SerialImage {
   uploadedBy User       @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
 
   @@index([unitId, createdAt])
+}
+
+/// งาน export ไฟล์ขนาดใหญ่ - สร้างไฟล์เบื้องหลังแล้วค่อยดาวน์โหลด
+/// เก็บไฟล์ไว้ชั่วคราวในเครื่อง (ไม่เก็บไบต์ในฐานข้อมูล) และลบเมื่อหมดอายุ
+enum ExportJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model ExportJob {
+  id          String          @id @default(cuid())
+  userId      String
+  type        String
+  format      String
+  params      Json
+  status      ExportJobStatus @default(PENDING)
+  progress    Int             @default(0)
+  fileName    String?
+  contentType String?
+  size        Int?
+  error       String?
+  createdAt   DateTime        @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  expiresAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }

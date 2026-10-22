@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['pdfmake', '@foliojs-fork/pdfkit', 'exceljs'],
   outputFileTracingIncludes: {
     '/api/reports/export': ['./node_modules/@foliojs-fork/pdfkit/js/data/**'],
+    '/api/sales/export': ['./node_modules/@foliojs-fork/pdfkit/js/data/**'],
+    '/api/exports/**': ['./node_modules/@foliojs-fork/pdfkit/js/data/**'],
   },
 }
 

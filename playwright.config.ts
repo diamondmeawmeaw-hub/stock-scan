@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { defineConfig, devices } from '@playwright/test'
 import { E2E_AUTH_SECRET, E2E_BASE_URL, E2E_DATABASE_URL, E2E_HOST, E2E_PORT } from './tests/e2e/env'
 
@@ -48,6 +49,8 @@ export default defineConfig({
       // build ลง .next-e2e เพื่อไม่ให้ชนกับ npm run dev ที่เปิดค้างไว้
       // (ใช้โฟลเดอร์เดียวกันแล้วสองตัวจะเขียนทับ chunk กันจนหน้าเว็บพัง)
       NEXT_DIST_DIR: '.next-e2e',
+      // แยกไฟล์ export ของ e2e จากของจริง และลบทิ้งได้ทั้งโฟลเดอร์
+      EXPORT_DIR: path.join(process.cwd(), '.next-e2e', 'exports'),
     },
   },
 })

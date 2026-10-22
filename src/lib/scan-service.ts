@@ -1379,6 +1379,8 @@ export async function closeAuditSession(input: {
 
 export type StockReportFilters = {
   categoryId?: string | null
+  /** ใช้ภายในตอนแบ่ง export ใหญ่เป็นทีละสินค้า */
+  productId?: string | null
   brand?: string | null
   /** กรองเฉพาะของที่รับเข้ามาจากผู้จำหน่ายรายนี้ */
   vendorId?: string | null
@@ -1409,9 +1411,10 @@ export type StockReportRow = {
   totalInStock: number
 }
 
-function productFilter(filters: StockReportFilters): Prisma.ProductWhereInput | undefined {
+export function productFilter(filters: StockReportFilters): Prisma.ProductWhereInput | undefined {
   const and: Prisma.ProductWhereInput[] = []
   if (filters.categoryId) and.push({ categoryId: filters.categoryId })
+  if (filters.productId) and.push({ id: filters.productId })
   if (filters.brand) and.push({ brand: filters.brand })
   const q = filters.q?.trim()
   if (q) {
@@ -1704,14 +1707,32 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
 
 // ─────────────────────── รายงานสินค้าเบิกออก (สำหรับ Tab เบิกออกแล้ว) ───────────────────────
 
-/** กัน export ใหญ่จนหน่วยความจำระเบิด - เกินนี้ให้ผู้ใช้กรองแคบลง */
-const MAX_EXPORT_ROWS = 50_000
+/**
+ * เพดานของ export แบบโหลดทั้งหมดเข้าหน่วยความจำ
+ * งาน export ปกติยังใช้เพดานนี้ ส่วนงานเบื้องหลังจะสลับไปเขียนไฟล์แบบ streaming เมื่อเกิน
+ *
+ * EXPORT_ROW_LIMIT มีไว้ให้เทสย่อขนาดข้อมูลลงเท่านั้น (ไม่ตั้งใน production)
+ */
+export const DEFAULT_EXPORT_ROW_LIMIT = 50_000
+
+export function exportRowLimit(): number {
+  const configured = Number(process.env.EXPORT_ROW_LIMIT)
+  return Number.isFinite(configured) && configured > 0
+    ? Math.floor(configured)
+    : DEFAULT_EXPORT_ROW_LIMIT
+}
+
+/** ใช้แยกแยะว่า error เกิดจากข้อมูลเกินเพดาน เพื่อสลับไปเขียนแบบ streaming */
+export function isExportLimitError(err: unknown): boolean {
+  return err instanceof HttpError && err.status === 413
+}
 
 function assertExportSize(count: number) {
-  if (count > MAX_EXPORT_ROWS) {
+  const limit = exportRowLimit()
+  if (count > limit) {
     throw new HttpError(
       413,
-      `ข้อมูลเกิน ${MAX_EXPORT_ROWS.toLocaleString('th-TH')} แถว กรุณากรองช่วงเวลาหรือเงื่อนไขให้แคบลง`
+      `ข้อมูลเกิน ${limit.toLocaleString('th-TH')} แถว กรุณากรองช่วงเวลาหรือเงื่อนไขให้แคบลง`
     )
   }
 }
@@ -2753,10 +2774,19 @@ export type SalesReportFilters = {
   to?: Date | null
 }
 
-/** ประวัติการขายตามตัวกรอง (export เอาไปทั้งหมด แต่ตัดเพดานกันไฟล์ใหญ่เกิน memory) */
-export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReport> {
+const salesLogInclude = {
+  customer: true,
+  product: true,
+  project: { select: { name: true } },
+  user: { select: { displayName: true } },
+  reversedBy: { select: { id: true } },
+} satisfies Prisma.ScanLogInclude
+
+type SalesLog = Prisma.ScanLogGetPayload<{ include: typeof salesLogInclude }>
+
+function salesReportWhere(filters: SalesReportFilters): Prisma.ScanLogWhereInput {
   const q = filters.q?.trim()
-  const where: Prisma.ScanLogWhereInput = {
+  return {
     type: 'OUT',
     reason: 'SALE',
     accepted: true,
@@ -2783,36 +2813,81 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
         }
       : {}),
   }
+}
 
+function toSaleRow(log: SalesLog): SaleRow {
+  return {
+    id: log.id,
+    at: log.createdAt.toISOString(),
+    serial: log.serial,
+    quantity: log.quantity,
+    productName: log.product?.name ?? '-',
+    sku: log.product?.sku ?? null,
+    customerName: log.customer ? `${log.customer.code} · ${log.customer.name}` : null,
+    projectName: log.project?.name ?? null,
+    userName: log.user.displayName,
+    note: log.note,
+    reversed: log.reversedBy !== null,
+  }
+}
+
+/** จำนวนรายการขายทั้งหมด - ใช้เขียนหัวไฟล์ก่อนเริ่มไล่อ่านแบบทีละหน้า */
+export function countSalesReport(filters: SalesReportFilters = {}): Promise<number> {
+  return prisma.scanLog.count({ where: salesReportWhere(filters) })
+}
+
+/**
+ * ไล่อ่านประวัติการขายทีละหน้า เรียงใหม่สุดก่อนเหมือนหน้าเว็บ
+ * ใช้กับ export ใหญ่ที่ไม่อยากโหลดทุกแถวเข้า memory พร้อมกัน
+ */
+export async function* iterateSalesReportRows(
+  filters: SalesReportFilters = {},
+  pageSize = 1000
+): AsyncGenerator<SaleRow> {
+  const base = salesReportWhere(filters)
+  let cursor: { createdAt: Date; id: string } | null = null
+
+  while (true) {
+    const page: SalesLog[] = await prisma.scanLog.findMany({
+      where: cursor
+        ? {
+            AND: [
+              base,
+              {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                ],
+              },
+            ],
+          }
+        : base,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: salesLogInclude,
+      take: pageSize,
+    })
+
+    for (const log of page) yield toSaleRow(log)
+    if (page.length < pageSize) break
+
+    const last: SalesLog = page[page.length - 1]
+    cursor = { createdAt: last.createdAt, id: last.id }
+  }
+}
+
+/** ประวัติการขายตามตัวกรอง (export เอาไปทั้งหมด แต่ตัดเพดานกันไฟล์ใหญ่เกิน memory) */
+export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReport> {
   const logs = await prisma.scanLog.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      customer: true,
-      product: true,
-      project: { select: { name: true } },
-      user: { select: { displayName: true } },
-      reversedBy: { select: { id: true } },
-    },
-    take: MAX_EXPORT_ROWS + 1,
+    where: salesReportWhere(filters),
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    include: salesLogInclude,
+    take: exportRowLimit() + 1,
   })
   assertExportSize(logs.length)
 
   return {
     total: logs.length,
-    rows: logs.map((log) => ({
-      id: log.id,
-      at: log.createdAt.toISOString(),
-      serial: log.serial,
-      quantity: log.quantity,
-      productName: log.product?.name ?? '-',
-      sku: log.product?.sku ?? null,
-      customerName: log.customer ? `${log.customer.code} · ${log.customer.name}` : null,
-      projectName: log.project?.name ?? null,
-      userName: log.user.displayName,
-      note: log.note,
-      reversed: log.reversedBy !== null,
-    })),
+    rows: logs.map(toSaleRow),
   }
 }
 
@@ -2921,34 +2996,24 @@ export type MovementDetailReport = {
   totalOut: number
 }
 
-/**
- * รายงานความเคลื่อนไหวแบบละเอียด - แสดง Transaction History ทั้งหมด
- * ใช้สำหรับ Tab ความเคลื่อนไหว และ Export
- * ไม่ใช้ timePeriod filter (movement ไม่มี timePeriod)
- */
-export async function buildMovementDetail(
-  input: StockReportFilters & { from: Date; to: Date }
-): Promise<MovementDetailReport> {
-  if (input.from > input.to) throw new HttpError(400, 'วันเริ่มต้นต้องไม่เกินวันสิ้นสุด')
+type MovementDetailLog = Prisma.ScanLogGetPayload<{ include: typeof scanLogDetailInclude }>
 
+function movementDetailWhere(
+  input: StockReportFilters & { from: Date; to: Date }
+): Prisma.ScanLogWhereInput {
+  if (input.from > input.to) throw new HttpError(400, 'วันเริ่มต้นต้องไม่เกินวันสิ้นสุด')
   const product = productFilter(input)
-  const where: Prisma.ScanLogWhereInput = {
+  return {
     accepted: true,
     createdAt: { gte: input.from, lte: input.to },
     ...(input.vendorId ? { vendorId: input.vendorId } : {}),
     ...(input.customerId ? { customerId: input.customerId } : {}),
     ...(product ? { product } : {}),
   }
+}
 
-  const logs = await prisma.scanLog.findMany({
-    where,
-    orderBy: { createdAt: 'asc' },
-    include: scanLogDetailInclude,
-    take: MAX_EXPORT_ROWS + 1,
-  })
-  assertExportSize(logs.length)
-
-  const rows: MovementDetailRow[] = logs.map((l) => ({
+function toMovementDetailRow(l: MovementDetailLog): MovementDetailRow {
+  return {
     id: l.id,
     at: l.createdAt.toISOString(),
     serial: l.serial,
@@ -2964,8 +3029,79 @@ export async function buildMovementDetail(
     categoryName: (l.product as { category?: { name: string } } | null)?.category?.name ?? '-',
     userName: l.user.displayName,
     customerName: l.customer ? `${l.customer.code} · ${l.customer.name}` : null,
-  }))
+  }
+}
 
+/** ยอดรวมสำหรับหัวรายงาน โดยไม่ต้องโหลดแถวทั้งหมด */
+export async function movementDetailTotals(
+  input: StockReportFilters & { from: Date; to: Date }
+): Promise<{ totalIn: number; totalOut: number; totalRows: number }> {
+  const grouped = await prisma.scanLog.groupBy({
+    by: ['type'],
+    where: movementDetailWhere(input),
+    _sum: { quantity: true },
+    _count: { _all: true },
+  })
+  return {
+    totalIn: grouped.find((g) => g.type === 'IN')?._sum.quantity ?? 0,
+    totalOut: grouped.find((g) => g.type === 'OUT')?._sum.quantity ?? 0,
+    totalRows: grouped.reduce((sum, g) => sum + g._count._all, 0),
+  }
+}
+
+/** ไล่อ่านความเคลื่อนไหวทีละหน้า (เก่า -> ใหม่) สำหรับ export ใหญ่ */
+export async function* iterateMovementDetailRows(
+  input: StockReportFilters & { from: Date; to: Date },
+  pageSize = 1000
+): AsyncGenerator<MovementDetailRow> {
+  const base = movementDetailWhere(input)
+  let cursor: { createdAt: Date; id: string } | null = null
+
+  while (true) {
+    const page: MovementDetailLog[] = await prisma.scanLog.findMany({
+      where: cursor
+        ? {
+            AND: [
+              base,
+              {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              },
+            ],
+          }
+        : base,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: scanLogDetailInclude,
+      take: pageSize,
+    })
+
+    for (const log of page) yield toMovementDetailRow(log)
+    if (page.length < pageSize) break
+
+    const last: MovementDetailLog = page[page.length - 1]
+    cursor = { createdAt: last.createdAt, id: last.id }
+  }
+}
+
+/**
+ * รายงานความเคลื่อนไหวแบบละเอียด - แสดง Transaction History ทั้งหมด
+ * ใช้สำหรับ Tab ความเคลื่อนไหว และ Export
+ * ไม่ใช้ timePeriod filter (movement ไม่มี timePeriod)
+ */
+export async function buildMovementDetail(
+  input: StockReportFilters & { from: Date; to: Date }
+): Promise<MovementDetailReport> {
+  const logs = await prisma.scanLog.findMany({
+    where: movementDetailWhere(input),
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    include: scanLogDetailInclude,
+    take: exportRowLimit() + 1,
+  })
+  assertExportSize(logs.length)
+
+  const rows = logs.map(toMovementDetailRow)
   const totalIn = rows.filter((r) => r.type === 'IN').reduce((sum, r) => sum + r.quantity, 0)
   const totalOut = rows.filter((r) => r.type === 'OUT').reduce((sum, r) => sum + r.quantity, 0)
 

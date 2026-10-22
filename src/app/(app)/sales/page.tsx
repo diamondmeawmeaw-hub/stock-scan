@@ -126,6 +126,16 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     return `/api/sales/export?${query}`
   }
 
+  const exportPayload = (format: 'xlsx' | 'pdf') => ({
+    type: 'sales',
+    format,
+    customerId: customerId || null,
+    projectId: projectId || null,
+    q: q || null,
+    from: from || null,
+    to: to || null,
+  })
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-blue-50/60 to-white px-5 py-4 shadow-sm dark:border-sky-900 dark:from-sky-950 dark:via-slate-900 dark:to-slate-900">
@@ -153,6 +163,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
         }))}
         values={{ customerId, projectId, q, from, to }}
         exportHrefs={{ xlsx: exportHref('xlsx'), pdf: exportHref('pdf') }}
+        exportPayloads={{ xlsx: exportPayload('xlsx'), pdf: exportPayload('pdf') }}
       />
 
       {logs.length === 0 ? (
