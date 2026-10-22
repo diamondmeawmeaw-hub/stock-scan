@@ -474,6 +474,75 @@ describe('ปิดรอบระหว่างมีการเคลื่�
     ).toBe(0)
   })
 
+  it('ปิดรอบระหว่างที่อีกฝั่งกำลังเบิกออก -> ไม่ขึ้นของหายซ้ำกับรายการขาย', async () => {
+    const session = await openSession({ categoryId: fx.categories.it.id })
+
+    // จำลอง scanOut ที่กำลังถือ lock ของ NB0001 อยู่ แต่ยังไม่ commit
+    // (ล็อก serial + แถวเดียวกับที่ scanOut จริงทำ)
+    let releaseSale!: () => void
+    const holdSale = new Promise<void>((resolve) => {
+      releaseSale = resolve
+    })
+    let saleLocked!: () => void
+    const saleHasLocks = new Promise<void>((resolve) => {
+      saleLocked = resolve
+    })
+
+    const saleTx = prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'NB0001'}))`
+      const unit = await tx.serialUnit.findUniqueOrThrow({
+        where: { serial: 'NB0001' },
+        select: { id: true, productId: true },
+      })
+      await tx.$queryRaw`SELECT id FROM "SerialUnit" WHERE id = ${unit.id} FOR UPDATE`
+      saleLocked()
+
+      await holdSale
+      const soldAt = new Date()
+      await tx.serialUnit.update({
+        where: { id: unit.id },
+        data: { status: 'OUT', releasedAt: soldAt, lastScanAt: soldAt },
+      })
+      await tx.scanLog.create({
+        data: {
+          serial: 'NB0001',
+          type: 'OUT',
+          result: 'OK',
+          accepted: true,
+          message: 'ขายระหว่างปิดรอบ',
+          reason: 'SALE',
+          userId: fx.user.id,
+          productId: unit.productId,
+          unitId: unit.id,
+        },
+      })
+    })
+
+    await saleHasLocks
+    const closePromise = closeSession(session.id, true)
+    // ให้ฝั่งปิดรอบได้อ่าน snapshot แล้วไปรอ lock ของ NB0001
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    releaseSale()
+    await saleTx
+    const closed = await closePromise
+
+    expect(closed.status).toBe(200)
+    expect(closed.body.report.missing.map((m) => m.serial).sort()).toEqual(['NB0002', 'NB0003'])
+    expect(
+      await prisma.scanLog.count({
+        where: { auditSessionId: session.id, serial: 'NB0001', result: 'MISSING' },
+      })
+    ).toBe(0)
+    expect(
+      await prisma.scanLog.count({
+        where: { serial: 'NB0001', type: 'OUT', accepted: true, result: 'OK' },
+      })
+    ).toBe(1)
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0001' } })).status
+    ).toBe('OUT')
+  })
+
   it('ของนับจำนวน: นับแล้วมีการรับเข้าใหม่ -> ปิดรอบไม่ได้จนกว่าจะนับใหม่', async () => {
     const product = await prisma.product.create({
       data: {

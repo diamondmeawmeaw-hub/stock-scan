@@ -1227,7 +1227,27 @@ export async function closeAuditSession(input: {
     if (session.status === 'CLOSED') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
 
     // คำนวณใน transaction เดียวกับตอนปรับ เพื่อให้ snapshot ตรงกับสต็อกที่ถูกแก้จริง
-    const report = await buildAuditReport(input.sessionId, tx)
+    let report = await buildAuditReport(input.sessionId, tx)
+
+    // ล็อก serial ที่จะถูกปรับก่อนสรุปผลรอบสุดท้าย
+    // scanIn/scanOut ใช้ advisory lock ตัวเดียวกันอยู่แล้ว จึงรอกันจนจบ transaction
+    // ถ้าปล่อยให้เบิกออกแทรกหลัง snapshot เครื่องเดียวกันอาจได้ทั้ง log MISSING และ OUT
+    // ล็อกตามลำดับ serial เพื่อกัน deadlock และอ่านรายงานใหม่หลังล็อกทุกครั้ง
+    // (ถ้ามีของเคลื่อนไหวเพิ่มระหว่างทาง จะเห็นรายการใหม่แล้วล็อกเพิ่มจนกว่านิ่ง)
+    const lockedSerials = new Set<string>()
+    while (true) {
+      const targets = [
+        ...new Set([...report.missing, ...report.surplus].map((r) => r.serial)),
+      ].sort()
+      const pending = targets.filter((serial) => !lockedSerials.has(serial))
+      if (pending.length === 0) break
+      for (const serial of pending) {
+        await lockSerial(tx, serial)
+        lockedSerials.add(serial)
+      }
+      report = await buildAuditReport(input.sessionId, tx)
+    }
+
     const closedAt = new Date()
     const finalReport: AuditReport = {
       ...report,
