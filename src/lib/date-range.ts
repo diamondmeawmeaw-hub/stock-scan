@@ -6,10 +6,41 @@
  */
 const THAI_OFFSET = '+07:00'
 
+/**
+ * ตรวจว่าเป็นวันที่ YYYY-MM-DD ที่มีอยู่จริงในปฏิทิน
+ * (regex อย่างเดียวไม่พอ - 2026-02-31 / 2026-13-01 ผ่าน regex ได้แต่สร้าง Date เพี้ยน)
+ */
+export function isValidDateInput(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const at = new Date(Date.UTC(year, month - 1, day))
+  return (
+    at.getUTCFullYear() === year &&
+    at.getUTCMonth() === month - 1 &&
+    at.getUTCDate() === day
+  )
+}
+
 export function dayRange(from: string, to: string): { from: Date; to: Date } {
   return {
     from: new Date(`${from}T00:00:00.000${THAI_OFFSET}`),
     to: new Date(`${to}T23:59:59.999${THAI_OFFSET}`),
+  }
+}
+
+/**
+ * ช่วงวันแบบเปิดปลายได้ - ใช้กับตัวกรองที่เลือกวันข้างเดียว
+ * - from อย่างเดียว = ตั้งแต่วันนั้นเป็นต้นไป (ไม่มีเพดานบน)
+ * - to อย่างเดียว = ถึงวันนั้น (ย้อนหลังไม่จำกัด)
+ * - ใส่มาเกินจริงหรือ from > to จะถูกสลับให้
+ */
+export function optionalDayRange(from: string, to: string): { from?: Date; to?: Date } {
+  const f = isValidDateInput(from) ? from : ''
+  const t = isValidDateInput(to) ? to : ''
+  const [start, end] = f && t ? (f <= t ? [f, t] : [t, f]) : [f, t]
+  return {
+    from: start ? dayRange(start, start).from : undefined,
+    to: end ? dayRange(end, end).to : undefined,
   }
 }
 

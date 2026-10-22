@@ -1415,13 +1415,12 @@ function productFilter(filters: StockReportFilters): Prisma.ProductWhereInput | 
  */
 async function sumOutQuantity(
   productIds: string[],
-  opts: { vendorId?: string | null; customerId?: string | null } = {}
+  opts: { customerId?: string | null } = {}
 ): Promise<Map<string, number>> {
   if (productIds.length === 0) return new Map()
   const base = {
     accepted: true,
     productId: { in: productIds },
-    ...(opts.vendorId ? { vendorId: opts.vendorId } : {}),
     ...(opts.customerId ? { customerId: opts.customerId } : {}),
   }
   const [outGrouped, returnedGrouped] = await Promise.all([
@@ -1495,7 +1494,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   const vendorId = filters.vendorId || null
 
   // ── หา productIds ที่ผ่าน timePeriod filter ──
-  // นับทั้งสินค้าที่มี movement ใน period (ScanLog) และสินค้าที่รับเข้าใน period (SerialUnit.receivedAt)
+  // "รายงานคงเหลือ" กรองช่วงเวลา = สินค้าที่มี "รับเข้า" ในช่วงนั้น
+  // (ของรายชิ้นดู receivedAt, ของนับจำนวนดู log IN) ไม่ใช่ความเคลื่อนไหวทุกชนิด
   let timePeriodProductIds: Set<string> | null = null
   if (filters.timePeriod && filters.timePeriod !== 'all') {
     const { timePeriodRange } = await import('./date-range')
@@ -1506,6 +1506,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
           by: ['productId'],
           where: {
             accepted: true,
+            type: 'IN',
             createdAt: { gte: range.from, lte: range.to },
             productId: { not: null },
           },
@@ -1537,6 +1538,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         type: 'OUT',
         customerId: filters.customerId,
         productId: { not: null },
+        // ของที่คืนแล้วไม่ควรทำให้สินค้านั้นยังถือว่า "เกี่ยวกับลูกค้ารายนี้"
+        reversedBy: null,
       },
     })
     customerProductIds = new Set(grouped.map((g) => g.productId!))
@@ -1561,7 +1564,13 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   let customerSerials: Set<string> | null = null
   if (filters.customerId) {
     const matched = await prisma.scanLog.findMany({
-      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      where: {
+        accepted: true,
+        type: 'OUT',
+        customerId: filters.customerId,
+        // รายการที่ถูกคืนแล้วไม่ควรแสดงว่าเป็นของที่ยังขายให้ลูกค้ารายนี้
+        reversedBy: null,
+      },
       select: { serial: true },
       distinct: ['serial'],
     })
@@ -1597,7 +1606,6 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   )
   const [outQty, qtyVendors, qtyTraffic] = await Promise.all([
     sumOutQuantity(quantityIds, {
-      vendorId,
       customerId: filters.customerId,
     }),
     quantityVendorNames(quantityIds),
@@ -1676,6 +1684,18 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
 
 // ─────────────────────── รายงานสินค้าเบิกออก (สำหรับ Tab เบิกออกแล้ว) ───────────────────────
 
+/** กัน export ใหญ่จนหน่วยความจำระเบิด - เกินนี้ให้ผู้ใช้กรองแคบลง */
+const MAX_EXPORT_ROWS = 50_000
+
+function assertExportSize(count: number) {
+  if (count > MAX_EXPORT_ROWS) {
+    throw new HttpError(
+      413,
+      `ข้อมูลเกิน ${MAX_EXPORT_ROWS.toLocaleString('th-TH')} แถว กรุณากรองช่วงเวลาหรือเงื่อนไขให้แคบลง`
+    )
+  }
+}
+
 export type OutReportRow = {
   categoryId: string
   categoryCode: string
@@ -1702,16 +1722,18 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
   const vendorId = filters.vendorId || null
 
   // ── หา productIds ที่ผ่าน timePeriod filter ──
+  // "รายงานเบิกออก" กรองช่วงเวลา = สินค้าที่มี "เบิกออก" ในช่วงนั้น
   let timePeriodProductIds: Set<string> | null = null
   if (filters.timePeriod && filters.timePeriod !== 'all') {
     const { timePeriodRange } = await import('./date-range')
     const range = timePeriodRange(filters.timePeriod)
     if (range) {
-      const [scanLogGrouped, receivedGrouped] = await Promise.all([
+      const [scanLogGrouped, releasedGrouped] = await Promise.all([
         prisma.scanLog.groupBy({
           by: ['productId'],
           where: {
             accepted: true,
+            type: 'OUT',
             createdAt: { gte: range.from, lte: range.to },
             productId: { not: null },
           },
@@ -1719,13 +1741,13 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
         prisma.serialUnit.groupBy({
           by: ['productId'],
           where: {
-            receivedAt: { gte: range.from, lte: range.to },
+            releasedAt: { gte: range.from, lte: range.to },
           },
         }),
       ])
       timePeriodProductIds = new Set([
         ...scanLogGrouped.map((g) => g.productId!),
-        ...receivedGrouped.map((g) => g.productId),
+        ...releasedGrouped.map((g) => g.productId),
       ])
       if (timePeriodProductIds.size === 0) {
         return { categories: [], grandTotalOut: 0 }
@@ -1743,6 +1765,8 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
         type: 'OUT',
         customerId: filters.customerId,
         productId: { not: null },
+        // ของที่คืนแล้วไม่ควรทำให้สินค้านั้นยังถือว่า "เกี่ยวกับลูกค้ารายนี้"
+        reversedBy: null,
       },
     })
     customerProductIds = new Set(grouped.map((g) => g.productId!))
@@ -1767,7 +1791,13 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
   let customerSerials: Set<string> | null = null
   if (filters.customerId) {
     const matched = await prisma.scanLog.findMany({
-      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      where: {
+        accepted: true,
+        type: 'OUT',
+        customerId: filters.customerId,
+        // รายการที่ถูกคืนแล้วไม่ควรแสดงว่าเป็นของที่ยังขายให้ลูกค้ารายนี้
+        reversedBy: null,
+      },
       select: { serial: true },
       distinct: ['serial'],
     })
@@ -1945,7 +1975,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   const vendorId = filters.vendorId || null
 
   // ── หา productIds ที่ผ่าน timePeriod filter ──
-  // นับทั้งสินค้าที่มี movement ใน period (ScanLog) และสินค้าที่รับเข้าใน period (SerialUnit.receivedAt)
+  // "รายงานคงเหลือ" กรองช่วงเวลา = สินค้าที่มี "รับเข้า" ในช่วงนั้น
+  // (ของรายชิ้นดู receivedAt, ของนับจำนวนดู log IN) ไม่ใช่ความเคลื่อนไหวทุกชนิด
   let timePeriodProductIds: Set<string> | null = null
   if (filters.timePeriod && filters.timePeriod !== 'all') {
     const { timePeriodRange } = await import('./date-range')
@@ -1956,6 +1987,7 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
           by: ['productId'],
           where: {
             accepted: true,
+            type: 'IN',
             createdAt: { gte: range.from, lte: range.to },
             productId: { not: null },
           },
@@ -1987,6 +2019,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         type: 'OUT',
         customerId: filters.customerId,
         productId: { not: null },
+        // ของที่คืนแล้วไม่ควรทำให้สินค้านั้นยังถือว่า "เกี่ยวกับลูกค้ารายนี้"
+        reversedBy: null,
       },
     })
     customerProductIds = new Set(grouped.map((g) => g.productId!))
@@ -2006,6 +2040,13 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   const finalWhere: Prisma.ProductWhereInput | undefined = additionalAnd.length > 0
     ? { AND: [where, ...additionalAnd].filter(Boolean) as Prisma.ProductWhereInput[] }
     : where
+
+  // นับก่อนดึง units เข้าหน่วยความจำ - กัน export รายงานละเอียดใหญ่เกิน
+  assertExportSize(
+    await prisma.serialUnit.count({
+      where: { product: finalWhere, ...(vendorId ? { vendorId } : {}) },
+    })
+  )
 
   const categories = await prisma.category.findMany({
     orderBy: { name: 'asc' },
@@ -2066,6 +2107,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         accepted: true,
         type: 'OUT',
         customerId: filters.customerId,
+        // คืนของแล้ว = ไม่นับว่าเป็นของที่ยังอยู่กับลูกค้ารายนี้
+        reversedBy: null,
       },
       select: { serial: true },
     })
@@ -2080,7 +2123,6 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
   )
   const [detailedOutQty, detailedQtyVendors, detailedQtyTraffic] = await Promise.all([
     sumOutQuantity(detailedQtyIds, {
-      vendorId,
       customerId: filters.customerId,
     }),
     quantityVendorNames(detailedQtyIds),
@@ -2208,16 +2250,18 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
   const vendorId = filters.vendorId || null
 
   // ── หา productIds ที่ผ่าน timePeriod filter ──
+  // "รายงานเบิกออก" กรองช่วงเวลา = สินค้าที่มี "เบิกออก" ในช่วงนั้น
   let timePeriodProductIds: Set<string> | null = null
   if (filters.timePeriod && filters.timePeriod !== 'all') {
     const { timePeriodRange } = await import('./date-range')
     const range = timePeriodRange(filters.timePeriod)
     if (range) {
-      const [scanLogGrouped, receivedGrouped] = await Promise.all([
+      const [scanLogGrouped, releasedGrouped] = await Promise.all([
         prisma.scanLog.groupBy({
           by: ['productId'],
           where: {
             accepted: true,
+            type: 'OUT',
             createdAt: { gte: range.from, lte: range.to },
             productId: { not: null },
           },
@@ -2225,13 +2269,13 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
         prisma.serialUnit.groupBy({
           by: ['productId'],
           where: {
-            receivedAt: { gte: range.from, lte: range.to },
+            releasedAt: { gte: range.from, lte: range.to },
           },
         }),
       ])
       timePeriodProductIds = new Set([
         ...scanLogGrouped.map((g) => g.productId!),
-        ...receivedGrouped.map((g) => g.productId),
+        ...releasedGrouped.map((g) => g.productId),
       ])
       if (timePeriodProductIds.size === 0) {
         return { categories: [], grandTotalOut: 0 }
@@ -2249,6 +2293,8 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
         type: 'OUT',
         customerId: filters.customerId,
         productId: { not: null },
+        // ของที่คืนแล้วไม่ควรทำให้สินค้านั้นยังถือว่า "เกี่ยวกับลูกค้ารายนี้"
+        reversedBy: null,
       },
     })
     customerProductIds = new Set(grouped.map((g) => g.productId!))
@@ -2269,7 +2315,13 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
   let customerSerials: Set<string> | null = null
   if (filters.customerId) {
     const matched = await prisma.scanLog.findMany({
-      where: { accepted: true, type: 'OUT', customerId: filters.customerId },
+      where: {
+        accepted: true,
+        type: 'OUT',
+        customerId: filters.customerId,
+        // รายการที่ถูกคืนแล้วไม่ควรแสดงว่าเป็นของที่ยังขายให้ลูกค้ารายนี้
+        reversedBy: null,
+      },
       select: { serial: true },
       distinct: ['serial'],
     })
@@ -2284,6 +2336,13 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
     ...(vendorId ? { vendorId } : {}),
     ...(customerSerials ? { serial: { in: [...customerSerials] } } : {}),
   }
+
+  // นับก่อนดึง units เข้าหน่วยความจำ - กัน export รายงานละเอียดใหญ่เกิน
+  assertExportSize(
+    await prisma.serialUnit.count({
+      where: { product: finalWhere, ...unitWhere },
+    })
+  )
 
   const categories = await prisma.category.findMany({
     orderBy: { name: 'asc' },
@@ -2429,6 +2488,8 @@ export type SerialHistoryEntry = {
   at: string
   /** รายการเบิกนี้ถูกคืนเข้าคลังไปแล้วหรือยัง */
   reversed: boolean
+  /** ปุ่มคืนของควรแสดงหรือไม่ - ของต้องยัง OUT อยู่จริง ไม่ใช่แค่ log ยังไม่ถูก mark */
+  canReturn: boolean
 }
 
 const scanLogInclude = {
@@ -2438,6 +2499,7 @@ const scanLogInclude = {
   customer: { select: { code: true, name: true } },
   auditSession: { select: { name: true } },
   reversedBy: { select: { id: true } },
+  unit: { select: { status: true } },
 } satisfies Prisma.ScanLogInclude
 
 const scanLogDetailInclude = {
@@ -2466,6 +2528,12 @@ function toHistoryEntry(log: ScanLogWithRelations): SerialHistoryEntry {
     auditSessionName: log.auditSession?.name ?? null,
     at: log.createdAt.toISOString(),
     reversed: !!log.reversedBy,
+    canReturn:
+      log.type === 'OUT' &&
+      log.accepted &&
+      log.result === 'OK' &&
+      !log.reversedBy &&
+      (log.unit ? log.unit.status === 'OUT' : log.serial === null),
   }
 }
 
@@ -2665,7 +2733,7 @@ export type SalesReportFilters = {
   to?: Date | null
 }
 
-/** ประวัติการขายตามตัวกรอง (เหมือนหน้าขาย แต่ไม่จำกัด 200 แถว - export ต้องได้ครบ) */
+/** ประวัติการขายตามตัวกรอง (export เอาไปทั้งหมด แต่ตัดเพดานกันไฟล์ใหญ่เกิน memory) */
 export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReport> {
   const q = filters.q?.trim()
   const where: Prisma.ScanLogWhereInput = {
@@ -2706,7 +2774,9 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
       user: { select: { displayName: true } },
       reversedBy: { select: { id: true } },
     },
+    take: MAX_EXPORT_ROWS + 1,
   })
+  assertExportSize(logs.length)
 
   return {
     total: logs.length,
@@ -2854,7 +2924,9 @@ export async function buildMovementDetail(
     where,
     orderBy: { createdAt: 'asc' },
     include: scanLogDetailInclude,
+    take: MAX_EXPORT_ROWS + 1,
   })
+  assertExportSize(logs.length)
 
   const rows: MovementDetailRow[] = logs.map((l) => ({
     id: l.id,

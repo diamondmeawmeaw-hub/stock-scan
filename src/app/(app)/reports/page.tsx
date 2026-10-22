@@ -1,13 +1,11 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { dayRange, shiftDays, todayInThailand, type TimePeriod } from '@/lib/date-range'
+import { dayRange, isValidDateInput, shiftDays, todayInThailand, type TimePeriod } from '@/lib/date-range'
 import { buildMovementDetail, buildOutReport, buildStockReport, listBrands, listCustomers, listVendors } from '@/lib/scan-service'
 import { ReportFilters } from './ReportFilters'
 import { StockView } from './StockView'
 
 export const dynamic = 'force-dynamic'
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -30,8 +28,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
   const today = todayInThailand()
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
-  const from = DATE_PATTERN.test(rawFrom) ? rawFrom : shiftDays(today, -6)
-  const to = DATE_PATTERN.test(rawTo) ? rawTo : today
+  const from = isValidDateInput(rawFrom) ? rawFrom : shiftDays(today, -6)
+  const to = isValidDateInput(rawTo) ? rawTo : today
   const [start, end] = from <= to ? [from, to] : [to, from]
 
   // Stock filters include timePeriod; Movement filters do NOT include timePeriod

@@ -174,6 +174,27 @@ describe('POST /api/scan/undo (กันลบผิดตัว)', () => {
     )
   })
 
+  it('รับเข้า -> เบิกออก -> คืนของ -> ลบแถวรับเข้าเดิม = 409 (ไม่ลบประวัติ)', async () => {
+    const inRes = await postJson<ScanOutcome>(scanInRoute, {
+      serial: 'NB0098',
+      productId: fx.products.notebook.id,
+    })
+    expect(inRes.status).toBe(200)
+
+    const outLogId = await scanOutNotebook('NB0098')
+    const retRes = await postJson<ScanOutcome>(returnRoute, { scanLogId: outLogId })
+    expect(retRes.status).toBe(200)
+
+    // ของกลับมาอยู่ IN_STOCK แต่มีประวัติ OUT + RETURN หลังจากรับเข้าแล้ว
+    // ต้องไม่ลบ unit ทิ้งจนประวัติขาด
+    const undoRes = await postJson(undoRoute, { scanLogId: inRes.body.scanLogId })
+    expect(undoRes.status).toBe(409)
+    expect(
+      (await prisma.serialUnit.findUnique({ where: { serial: 'NB0098' } }))?.status
+    ).toBe('IN_STOCK')
+    expect(await prisma.scanLog.count({ where: { serial: 'NB0098' } })).toBe(3)
+  })
+
   it('ยกเลิกการคืนของ -> สายโยงหลุด เบิกรายการเดิมคืนได้อีกรอบ', async () => {
     const outLogId = await scanOutNotebook('NB0001')
     const retRes = await postJson<ScanOutcome>(returnRoute, { scanLogId: outLogId })

@@ -42,6 +42,24 @@ export async function POST(request: Request) {
         )
       }
 
+      // มีประวัติหลังจากรายการนี้ = เคยถูกเบิก/คืน/ตรวจนับไปแล้ว
+      // ห้ามลบ unit ทิ้งเพราะจะทำให้ประวัติเหล่านั้นผูกของที่หายไป
+      const later = await tx.scanLog.findFirst({
+        where: {
+          unitId: log.unitId,
+          id: { not: log.id },
+          accepted: true,
+          createdAt: { gte: log.createdAt },
+        },
+        select: { id: true },
+      })
+      if (later) {
+        throw new HttpError(
+          409,
+          'รายการนี้มีประวัติการเคลื่อนไหวหลังจากนั้นแล้ว ยกเลิกไม่ได้'
+        )
+      }
+
       if (log.result === 'CREATED' && log.unitId) {
         // สร้าง log ยกเลิกก่อนลบ unit เพื่อไม่ให้ foreign key error
         await tx.scanLog.create({

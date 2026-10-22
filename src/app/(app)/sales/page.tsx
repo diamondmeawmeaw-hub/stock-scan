@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
+import { dayRange, isValidDateInput } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
 import { getCurrentUser } from '@/lib/auth'
 import { ReturnButton } from '@/components/ReturnButton'
@@ -10,8 +10,6 @@ import { ProjectAssign } from './ProjectSelect'
 import { SalesFilters } from './SalesFilters'
 
 export const dynamic = 'force-dynamic'
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -27,10 +25,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   const q = one(params, 'q')
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
+  const requestedPage = Math.max(1, Math.floor(Number(one(params, 'page')) || 1))
 
-  const today = todayInThailand()
-  const from = DATE_PATTERN.test(rawFrom) ? rawFrom : ''
-  const to = DATE_PATTERN.test(rawTo) ? rawTo : ''
+  const from = isValidDateInput(rawFrom) ? rawFrom : ''
+  const to = isValidDateInput(rawTo) ? rawTo : ''
 
   // ย้ายรายการขายหลังขายแล้วเป็นงาน admin เท่านั้น - staff ดูอย่างเดียว
   // อ่าน role จาก DB กันแอดมินที่ถูกลดสิทธิ์แต่ token ยังบอกว่า ADMIN
@@ -87,27 +85,43 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     ]
   }
 
+  const PAGE_SIZE = 50
+  const total = await prisma.scanLog.count({ where })
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const page = Math.min(requestedPage, totalPages)
+
   const logs = await prisma.scanLog.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
-    take: 200,
+    // ใช้ id เป็นตัวตัดสินลำดับรอง กันแถวเวลาเดียวกันกระโดดข้ามหน้า
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
     include: {
       customer: true,
       product: { include: { category: { select: { photosEnabled: true } } } },
       user: true,
       reversedBy: { select: { id: true } },
+      unit: { select: { status: true } },
     },
   })
 
-  // ลิงก์ export ใช้ตัวกรองชุดเดียวกับที่เห็นบนจอ
-  const exportQuery = new URLSearchParams()
-  if (customerId) exportQuery.set('customerId', customerId)
-  if (projectId) exportQuery.set('projectId', projectId)
-  if (q) exportQuery.set('q', q)
-  if (from) exportQuery.set('from', from)
-  if (to) exportQuery.set('to', to)
+  // ตัวกรองชุดเดียวกับที่เห็นบนจอ - ใช้ทั้งลิงก์ export และลิงก์แบ่งหน้า
+  const filterQuery = new URLSearchParams()
+  if (customerId) filterQuery.set('customerId', customerId)
+  if (projectId) filterQuery.set('projectId', projectId)
+  if (q) filterQuery.set('q', q)
+  if (from) filterQuery.set('from', from)
+  if (to) filterQuery.set('to', to)
+
+  const pageHref = (target: number) => {
+    const query = new URLSearchParams(filterQuery)
+    if (target > 1) query.set('page', String(target))
+    const qs = query.toString()
+    return qs ? `/sales?${qs}` : '/sales'
+  }
+
   const exportHref = (format: 'xlsx' | 'pdf') => {
-    const query = new URLSearchParams(exportQuery)
+    const query = new URLSearchParams(filterQuery)
     query.set('format', format)
     return `/api/sales/export?${query}`
   }
@@ -122,7 +136,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
           <div>
             <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">ประวัติการขาย</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              รายการเบิกออกที่มีเหตุผลเป็นขาย · {logs.length} รายการ
+              รายการเบิกออกที่มีเหตุผลเป็นขาย · {total.toLocaleString('th-TH')} รายการ
+              {totalPages > 1 ? ` · หน้า ${page}/${totalPages}` : ''}
             </p>
           </div>
         </div>
@@ -212,7 +227,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                     <td className="px-4 py-2">{log.user.displayName}</td>
                     <td className="px-4 py-2">{log.note ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
-                      {!log.reversedBy ? (
+                      {!log.reversedBy && (!log.serial || log.unit?.status === 'OUT') ? (
                         <ReturnButton scanLogId={log.id} />
                       ) : (
                         <span className="text-xs text-slate-400 dark:text-slate-500">คืนแล้ว</span>
@@ -224,6 +239,33 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
             </table>
           </div>
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="แบ่งหน้ารายการขาย"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 text-sm shadow-sm dark:border-sky-900 dark:bg-slate-900"
+        >
+          <span className="text-slate-500 dark:text-slate-400">
+            หน้า {page} จาก {totalPages} · ทั้งหมด {total.toLocaleString('th-TH')} รายการ
+          </span>
+          <div className="flex items-center gap-2">
+            {page > 1 ? (
+              <Link className="btn-ghost" href={pageHref(page - 1)}>
+                ก่อนหน้า
+              </Link>
+            ) : (
+              <span className="btn-ghost pointer-events-none opacity-40">ก่อนหน้า</span>
+            )}
+            {page < totalPages ? (
+              <Link className="btn-ghost" href={pageHref(page + 1)}>
+                ถัดไป
+              </Link>
+            ) : (
+              <span className="btn-ghost pointer-events-none opacity-40">ถัดไป</span>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   )

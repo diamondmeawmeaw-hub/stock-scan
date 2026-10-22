@@ -25,6 +25,23 @@ export function filterPickerOptions(options: PickerOption[], query: string): Pic
   })
 }
 
+/** เลือกตัวเลือกเมื่อกด Enter - คืน null = ปล่อยให้ฟอร์มจัดการ (เช่น submit) */
+export function pickEnterOption(
+  selectable: PickerOption[],
+  query: string,
+  highlight: number,
+  navigated: boolean
+): PickerOption | null {
+  if (selectable.length === 0) return null
+  // ผู้ใช้เลื่อนด้วยลูกศรแล้ว = ตั้งใจเลือกตัวที่ highlight อยู่
+  if (navigated) return selectable[highlight] ?? selectable[0] ?? null
+  const q = query.trim().toUpperCase()
+  // ยังไม่ได้พิมพ์และยังไม่ได้เลือกด้วยลูกศร = ปล่อย Enter ให้ฟอร์ม (เช่น submit)
+  if (!q) return null
+  // พิมพ์ SKU เป๊ะ -> เลือกตัวนั้น ไม่ใช่ตัวแรกของรายการ
+  return selectable.find((o) => o.sku.toUpperCase() === q) ?? selectable[0] ?? null
+}
+
 /**
  * ช่องเลือกสินค้าแบบพิมพ์ค้นหา - แทน <select> ธรรมดาที่เลื่อนหาช้าเมื่อ SKU เยอะ
  * พิมพ์กรองได้ ใช้คีย์บอร์ด (↑↓ Enter Esc) หรือเมาส์ก็ได้
@@ -47,6 +64,7 @@ export function ProductPicker({
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
+  const [navigated, setNavigated] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -77,6 +95,7 @@ export function ProductPicker({
     setQuery('')
     setOpen(false)
     setHighlight(0)
+    setNavigated(false)
     // เลือกแล้วยังอยู่ในช่องนี้ต่อได้เลย (ยิง/กรอกขั้นต่อไป)
     inputRef.current?.focus()
   }
@@ -86,15 +105,17 @@ export function ProductPicker({
       e.preventDefault()
       if (!open) {
         setOpen(true)
+        setNavigated(true)
         return
       }
       if (selectable.length === 0) return
+      setNavigated(true)
       setHighlight((h) => {
         const dir = e.key === 'ArrowDown' ? 1 : -1
         return (h + dir + selectable.length) % selectable.length
       })
     } else if (e.key === 'Enter') {
-      const target = selectable[highlight] ?? selectable[0]
+      const target = pickEnterOption(selectable, query, highlight, navigated)
       if (open && target) {
         e.preventDefault()
         pick(target.id)
@@ -102,6 +123,7 @@ export function ProductPicker({
     } else if (e.key === 'Escape') {
       setQuery('')
       setOpen(false)
+      setNavigated(false)
     }
   }
 
@@ -121,8 +143,12 @@ export function ProductPicker({
           setQuery(e.target.value)
           setOpen(true)
           setHighlight(0)
+          setNavigated(false)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true)
+          setNavigated(false)
+        }}
         onKeyDown={onKeyDown}
         role="combobox"
         aria-expanded={open}

@@ -15,14 +15,21 @@ export type ExportMeta = {
 
 const THAI_OFFSET = '+07:00'
 
-/** YYYY-MM-DD -> วันที่แบบไทย */
+/**
+ * วันที่แบบไทย - รับได้ทั้ง YYYY-MM-DD และ ISO timestamp เต็ม
+ * (movement report ส่ง from/to มาเป็น ISO เต็ม ถ้าเติม T00:00:00 ทับจะกลายเป็น Invalid Date)
+ */
 export function thaiDate(date: string): string {
-  return new Date(`${date}T00:00:00${THAI_OFFSET}`).toLocaleDateString('th-TH', {
-    timeZone: 'Asia/Bangkok',
-  })
+  const input = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? `${date}T00:00:00${THAI_OFFSET}`
+    : date
+  const at = new Date(input)
+  if (Number.isNaN(at.getTime())) return '-'
+  return at.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })
 }
 
 export function thaiDateTime(at: Date): string {
+  if (Number.isNaN(at.getTime())) return '-'
   return at.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
 }
 

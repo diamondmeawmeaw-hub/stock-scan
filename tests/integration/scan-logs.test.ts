@@ -151,6 +151,7 @@ describe('GET /api/scan-logs', () => {
   it('ค่าตัวกรองไม่ถูกต้อง -> 400', async () => {
     expect((await list({ type: 'มั่ว' })).status).toBe(400)
     expect((await list({ from: '6 สิงหา' })).status).toBe(400)
+    expect((await list({ from: '2026-02-31' })).status).toBe(400)
     expect((await list({ page: '0' })).status).toBe(400)
   })
 

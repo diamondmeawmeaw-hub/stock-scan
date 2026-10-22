@@ -7,7 +7,7 @@ import {
   type ScanLogPage,
   type SerialDetail,
 } from '@/lib/scan-service'
-import { dayRange } from '@/lib/date-range'
+import { isValidDateInput, optionalDayRange } from '@/lib/date-range'
 import { OUT_REASON_LABELS } from '@/lib/scan-rules'
 import { ReturnButton } from '@/components/ReturnButton'
 import { SerialPhotoManager } from '@/components/SerialPhotoManager'
@@ -15,8 +15,6 @@ import { SerialSearchForm } from './SerialSearchForm'
 import { ScanLogFilters } from './ScanLogFilters'
 
 export const dynamic = 'force-dynamic'
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -46,11 +44,12 @@ export default async function SerialsPage({ searchParams }: { searchParams: Sear
   const logUserId = one(params, 'user')
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
-  const from = DATE_PATTERN.test(rawFrom) ? rawFrom : ''
-  const to = DATE_PATTERN.test(rawTo) ? rawTo : ''
+  const from = isValidDateInput(rawFrom) ? rawFrom : ''
+  const to = isValidDateInput(rawTo) ? rawTo : ''
   const pageNumber = Number(one(params, 'page')) || 1
-  // เลือกมาข้างเดียวก็ยังกรองได้ ใส่ค่าเดียวกันอีกฝั่งเพื่อให้ได้ขอบวันแบบไทย
-  const range = from || to ? dayRange(from || to, to || from) : null
+  // เลือกข้างเดียว = เปิดปลายอีกด้าน (จากวันนั้นไปเรื่อยๆ / ถึงวันนั้นย้อนหลัง)
+  // ไม่ใช่ตีความเป็นวันเดียวกันเหมือนตัวกรองอื่น
+  const range = optionalDayRange(from, to)
 
   // ยิงเครื่องสแกนมาจะตรงเป๊ะเสมอ - ลองหาแบบเป๊ะก่อน ไม่เจอค่อยเสนอรายการที่ใกล้เคียง
   const [detail, logs, scanUsers] = await Promise.all([
@@ -59,8 +58,8 @@ export default async function SerialsPage({ searchParams }: { searchParams: Sear
       q: logQ,
       type: logType,
       userId: logUserId,
-      from: range?.from,
-      to: range?.to,
+      from: range.from,
+      to: range.to,
       page: pageNumber,
     }),
     listScanUsers(),
@@ -340,7 +339,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{h.userName}</td>
                   <td className="px-4 py-2 text-right">
-                    {h.type === 'OUT' && h.accepted && h.result === 'OK' && !h.reversed && (
+                    {h.canReturn && (
                       <ReturnButton scanLogId={h.id} />
                     )}
                     {h.reversed && (
@@ -450,7 +449,7 @@ function ScanLogSection({
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{row.userName}</td>
                   <td className="px-4 py-2 text-right">
-                    {row.type === 'OUT' && row.accepted && row.result === 'OK' && !row.reversed && (
+                    {row.canReturn && (
                       <ReturnButton scanLogId={row.id} />
                     )}
                     {row.reversed && (

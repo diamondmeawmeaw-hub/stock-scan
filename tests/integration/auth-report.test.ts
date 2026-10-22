@@ -7,6 +7,7 @@ import { GET as movementReportRoute } from '@/app/api/reports/movement/route'
 import { GET as stockReportRoute } from '@/app/api/reports/stock/route'
 import { POST as scanInRoute } from '@/app/api/scan/in/route'
 import { POST as scanOutRoute } from '@/app/api/scan/out/route'
+import { POST as returnRoute } from '@/app/api/scan/return/route'
 import { todayInThailand } from '@/lib/date-range'
 import type { buildMovementReport, buildStockReport } from '@/lib/scan-service'
 import { createUser, getJson, giveStock, login, postJson, prisma, seedFixtures } from './helpers'
@@ -179,6 +180,57 @@ describe('GET /api/reports/stock', () => {
     expect(body.categories).toEqual([])
     expect(body.grandTotalInStock).toBe(0)
   })
+
+  it('timePeriod ของรายงานคงเหลือ = รับเข้าในช่วง ไม่ใช่ความเคลื่อนไหวทุกชนิด', async () => {
+    await giveStock(fx.products.notebook.id, ['NB0001'])
+    await giveStock(fx.products.monitor.id, ['MON0001'])
+
+    // จอรับเข้า 10 วันก่อน แต่เพิ่งเบิกออกวันนี้ -> ต้องไม่ติด filter 7 วัน
+    await prisma.serialUnit.updateMany({
+      where: { serial: 'MON0001' },
+      data: { receivedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
+    })
+    expect((await postJson(scanOutRoute, { serial: 'MON0001', reason: 'SALE' })).status).toBe(200)
+
+    const { body } = await getJson<StockReport>(stockReportRoute, undefined, { timePeriod: '7d' })
+    const skus = body.categories.flatMap((c) => c.products.map((p) => p.sku))
+    expect(skus).toContain('IT-NB-001')
+    expect(skus).not.toContain('IT-MON-002')
+  })
+
+  it('กรองลูกค้าแล้วไม่นับของที่คืนเข้าคลังแล้ว', async () => {
+    const customer = await prisma.customer.create({
+      data: { code: 'C-RET', name: 'ลูกค้าคืนของ' },
+    })
+    await giveStock(fx.products.notebook.id, ['NB0001', 'NB0002'])
+
+    const sold = await postJson(scanOutRoute, {
+      serial: 'NB0001',
+      reason: 'SALE',
+      customerId: customer.id,
+    })
+    expect(sold.status).toBe(200)
+    expect((await postJson(returnRoute, { scanLogId: sold.body.scanLogId })).status).toBe(200)
+
+    // อีกชิ้นยังอยู่กับลูกค้า -> สินค้ายังต้องขึ้น แต่ยอดเบิกต้องไม่นับชิ้นที่คืนแล้ว
+    expect(
+      (
+        await postJson(scanOutRoute, {
+          serial: 'NB0002',
+          reason: 'SALE',
+          customerId: customer.id,
+        })
+      ).status
+    ).toBe(200)
+
+    const { body } = await getJson<StockReport>(stockReportRoute, undefined, {
+      customerId: customer.id,
+    })
+    const notebook = body.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.sku === 'IT-NB-001')
+    expect(notebook).toMatchObject({ inStock: 0, out: 1 })
+  })
 })
 
 describe('GET /api/reports/movement', () => {
@@ -205,6 +257,17 @@ describe('GET /api/reports/movement', () => {
 
   it('ไม่ส่งช่วงวันที่ -> 400', async () => {
     expect((await getJson(movementReportRoute)).status).toBe(400)
+  })
+
+  it('วันที่ไม่มีอยู่จริง -> 400', async () => {
+    expect(
+      (
+        await getJson(movementReportRoute, undefined, {
+          from: '2026-02-31',
+          to: '2026-03-01',
+        })
+      ).status
+    ).toBe(400)
   })
 
   it('นับรับเข้า/เบิกออกในช่วงวันที่ที่เลือก แยกตามสินค้า', async () => {

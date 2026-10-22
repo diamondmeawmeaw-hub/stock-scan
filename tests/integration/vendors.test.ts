@@ -252,6 +252,32 @@ describe('ตัวกรองผู้ขายในรายงาน', () =
     expect(skus2).not.toContain('RK-001')
   })
 
+  it('กรอง vendor ในรายงานคงเหลือแล้ว ของนับจำนวนที่ขายไปยังโชว์ยอดเบิก', async () => {
+    const sis = await seedVendor()
+    const rack = await prisma.product.create({
+      data: {
+        sku: 'RK-001',
+        name: 'ตู้แร็ค',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ตู้',
+        stockQty: 3,
+      },
+    })
+    // รับ 5 เบิก 2 (ใบเบิกไม่มี vendorId ตามจริง)
+    await prisma.scanLog.create({
+      data: { type: 'IN', result: 'OK', accepted: true, quantity: 5, userId: fx.user.id, productId: rack.id, vendorId: sis.id },
+    })
+    await prisma.scanLog.create({
+      data: { type: 'OUT', result: 'OK', accepted: true, quantity: 2, userId: fx.user.id, productId: rack.id },
+    })
+
+    const onlySis = await getJson(stockReportRoute, {}, { vendorId: sis.id })
+    const bySku: Record<string, any> = {}
+    for (const c of onlySis.body.categories) for (const p of c.products) bySku[p.sku] = p
+    expect(bySku['RK-001']).toMatchObject({ inStock: 3, out: 2 })
+  })
+
   it('กรอง vendor ในแท็บเบิกออกแล้ว ของนับจำนวนที่ขายไปยังโชว์อยู่', async () => {
     const sis = await seedVendor()
     const rack = await prisma.product.create({

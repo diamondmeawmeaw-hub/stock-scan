@@ -1,6 +1,7 @@
 import { route } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
 import { buildStockReport } from '@/lib/scan-service'
+import type { TimePeriod } from '@/lib/date-range'
 
 export async function GET(request: Request) {
   return route(async () => {
@@ -10,6 +11,8 @@ export async function GET(request: Request) {
       categoryId: params.get('categoryId'),
       brand: params.get('brand'),
       vendorId: params.get('vendorId'),
+      customerId: params.get('customerId'),
+      timePeriod: (params.get('timePeriod') as TimePeriod | null) ?? null,
       q: params.get('q'),
     })
   })

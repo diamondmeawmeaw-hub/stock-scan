@@ -133,7 +133,9 @@ const STATUS_LABEL: Record<string, string> = { IN_STOCK: 'ในคลัง', O
 
 function thaiDateTimeShort(iso: string | null): string {
   if (!iso) return '-'
-  return new Date(iso).toLocaleString('th-TH', {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return '-'
+  return at.toLocaleString('th-TH', {
     timeZone: 'Asia/Bangkok',
     day: 'numeric',
     month: 'short',

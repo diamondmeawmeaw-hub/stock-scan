@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { fileRoute } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { dayRange, todayInThailand } from '@/lib/date-range'
+import { dayRange, isValidDateInput, todayInThailand } from '@/lib/date-range'
 import { buildSalesReport } from '@/lib/scan-service'
 import type { ExportMeta } from '@/lib/reports/common'
 import { salesToExcel } from '@/lib/reports/excel'
@@ -11,7 +11,10 @@ import { salesToPdf } from '@/lib/reports/pdf'
 // pdfmake/exceljs ต้องรันบน Node ไม่ใช่ Edge runtime
 export const runtime = 'nodejs'
 
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD')
+const DATE = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD')
+  .refine(isValidDateInput, 'วันที่ที่ระบุไม่มีอยู่จริง')
 
 const querySchema = z.object({
   format: z.enum(['xlsx', 'pdf'], { message: 'รูปแบบไฟล์ต้องเป็น xlsx หรือ pdf' }),

@@ -80,28 +80,18 @@ export async function GET(request: Request) {
       const { timePeriodRange } = await import('@/lib/date-range')
       const range = timePeriodRange(filters.timePeriod)
       if (range) {
-        // นับทั้ง serial ที่มี movement ใน period (ScanLog) และ serial ที่รับเข้าใน period (receivedAt)
-        const [scanLogs, receivedUnits] = await Promise.all([
-          prisma.scanLog.findMany({
-            where: {
-              serial: { in: serials },
-              accepted: true,
-              createdAt: { gte: range.from, lte: range.to },
-            },
-            select: { serial: true },
-          }),
-          prisma.serialUnit.findMany({
-            where: {
-              serial: { in: serials },
-              receivedAt: { gte: range.from, lte: range.to },
-            },
-            select: { serial: true },
-          }),
-        ])
-        filteredSerials = new Set([
-          ...scanLogs.map((l) => l.serial).filter((s): s is string => !!s),
-          ...receivedUnits.map((u) => u.serial),
-        ])
+        // รายงานคงเหลือ = รับเข้าในช่วง / รายงานเบิกออก = เบิกออกในช่วง
+        // ใช้ timestamp ของ unit โดยตรง ไม่ต้องเอา movement ทุกชนิดมาปน
+        const filtered = await prisma.serialUnit.findMany({
+          where: {
+            serial: { in: serials },
+            ...(input.status === 'IN_STOCK'
+              ? { receivedAt: { gte: range.from, lte: range.to } }
+              : { releasedAt: { gte: range.from, lte: range.to } }),
+          },
+          select: { serial: true },
+        })
+        filteredSerials = new Set(filtered.map((u) => u.serial))
       }
     }
 
@@ -112,6 +102,8 @@ export async function GET(request: Request) {
           accepted: true,
           type: 'OUT',
           customerId: filters.customerId,
+          // คืนแล้วไม่นับว่าเป็นของที่ยังอยู่กับลูกค้ารายนี้
+          reversedBy: null,
         },
         select: { serial: true },
       })

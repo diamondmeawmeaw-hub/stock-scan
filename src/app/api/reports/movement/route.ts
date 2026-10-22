@@ -2,11 +2,16 @@ import { z } from 'zod'
 import { route } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
 import { buildMovementReport } from '@/lib/scan-service'
-import { dayRange } from '@/lib/date-range'
+import { dayRange, isValidDateInput } from '@/lib/date-range'
+
+const DATE = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD')
+  .refine(isValidDateInput, 'วันที่ที่ระบุไม่มีอยู่จริง')
 
 const querySchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD'),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD'),
+  from: DATE,
+  to: DATE,
 })
 
 export async function GET(request: Request) {

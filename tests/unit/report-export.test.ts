@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
+import { thaiDate } from '@/lib/reports/common'
 import { movementDetailedToExcel, stockToExcel } from '@/lib/reports/excel'
 import { movementDetailedToPdf, stockToPdf } from '@/lib/reports/pdf'
 import type { MovementDetailReport, StockReportRow } from '@/lib/scan-service'
@@ -189,5 +190,17 @@ describe('คอลัมน์ซื้อจากในรายงานค�
     const buffer = await stockToPdf(vendorReport, META)
     expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-')
     expect(buffer.length).toBeGreaterThan(1000)
+  })
+})
+
+describe('thaiDate', () => {
+  it('รับ ISO timestamp เต็มได้ (movement export) และไม่ขึ้น Invalid Date', () => {
+    const text = thaiDate('2026-08-06T10:00:00.000Z')
+    expect(text).not.toContain('Invalid')
+    expect(text).toContain('2569')
+  })
+
+  it('วันที่เสีย -> -', () => {
+    expect(thaiDate('not-a-date')).toBe('-')
   })
 })

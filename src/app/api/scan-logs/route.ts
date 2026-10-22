@@ -1,10 +1,13 @@
 import { z } from 'zod'
 import { route } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
-import { dayRange } from '@/lib/date-range'
+import { dayRange, isValidDateInput } from '@/lib/date-range'
 import { listScanLogs } from '@/lib/scan-service'
 
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD')
+const DATE = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ต้องเป็น YYYY-MM-DD')
+  .refine(isValidDateInput, 'วันที่ที่ระบุไม่มีอยู่จริง')
 
 const querySchema = z.object({
   q: z.string().optional(),

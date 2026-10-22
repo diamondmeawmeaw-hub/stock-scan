@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterPickerOptions, type PickerOption } from '@/components/ProductPicker'
+import { filterPickerOptions, pickEnterOption, type PickerOption } from '@/components/ProductPicker'
 
 const options: PickerOption[] = [
   { id: 'p1', sku: 'AP-UNF-U6L', name: 'UniFi U6 Lite', brand: 'UniFi', categoryName: 'Access Point' },
@@ -31,5 +31,29 @@ describe('filterPickerOptions', () => {
 
   it('ไม่ตรงเลย -> ว่าง', () => {
     expect(filterPickerOptions(options, 'ไม่มีของนี้')).toHaveLength(0)
+  })
+})
+
+describe('pickEnterOption', () => {
+  it('ยังไม่พิมพ์และยังไม่เลื่อนด้วยลูกศร -> ปล่อย Enter ให้ฟอร์ม', () => {
+    expect(pickEnterOption(options, '', 0, false)).toBeNull()
+  })
+
+  it('เลื่อนด้วยลูกศรแล้ว -> เลือกตัวที่ highlight แม้มี exact match', () => {
+    expect(pickEnterOption(options, 'SW-CIS-8P', 2, true)?.id).toBe('p3')
+  })
+
+  it('พิมพ์ SKU เป๊ะ -> เลือกตัวนั้น ไม่ใช่ตัวแรก', () => {
+    expect(pickEnterOption(options, 'rack-19-9u', 0, false)?.id).toBe('p3')
+  })
+
+  it('พิมพ์คำค้นแต่ไม่มี exact match -> เลือกตัวแรกของรายการที่กรองแล้ว', () => {
+    expect(
+      pickEnterOption(filterPickerOptions(options, 'cisco'), 'cisco', 0, false)?.id
+    ).toBe('p2')
+  })
+
+  it('ไม่มีตัวเลือกที่เลือกได้ -> null', () => {
+    expect(pickEnterOption([], 'cisco', 0, false)).toBeNull()
   })
 })

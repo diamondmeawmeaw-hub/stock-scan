@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { dayRange, shiftDays, timePeriodRange, todayInThailand } from '@/lib/date-range'
+import { dayRange, isValidDateInput, optionalDayRange, shiftDays, timePeriodRange, todayInThailand } from '@/lib/date-range'
+
+describe('isValidDateInput', () => {
+  it('รับวันที่จริงในรูปแบบ YYYY-MM-DD', () => {
+    expect(isValidDateInput('2026-08-04')).toBe(true)
+    expect(isValidDateInput('2024-02-29')).toBe(true)
+  })
+
+  it('ปฏิเสธวันที่ที่ไม่มีอยู่จริง แม้รูปแบบจะถูก', () => {
+    expect(isValidDateInput('2026-02-31')).toBe(false)
+    expect(isValidDateInput('2026-13-01')).toBe(false)
+    expect(isValidDateInput('2026-00-10')).toBe(false)
+    expect(isValidDateInput('2025-02-29')).toBe(false)
+  })
+
+  it('ปฏิเสธรูปแบบอื่นและค่าว่าง', () => {
+    expect(isValidDateInput('')).toBe(false)
+    expect(isValidDateInput('4/8/2026')).toBe(false)
+    expect(isValidDateInput('2026-8-4')).toBe(false)
+  })
+})
 
 describe('dayRange', () => {
   it('คลุมทั้งวันตามเวลาไทย ไม่ขึ้นกับ timezone ของเครื่อง', () => {
@@ -19,6 +39,30 @@ describe('dayRange', () => {
     const { from, to } = dayRange('2026-08-01', '2026-08-03')
     expect(from.toISOString()).toBe('2026-07-31T17:00:00.000Z')
     expect(to.toISOString()).toBe('2026-08-03T16:59:59.999Z')
+  })
+})
+
+describe('optionalDayRange', () => {
+  it('เลือก from ข้างเดียว -> เริ่มต้นวันนั้น ไม่มีเพดานบน', () => {
+    const range = optionalDayRange('2026-08-04', '')
+    expect(range.from?.toISOString()).toBe('2026-08-03T17:00:00.000Z')
+    expect(range.to).toBeUndefined()
+  })
+
+  it('เลือก to ข้างเดียว -> ถึงท้ายวันนั้น ไม่มีจุดเริ่มต้น', () => {
+    const range = optionalDayRange('', '2026-08-04')
+    expect(range.from).toBeUndefined()
+    expect(range.to?.toISOString()).toBe('2026-08-04T16:59:59.999Z')
+  })
+
+  it('เลือกทั้งคู่ -> ต้นวันแรกถึงท้ายวันสุดท้าย และสลับให้ถ้ากลับด้าน', () => {
+    const range = optionalDayRange('2026-08-04', '2026-08-01')
+    expect(range.from?.toISOString()).toBe('2026-07-31T17:00:00.000Z')
+    expect(range.to?.toISOString()).toBe('2026-08-04T16:59:59.999Z')
+  })
+
+  it('วันที่เสีย -> ไม่กรอง', () => {
+    expect(optionalDayRange('2026-02-31', '')).toEqual({ from: undefined, to: undefined })
   })
 })
 
