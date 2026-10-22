@@ -4,6 +4,7 @@ import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
 import { getSession } from '@/lib/auth'
 import { ReturnButton } from '@/components/ReturnButton'
+import { SerialPhotoManager } from '@/components/SerialPhotoManager'
 import { ProjectAssign } from './ProjectSelect'
 import { SalesFilters } from './SalesFilters'
 
@@ -153,6 +154,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                   <th className="px-4 py-2 font-medium">ลูกค้า</th>
                   <th className="px-4 py-2 font-medium">โปรเจค</th>
                   <th className="px-4 py-2 font-medium">Serial</th>
+                  <th className="px-4 py-2 font-medium">รูป</th>
                   <th className="px-4 py-2 font-medium">สินค้า</th>
                   <th className="px-4 py-2 font-medium">ผู้ทำรายการ</th>
                   <th className="px-4 py-2 font-medium">หมายเหตุ</th>
@@ -194,6 +196,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                         <span className="text-slate-500 dark:text-slate-400">
                           {log.product?.name ?? '-'} × {log.quantity}
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {log.serial ? (
+                        <SerialPhotoManager serial={log.serial} />
+                      ) : (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                       )}
                     </td>
                     <td className="px-4 py-2">{log.product?.name ?? '-'}</td>

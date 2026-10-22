@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanConsole, type FeedItem, type ScanOutcomeLike } from '@/components/ScanConsole'
 import { ProductPicker } from '@/components/ProductPicker'
+import { SerialPhotoManager } from '@/components/SerialPhotoManager'
 import { UNIT_CUSTOM, UNIT_LABELS } from '@/lib/units'
 import { api } from '@/lib/client'
 
@@ -46,6 +47,10 @@ export function ScanInClient({
     productIds: string[]
     productNames: string[]
   }>({ count: 0, productIds: [], productNames: [] })
+  /** เครื่องที่เพิ่งรับเข้าสำเร็จในรอบนี้ - ไว้แนบรูปอุปกรณ์ต่อทันทีหลังยืนยัน */
+  const [recentReceived, setRecentReceived] = useState<
+    { serial: string; productName: string }[]
+  >([])
 
   /**
    * ค่าฟอร์มล่าสุดแบบ ref - onScan ถูกเรียกตอน drain คิว ซึ่ง closure อาจเก่ากว่าค่าบนจอ
@@ -114,6 +119,19 @@ export function ScanInClient({
             serial: item.serial,
           })
         }
+      }
+      // เก็บรายการที่รับเข้าสำเร็จไว้ให้แนบรูปต่อทันที (unit ถูกสร้างแล้วตอนนี้)
+      const received = outcomes
+        .filter((outcome) => outcome.accepted && outcome.serial)
+        .map((outcome) => ({
+          serial: outcome.serial,
+          productName: outcome.product?.name ?? 'ไม่ระบุสินค้า',
+        }))
+      if (received.length > 0) {
+        setRecentReceived((prev) => {
+          const fresh = new Set(received.map((item) => item.serial))
+          return [...received, ...prev.filter((item) => !fresh.has(item.serial))].slice(0, 20)
+        })
       }
       // รับสำเร็จ = สินค้าอาจล็อกวิธีนับแล้ว โหลดข้อมูลใหม่ให้ tabs หาย/คงตามจริง
       if (outcomes.some((o) => o.accepted)) router.refresh()
@@ -456,6 +474,40 @@ export function ScanInClient({
           label={selected ? `ยิง serial ของ ${selected.name}` : 'ยิงบาร์โค้ด / serial'}
           rejectDuplicateInFeed
         />
+      )}
+
+      {recentReceived.length > 0 && (
+        <div className="card-pop p-4 sm:p-5" data-testid="recent-received-photos">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                แนบรูปอุปกรณ์ที่เพิ่งรับเข้า
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                ถ่ายรูปตัวเครื่องเก็บไว้ใช้ตอนเครม — เปิดดู/ดาวน์โหลดได้ที่หน้าประวัติการขาย
+              </p>
+            </div>
+            <button
+              type="button"
+              className="text-xs text-slate-500 underline hover:text-slate-700 dark:text-slate-400"
+              onClick={() => setRecentReceived([])}
+              data-testid="clear-recent-photos"
+            >
+              ล้างรายการ
+            </button>
+          </div>
+          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+            {recentReceived.map((item) => (
+              <li key={item.serial} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                <span className="font-mono text-slate-800 dark:text-slate-100">{item.serial}</span>
+                <span className="text-slate-500 dark:text-slate-400">{item.productName}</span>
+                <span className="ml-auto">
+                  <SerialPhotoManager serial={item.serial} buttonLabel="แนบ/ดูรูป" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )

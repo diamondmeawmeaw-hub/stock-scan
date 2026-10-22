@@ -71,6 +71,7 @@ model User {
 
   scanLogs      ScanLog[]
   auditSessions AuditSession[]
+  serialImages  SerialImage[]
 }
 
 /// ลูกค้าที่ซื้อสินค้า
@@ -169,6 +170,7 @@ model SerialUnit {
   product  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
   vendor   Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   scanLogs ScanLog[]
+  images   SerialImage[]
 
   @@index([productId, status])
   @@index([status])
@@ -243,4 +245,24 @@ model AuditSession {
   scans     ScanLog[]
 
   @@index([status, startedAt])
+}
+
+/// รูปอุปกรณ์ของสินค้ารายชิ้น (ผูกกับ serial) - ใช้ยืนยันตัวเครื่องตอนเครม
+/// เก็บไบต์ไว้ในฐานข้อมูลเลย เพื่อให้ติดไปกับ backup ของฐานและไม่หายตอน rebuild container
+model SerialImage {
+  id           String   @id @default(cuid())
+  unitId       String
+  /// คำอธิบายสั้น ๆ ของรูป เช่น "รูปตัวอุปกรณ์"
+  label        String   @default("รูปตัวอุปกรณ์")
+  fileName     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  unit       SerialUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  uploadedBy User       @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([unitId, createdAt])
 }

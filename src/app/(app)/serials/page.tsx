@@ -10,6 +10,7 @@ import {
 import { dayRange } from '@/lib/date-range'
 import { OUT_REASON_LABELS } from '@/lib/scan-rules'
 import { ReturnButton } from '@/components/ReturnButton'
+import { SerialPhotoManager } from '@/components/SerialPhotoManager'
 import { SerialSearchForm } from './SerialSearchForm'
 import { ScanLogFilters } from './ScanLogFilters'
 
@@ -223,6 +224,8 @@ function SerialResult({
           <Field label="สแกนล่าสุด" value={unit.lastScanAt} testId="serial-last-scan-at" />
         </dl>
       </div>
+
+      <SerialPhotoManager serial={detail.serial} mode="inline" />
 
       <HistoryTable history={history} />
     </div>
