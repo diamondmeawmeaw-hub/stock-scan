@@ -63,7 +63,21 @@ export function SerialPhotoManager({
   const remaining = MAX_IMAGES_PER_UNIT - images.length
   /** ลากวางได้เมื่อยังไม่กำลังอัปโหลดและยังมีที่ว่าง */
   const canDrop = uploading === 0 && remaining > 0
-  const preview = images.find((image) => image.id === previewId) ?? null
+  const previewIndex = images.findIndex((image) => image.id === previewId)
+  const preview = previewIndex >= 0 ? images[previewIndex] : null
+
+  /** เลื่อนรูปที่กำลังดูอยู่ (ไม่วนรอบ - ปุ่มจะ disable ที่หัว/ท้าย) */
+  const stepPreview = useCallback(
+    (delta: number) => {
+      setPreviewId((current) => {
+        if (!current) return current
+        const index = images.findIndex((image) => image.id === current)
+        if (index < 0) return current
+        return images[index + delta]?.id ?? current
+      })
+    },
+    [images]
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -90,13 +104,26 @@ export function SerialPhotoManager({
   useEffect(() => {
     if (!open && !previewId) return
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      if (previewId) setPreviewId(null)
-      else setOpen(false)
+      if (event.key === 'Escape') {
+        if (previewId) setPreviewId(null)
+        else setOpen(false)
+        return
+      }
+      if (!previewId) return
+      // อย่าแย่งลูกศรตอนพิมพ์อยู่ในช่องข้อความ
+      const tag = (event.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        stepPreview(-1)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        stepPreview(1)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, previewId])
+  }, [open, previewId, stepPreview])
 
   async function onFilesPicked(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? [])
@@ -334,16 +361,53 @@ export function SerialPhotoManager({
       data-testid="photo-preview"
       onClick={() => setPreviewId(null)}
     >
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            aria-label="รูปก่อนหน้า"
+            data-testid="photo-prev"
+            disabled={previewIndex <= 0}
+            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 px-4 py-3 text-2xl leading-none text-white transition hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-30 sm:left-6"
+            onClick={(e) => {
+              e.stopPropagation()
+              stepPreview(-1)
+            }}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="รูปถัดไป"
+            data-testid="photo-next"
+            disabled={previewIndex >= images.length - 1}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 px-4 py-3 text-2xl leading-none text-white transition hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-30 sm:right-6"
+            onClick={(e) => {
+              e.stopPropagation()
+              stepPreview(1)
+            }}
+          >
+            ›
+          </button>
+        </>
+      )}
+
       <img
         src={`${baseUrl}/${preview.id}`}
         alt={preview.label}
-        className="max-h-[78vh] max-w-full rounded-xl object-contain shadow-2xl"
+        className="max-h-[78vh] max-w-[calc(100%-6rem)] rounded-xl object-contain shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       />
       <div
         className="mt-3 flex flex-wrap items-center justify-center gap-2"
         onClick={(e) => e.stopPropagation()}
       >
+        <span
+          data-testid="photo-counter"
+          className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white"
+        >
+          {previewIndex + 1} / {images.length}
+        </span>
         <span className="mr-1 max-w-[16rem] truncate text-sm text-white">{preview.fileName}</span>
         <a
           className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-800"
@@ -366,6 +430,9 @@ export function SerialPhotoManager({
         >
           ปิด
         </button>
+        {images.length > 1 && (
+          <span className="hidden text-xs text-white/60 sm:inline">← → เลื่อนรูป</span>
+        )}
       </div>
     </div>
   ) : null

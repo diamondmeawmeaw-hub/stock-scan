@@ -114,6 +114,38 @@ test.describe('รูปอุปกรณ์สำหรับเครม', ()
     expect(saved.mimeType).toBe('image/png')
   })
 
+  test('กดดูรูปแล้วเลื่อนรูปก่อนหน้า/ถัดไปได้ และใช้ลูกศรได้', async ({ page }) => {
+    await createNvr('NVR-9301')
+    await page.goto('/serials?serial=NVR-9301')
+    const card = page.getByTestId('serial-photos')
+    await expect(card).toBeVisible()
+
+    await card.getByTestId('photo-input').setInputFiles([
+      PHOTO,
+      { ...PHOTO, name: 'nvr-2.png' },
+    ])
+    await expect(card.getByTestId('photo-item')).toHaveCount(2)
+
+    await card.getByTestId('photo-item').first().getByRole('button').first().click()
+    const preview = page.getByTestId('photo-preview')
+    await expect(preview).toBeVisible()
+    await expect(preview.getByTestId('photo-counter')).toHaveText('1 / 2')
+    // รูปแรก: ย้อนกลับไม่ได้ แต่ไปต่อได้
+    await expect(preview.getByTestId('photo-prev')).toBeDisabled()
+    await expect(preview.getByTestId('photo-next')).toBeEnabled()
+
+    await preview.getByTestId('photo-next').click()
+    await expect(preview.getByTestId('photo-counter')).toHaveText('2 / 2')
+    await expect(preview.getByTestId('photo-next')).toBeDisabled()
+
+    // ลูกศรซ้ายเลื่อนกลับได้
+    await page.keyboard.press('ArrowLeft')
+    await expect(preview.getByTestId('photo-counter')).toHaveText('1 / 2')
+
+    await page.keyboard.press('Escape')
+    await expect(preview).toHaveCount(0)
+  })
+
   test('ประวัติการขาย: เปิดดูรูป ดาวน์โหลด และลบได้ (เฉพาะประเภทที่เปิดเก็บรูป)', async ({
     page,
   }) => {
