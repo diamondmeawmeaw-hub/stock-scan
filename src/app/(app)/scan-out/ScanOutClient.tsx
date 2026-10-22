@@ -83,8 +83,9 @@ export function ScanOutClient({
   const maxQty = selectedQty?.inStock ?? 0
 
   /**
-   * ค่าฟอร์มล่าสุดแบบ ref - ตอนกดยืนยันจะใช้ค่าปัจจุบันบนฟอร์มกับทุกรายการในคิว
+   * ค่าฟอร์มล่าสุดแบบ ref - ลูกค้า/โปรเจค/หมายเหตุ ใช้ค่าตอนกดยืนยัน
    * (ผู้ใช้มักยิงของก่อน แล้วค่อยเลือกลูกค้า/โปรเจคทีหลัง)
+   * ส่วน "เหตุผล" ถูก snapshot ไว้ตอนยิงรายชิ้น เพราะอาจยิงปนกันหลายเหตุผลในรอบเดียว
    */
   const formRef = useRef({ reason: 'SALE', customerId: '', projectId: '', note: '' })
   useEffect(() => {
@@ -92,19 +93,20 @@ export function ScanOutClient({
   })
 
   const onScan = useCallback(async (serial: string): Promise<ScanOutcomeLike> => {
-    // ยังไม่เบิกจริง แค่เข้าคิวรอบันทึก - ลูกค้า/โปรเจค/เหตุผลใช้ค่าตอนกดยืนยัน
+    // ยังไม่เบิกจริง แค่เข้าคิวรอบันทึก - จำเหตุผลตอนยิงของชิ้นนี้ไว้
     return {
       accepted: true,
       result: 'PENDING',
       message: 'รอยืนยันการเบิกออก',
       serial,
       product: null,
-    } as ScanOutcomeLike
+      reason: formRef.current.reason,
+    }
   }, [])
 
   const onConfirm = useCallback(async (items: FeedItem[]) => {
     const outcomes: ScanOutcomeLike[] = []
-    // อ่านค่าฟอร์มตอนกดยืนยัน ไม่ใช่ตอนยิง - เลือกลูกค้าทีหลังก็ต้องมีผล
+    // ลูกค้า/โปรเจคอ่านตอนกดยืนยัน (เลือกลูกค้าทีหลังก็ต้องมีผล) แต่เหตุผลใช้ของตอนยิงรายชิ้น
     const form = formRef.current
     for (const item of items) {
       try {
@@ -112,7 +114,7 @@ export function ScanOutClient({
           method: 'POST',
           body: JSON.stringify({
             serial: item.serial,
-            reason: form.reason,
+            reason: item.reason ?? form.reason,
             customerId: form.customerId || null,
             projectId: form.projectId || null,
             note: form.note || null,

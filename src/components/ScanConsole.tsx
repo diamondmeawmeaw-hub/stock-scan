@@ -19,6 +19,8 @@ export type ScanOutcomeLike = {
   productId?: string | null
   vendorId?: string | null
   note?: string | null
+  /** scan-out: snapshot เหตุผลตอนยิง (เหตุผลอาจต่างกันรายชิ้นในรอบเดียว) */
+  reason?: string | null
 }
 
 export type FeedItem = ScanOutcomeLike & { key: number; at: Date }
