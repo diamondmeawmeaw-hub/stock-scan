@@ -144,20 +144,31 @@ export function ScanConsole({
     if (!onConfirm || feed.length === 0 || confirming) return
     setConfirming(true)
     setConfirmError(null)
+    // snapshot รายการที่กดยืนยัน ณ ตอนนี้ - ระหว่างรอเซิร์ฟเวอร์อาจมีคนยิงเพิ่ม
+    const submitted = feed
     try {
-      const outcomes = await onConfirm(feed)
+      const outcomes = await onConfirm(submitted)
       if (outcomes) {
         setStats({
           accepted: outcomes.filter((outcome) => outcome.accepted).length,
           // รายการที่ถูกปฏิเสธเพราะซ้ำในรอบันทึกไม่ได้เข้า feed จึงบวกกลับเข้าไปไม่ให้ตัวเลขหาย
           rejected: outcomes.filter((outcome) => !outcome.accepted).length + dupRejectedRef.current,
         })
-        const next = feedRef.current
-          .map((item) => {
-            const outcome = outcomes.find((candidate) => candidate.serial === item.serial)
-            return outcome ? { ...item, ...outcome } : item
-          })
-          .filter((item) => item.result === 'ERROR' || item.accepted === false)
+        // จับคู่ผลตาม "ลำดับของรายการที่ส่งไป" ไม่ใช่ serial
+        // เพราะเซิร์ฟเวอร์คืน serial ที่ normalize แล้ว (ตัวเล็ก/ช่องว่างอาจต่างจากที่ยิง)
+        // และรายการที่ยิงเพิ่มระหว่างรอต้องไม่ถูกกลืนหาย
+        const outcomeByKey = new Map<number, ScanOutcomeLike>()
+        submitted.forEach((item, index) => {
+          const outcome = outcomes[index]
+          if (outcome) outcomeByKey.set(item.key, outcome)
+        })
+        const next = feedRef.current.flatMap((item) => {
+          const outcome = outcomeByKey.get(item.key)
+          // แถวนี้ยังไม่เคยถูกส่งไปเซิร์ฟเวอร์ (ยิงระหว่างรอ confirm) -> เก็บไว้ยืนยันรอบถัดไป
+          if (!outcome) return [item]
+          const merged = { ...item, ...outcome }
+          return merged.result === 'ERROR' || merged.accepted === false ? [merged] : []
+        })
         feedRef.current = next
         setFeed(next)
         // sync ชุดกันซ้ำให้ตรงกับแถวที่เหลืออยู่จริง (ตัวที่บันทึกสำเร็จหลุดไปแล้ว ยิงใหม่ได้ตามปกติ)

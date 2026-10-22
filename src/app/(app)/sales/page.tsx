@@ -1,8 +1,9 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { dayRange, shiftDays, todayInThailand } from '@/lib/date-range'
 import { listCustomers } from '@/lib/scan-service'
-import { getSession } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { ReturnButton } from '@/components/ReturnButton'
 import { SerialPhotoManager } from '@/components/SerialPhotoManager'
 import { ProjectAssign } from './ProjectSelect'
@@ -32,8 +33,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   const to = DATE_PATTERN.test(rawTo) ? rawTo : ''
 
   // ย้ายรายการขายหลังขายแล้วเป็นงาน admin เท่านั้น - staff ดูอย่างเดียว
-  const session = await getSession()
-  const readOnly = session?.role !== 'ADMIN'
+  // อ่าน role จาก DB กันแอดมินที่ถูกลดสิทธิ์แต่ token ยังบอกว่า ADMIN
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?reauth=1')
+  const readOnly = user.role !== 'ADMIN'
 
   const [customers, projects] = await Promise.all([
     listCustomers(),

@@ -1,14 +1,16 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { UsersClient } from './UsersClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsersPage() {
-  // middleware เช็คแค่ว่ามี session (รันบน edge จึงแตะ prisma ไม่ได้) - role เช็คที่นี่
-  const session = await getSession()
-  if (session?.role !== 'ADMIN') redirect('/')
+  // ต้องอ่าน role จากฐานข้อมูล ไม่ใช่จาก JWT - แอดมินที่ถูกลดสิทธิ์
+  // ต้องเข้าไม่ได้ทันที แม้ token เดิมจะยังบอกว่า ADMIN
+  const user = await getCurrentUser()
+  if (!user) redirect('/login?reauth=1')
+  if (user.role !== 'ADMIN') redirect('/')
 
   const users = await prisma.user.findMany({
     orderBy: { username: 'asc' },
@@ -24,7 +26,7 @@ export default async function UsersPage() {
 
   return (
     <UsersClient
-      currentUserId={session.userId}
+      currentUserId={user.userId}
       users={users.map(({ _count, ...u }) => ({
         ...u,
         historyCount: _count.scanLogs + _count.auditSessions,

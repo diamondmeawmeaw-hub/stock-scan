@@ -7,16 +7,27 @@ import { POST as closeRoute } from '@/app/api/audit/sessions/[id]/close/route'
 import { POST as auditScanRoute } from '@/app/api/audit/sessions/[id]/scan/route'
 import { GET as listSessionsRoute, POST as openSessionRoute } from '@/app/api/audit/sessions/route'
 import { POST as scanOutRoute } from '@/app/api/scan/out/route'
+import { POST as qtyInRoute } from '@/app/api/quantity/in/route'
 import type { AuditReport, ScanOutcome } from '@/lib/scan-service'
 import { getJson, giveStock, postJson, prisma, seedFixtures } from './helpers'
 
 type Fixtures = Awaited<ReturnType<typeof seedFixtures>>
 let fx: Fixtures
 
-async function openSession(input: { name?: string; categoryId?: string | null } = {}) {
+async function openSession(input: {
+  name?: string
+  categoryId?: string | null
+  categoryIds?: string[]
+  productIds?: string[]
+} = {}) {
   const res = await postJson<{ session: { id: string; name: string; status: string } }>(
     openSessionRoute,
-    { name: input.name ?? 'รอบตรวจนับประจำเดือน', categoryId: input.categoryId ?? null }
+    {
+      name: input.name ?? 'รอบตรวจนับประจำเดือน',
+      categoryId: input.categoryId ?? null,
+      ...(input.categoryIds !== undefined ? { categoryIds: input.categoryIds } : {}),
+      ...(input.productIds !== undefined ? { productIds: input.productIds } : {}),
+    }
   )
   if (res.status !== 200) throw new Error(`เปิดรอบไม่สำเร็จ: ${JSON.stringify(res.body)}`)
   return res.body.session
@@ -408,5 +419,163 @@ describe('ตรวจนับคละรุ่น/คละอุปกรณ
     expect(
       (await prisma.product.findUniqueOrThrow({ where: { id: cable.id } })).stockQty
     ).toBe(3)
+  })
+})
+
+describe('ปิดรอบระหว่างมีการเคลื่อนไหว (movement / race)', () => {
+  beforeEach(async () => {
+    fx = await seedFixtures()
+    await giveStock(fx.products.notebook.id, ['NB0001', 'NB0002', 'NB0003'])
+    await giveStock(fx.products.drill.id, ['DRL0001', 'DRL0002'])
+  })
+
+  it('รับเข้าหลังเริ่มรอบ -> ไม่ถูกตัดเป็นของหายตอนปิดรอบ', async () => {
+    const session = await openSession({ categoryId: fx.categories.it.id })
+    const opened = await prisma.auditSession.findUniqueOrThrow({ where: { id: session.id } })
+
+    // รับของใหม่ระหว่างรอบ (เวลารับหลัง startedAt ชัดเจน)
+    await giveStock(fx.products.notebook.id, ['NB0004'])
+    await prisma.serialUnit.update({
+      where: { serial: 'NB0004' },
+      data: { receivedAt: new Date(opened.startedAt.getTime() + 60_000) },
+    })
+
+    for (const serial of ['NB0001', 'NB0002', 'NB0003']) {
+      expect((await auditScan(session.id, serial)).body.accepted).toBe(true)
+    }
+
+    const { body } = await closeSession(session.id, true)
+    expect(body.report.expectedCount).toBe(3)
+    expect(body.report.missing).toEqual([])
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0004' } })).status
+    ).toBe('IN_STOCK')
+  })
+
+  it('สแกนแล้วเบิกออกระหว่างรอบ -> ของไม่ถูกดึงกลับเข้าคลังและไม่ขึ้นของหาย', async () => {
+    const session = await openSession({ categoryId: fx.categories.it.id })
+    expect((await auditScan(session.id, 'NB0001')).body.accepted).toBe(true)
+
+    // ขายหลังสแกน - releasedAt > startedAt
+    const sale = await postJson(scanOutRoute, { serial: 'NB0001', reason: 'SALE' })
+    expect(sale.status).toBe(200)
+
+    const { body } = await closeSession(session.id, true)
+    expect(body.report.matchedCount).toBe(1)
+    expect(body.report.surplus).toEqual([])
+    expect(body.report.missing.map((m) => m.serial).sort()).toEqual(['NB0002', 'NB0003'])
+    expect(
+      (await prisma.serialUnit.findUniqueOrThrow({ where: { serial: 'NB0001' } })).status
+    ).toBe('OUT')
+    expect(
+      await prisma.scanLog.count({
+        where: { auditSessionId: session.id, serial: 'NB0001', result: 'MISSING' },
+      })
+    ).toBe(0)
+  })
+
+  it('ของนับจำนวน: นับแล้วมีการรับเข้าใหม่ -> ปิดรอบไม่ได้จนกว่าจะนับใหม่', async () => {
+    const product = await prisma.product.create({
+      data: {
+        sku: 'RACE-QTY-001',
+        name: 'ของนับจำนวนทดสอบ',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ชิ้น',
+        stockQty: 10,
+      },
+    })
+    const session = await openSession({ productIds: [product.id] })
+
+    const count = await postJson(
+      auditQuantityRoute,
+      { productId: product.id, counted: 10 },
+      { id: session.id }
+    )
+    expect(count.status).toBe(200)
+
+    // รับเข้าเพิ่มหลังเวลานับ -> ยอดนับเก่า ห้ามเอาไปทับ
+    const receive = await postJson(qtyInRoute, { productId: product.id, quantity: 5 })
+    expect(receive.status).toBe(200)
+
+    const blocked = await closeSession(session.id, true)
+    expect(blocked.status).toBe(409)
+    expect((blocked.body as { error?: string }).error).toContain('นับใหม่')
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stockQty
+    ).toBe(15)
+    expect(
+      (await prisma.auditSession.findUniqueOrThrow({ where: { id: session.id } })).status
+    ).toBe('OPEN')
+
+    // นับใหม่เป็น 15 -> ปิดได้ และไม่มีการปรับยอด (delta = 0)
+    const recount = await postJson(
+      auditQuantityRoute,
+      { productId: product.id, counted: 15 },
+      { id: session.id }
+    )
+    expect(recount.status).toBe(200)
+    const closed = await closeSession(session.id, true)
+    expect(closed.status).toBe(200)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stockQty
+    ).toBe(15)
+  })
+
+  it('ของนับจำนวน: ปรับยอดแล้วต้องมี log AUDIT บอกส่วนต่าง', async () => {
+    const product = await prisma.product.create({
+      data: {
+        sku: 'RACE-QTY-002',
+        name: 'ของนับจำนวนทดสอบ 2',
+        categoryId: fx.categories.it.id,
+        trackingType: 'QUANTITY',
+        unitLabel: 'ชิ้น',
+        stockQty: 10,
+      },
+    })
+    const session = await openSession({ productIds: [product.id] })
+    await postJson(auditQuantityRoute, { productId: product.id, counted: 7 }, { id: session.id })
+
+    const closed = await closeSession(session.id, true)
+    expect(closed.status).toBe(200)
+    expect(
+      (await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stockQty
+    ).toBe(7)
+    const log = await prisma.scanLog.findFirst({
+      where: {
+        auditSessionId: session.id,
+        productId: product.id,
+        type: 'AUDIT',
+        serial: null,
+        message: { contains: 'ปรับยอด' },
+      },
+    })
+    expect(log).toMatchObject({ accepted: true, quantity: 3 })
+  })
+
+  it('กดปิดรอบพร้อมกันสองครั้ง -> สำเร็จครั้งเดียว อีกครั้ง 409 และไม่ตัดของซ้ำ', async () => {
+    const session = await openSession({ categoryId: fx.categories.it.id })
+    // ไม่ต้องสแกน เพื่อให้มี missing ให้ตัด
+    const [first, second] = await Promise.all([
+      closeSession(session.id, true),
+      closeSession(session.id, true),
+    ])
+    const statuses = [first.status, second.status].sort()
+    expect(statuses).toEqual([200, 409])
+    expect(
+      await prisma.scanLog.count({
+        where: { auditSessionId: session.id, result: 'MISSING' },
+      })
+    ).toBe(3)
+  })
+
+  it('กดเปิดรอบพร้อมกันสองครั้ง -> ได้รอบเดียว', async () => {
+    const [first, second] = await Promise.all([
+      postJson(openSessionRoute, { name: 'รอบพร้อมกัน A' }),
+      postJson(openSessionRoute, { name: 'รอบพร้อมกัน B' }),
+    ])
+    const statuses = [first.status, second.status].sort()
+    expect(statuses).toEqual([200, 409])
+    expect(await prisma.auditSession.count({ where: { status: 'OPEN' } })).toBe(1)
   })
 })

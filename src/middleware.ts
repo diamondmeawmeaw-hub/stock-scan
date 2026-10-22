@@ -11,7 +11,10 @@ export async function middleware(request: NextRequest) {
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value)
 
   if (PUBLIC_PATHS.includes(pathname)) {
-    if (session) return NextResponse.redirect(new URL('/', request.url))
+    // reauth=1 = layout เพิ่งพบว่า user ใน token ถูกปิดใช้งาน/ไม่มีในฐานข้อมูล
+    // ต้องปล่อยให้ถึงหน้า login ได้ ไม่งั้นจะ redirect วนระหว่าง / กับ /login
+    const reauth = request.nextUrl.searchParams.get('reauth') === '1'
+    if (session && !reauth) return NextResponse.redirect(new URL('/', request.url))
     return NextResponse.next()
   }
 

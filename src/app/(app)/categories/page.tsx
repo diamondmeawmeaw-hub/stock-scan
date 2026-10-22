@@ -1,21 +1,23 @@
+import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { CategoriesClient } from './CategoriesClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CategoriesPage() {
-  const [categories, session] = await Promise.all([
+  const [categories, user] = await Promise.all([
     prisma.category.findMany({
       orderBy: { name: 'asc' },
       include: { _count: { select: { products: true } } },
     }),
-    getSession(),
+    getCurrentUser(),
   ])
+  if (!user) redirect('/login?reauth=1')
 
   return (
     <CategoriesClient
-      canEditPhotos={session?.role === 'ADMIN'}
+      canEditPhotos={user.role === 'ADMIN'}
       categories={categories.map((c) => ({
         id: c.id,
         code: c.code,

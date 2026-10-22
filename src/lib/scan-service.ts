@@ -6,7 +6,6 @@ import {
   decideAuditScan,
   decideScanIn,
   decideScanOut,
-  diffAudit,
   isUnitInScope,
   normalizeSerial,
   validateQuantity,
@@ -764,16 +763,28 @@ export async function openAuditSession(input: {
     const count = await prisma.product.count({ where: { id: { in: productIds } } })
     if (count !== productIds.length) throw new HttpError(400, 'มีสินค้าที่เลือกไม่อยู่ในระบบ')
   }
-  return prisma.auditSession.create({
-    data: {
-      name: input.name.trim(),
-      categoryId: input.categoryId ?? null,
-      categoryIds,
-      productIds,
-      startedById: input.userId,
-      note: input.note ?? null,
-    },
-    include: { category: true },
+  return prisma.$transaction(async (tx) => {
+    // กันสองเครื่องกด "เริ่มตรวจนับ" พร้อมกันแล้วได้รอบ OPEN สองรอบ
+    // (CHECK แล้ว CREATE ต้องอยู่ใน lock เดียวกัน)
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('stock-scan:audit-open'))`
+    const stillOpen = await tx.auditSession.findFirst({ where: { status: 'OPEN' } })
+    if (stillOpen) {
+      throw new HttpError(
+        409,
+        `ยังมีรอบตรวจนับที่เปิดค้างอยู่ ("${stillOpen.name}") ปิดรอบเดิมก่อนจึงจะเปิดรอบใหม่ได้`
+      )
+    }
+    return tx.auditSession.create({
+      data: {
+        name: input.name.trim(),
+        categoryId: input.categoryId ?? null,
+        categoryIds,
+        productIds,
+        startedById: input.userId,
+        note: input.note ?? null,
+      },
+      include: { category: true },
+    })
   })
 }
 
@@ -791,6 +802,16 @@ export async function auditScan(input: {
   const serial = validation.serial
 
   return prisma.$transaction(async (tx) => {
+    // ล็อกแบบ share: หลายเครื่องสแกนพร้อมกันได้ แต่ close (FOR UPDATE) ต้องรอ
+    // กัน log AUDIT ถูกเขียนลงรอบที่เพิ่งปิดไปแล้ว
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "AuditSession" WHERE id = ${session.id} FOR SHARE
+    `
+    if (locked.length === 0) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    const liveSession = await tx.auditSession.findUnique({ where: { id: session.id } })
+    if (!liveSession) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    if (liveSession.status !== 'OPEN') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
+
     await lockSerial(tx, serial)
     const unit = await tx.serialUnit.findUnique({ where: { serial }, include: unitInclude })
     if (unit?.product.trackingType === 'QUANTITY') {
@@ -801,13 +822,13 @@ export async function auditScan(input: {
     }
     const alreadyScanned =
       (await tx.scanLog.count({
-        where: { auditSessionId: session.id, serial, accepted: true },
+        where: { auditSessionId: liveSession.id, serial, accepted: true },
       })) > 0
 
     const decision = decideAuditScan(toSnapshot(unit), {
-      scopeCategoryId: session.categoryId,
-      scopeCategoryIds: session.categoryIds,
-      scopeProductIds: session.productIds,
+      scopeCategoryId: liveSession.categoryId,
+      scopeCategoryIds: liveSession.categoryIds,
+      scopeProductIds: liveSession.productIds,
       alreadyScanned,
     })
 
@@ -825,7 +846,7 @@ export async function auditScan(input: {
         userId: input.userId,
         productId: unit?.productId ?? null,
         unitId: unit?.id ?? null,
-        auditSessionId: session.id,
+        auditSessionId: liveSession.id,
       },
     })
 
@@ -886,9 +907,32 @@ export async function auditQuantityCount(input: {
     throw new HttpError(400, 'สินค้านี้อยู่นอกขอบเขตที่กำลังนับรอบนี้')
   }
 
-  const at = new Date()
-  await prisma.$transaction(async (tx) => {
-    await lockProduct(tx, product.id)
+  return prisma.$transaction(async (tx) => {
+    // ล็อกแบบ share กัน close แทรกกลางคัน (close ใช้ FOR UPDATE)
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "AuditSession" WHERE id = ${session.id} FOR SHARE
+    `
+    if (locked.length === 0) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    const liveSession = await tx.auditSession.findUnique({ where: { id: session.id } })
+    if (!liveSession) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    if (liveSession.status !== 'OPEN') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
+
+    const fresh = await tx.product.findUnique({
+      where: { id: product.id },
+      include: { category: true },
+    })
+    if (!fresh) throw new HttpError(400, 'ไม่พบสินค้าที่เลือกไว้')
+    if (!isInScope(sessionScope(liveSession), { id: fresh.id, categoryId: fresh.categoryId })) {
+      throw new HttpError(400, 'สินค้านี้อยู่นอกขอบเขตที่กำลังนับรอบนี้')
+    }
+
+    // ล็อกสินค้าแล้วอ่านยอดสด - กันยอดที่แสดงใน log เก่าระหว่างมีคนรับเข้า
+    await lockProduct(tx, fresh.id)
+    const live = await tx.product.findUniqueOrThrow({
+      where: { id: fresh.id },
+      select: { stockQty: true },
+    })
+    const at = new Date()
     await tx.scanLog.create({
       data: {
         serial: null,
@@ -896,25 +940,25 @@ export async function auditQuantityCount(input: {
         type: 'AUDIT',
         result: 'OK',
         accepted: true,
-        message: `นับได้ ${countedQty} ${product.unitLabel ?? 'ชิ้น'} (ระบบมี ${product.stockQty})`,
+        message: `นับได้ ${countedQty} ${fresh.unitLabel ?? 'ชิ้น'} (ระบบมี ${live.stockQty})`,
         userId: input.userId,
-        productId: product.id,
+        productId: fresh.id,
         unitId: null,
-        auditSessionId: session.id,
+        auditSessionId: liveSession.id,
       },
     })
-  })
 
-  return {
-    productId: product.id,
-    sku: product.sku,
-    productName: product.name,
-    categoryName: product.category.name,
-    unitLabel: product.unitLabel,
-    expected: product.stockQty,
-    counted: countedQty,
-    countedAt: at.toISOString(),
-  }
+    return {
+      productId: fresh.id,
+      sku: fresh.sku,
+      productName: fresh.name,
+      categoryName: fresh.category.name,
+      unitLabel: fresh.unitLabel,
+      expected: live.stockQty,
+      counted: countedQty,
+      countedAt: at.toISOString(),
+    }
+  })
 }
 
 /**
@@ -922,14 +966,21 @@ export async function auditQuantityCount(input: {
  * รอบที่มี log แล้วลบไม่ได้ กันลบหลักฐาน ให้ปิดรอบแทน
  */
 export async function deleteAuditSession(input: { sessionId: string }): Promise<{ ok: true }> {
-  const session = await prisma.auditSession.findUnique({ where: { id: input.sessionId } })
-  if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
-  if (session.status !== 'OPEN') throw new HttpError(409, 'ลบได้เฉพาะรอบที่ยังเปิดอยู่')
-  const scanCount = await prisma.scanLog.count({ where: { auditSessionId: input.sessionId } })
-  if (scanCount > 0) {
-    throw new HttpError(409, 'รอบนี้เริ่มนับไปแล้ว ลบไม่ได้ - ให้ปิดรอบแทน')
-  }
-  await prisma.auditSession.delete({ where: { id: input.sessionId } })
+  await prisma.$transaction(async (tx) => {
+    // ล็อกรอบไว้ก่อนนับ log - กันสแกนใหม่แทรกแล้วถูกลบตาม cascade
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "AuditSession" WHERE id = ${input.sessionId} FOR UPDATE
+    `
+    if (locked.length === 0) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    const session = await tx.auditSession.findUnique({ where: { id: input.sessionId } })
+    if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    if (session.status !== 'OPEN') throw new HttpError(409, 'ลบได้เฉพาะรอบที่ยังเปิดอยู่')
+    const scanCount = await tx.scanLog.count({ where: { auditSessionId: input.sessionId } })
+    if (scanCount > 0) {
+      throw new HttpError(409, 'รอบนี้เริ่มนับไปแล้ว ลบไม่ได้ - ให้ปิดรอบแทน')
+    }
+    await tx.auditSession.delete({ where: { id: input.sessionId } })
+  })
   return { ok: true }
 }
 
@@ -966,6 +1017,8 @@ export type AuditReport = {
   closedAt: string | null
   expectedCount: number
   scannedCount: number
+  /** จำนวน log ทั้งหมดในรอบ (รวมที่ถูกปฏิเสธ) - ใช้ตัดสินว่าลบรอบได้หรือยัง */
+  scanLogCount: number
   matchedCount: number
   missing: AuditUnitRow[] // ของหาย: ระบบว่ามีแต่ยิงไม่เจอ
   surplus: AuditUnitRow[] // ของเกิน: ยิงเจอแต่ระบบว่าเบิกออกไปแล้ว
@@ -975,8 +1028,11 @@ export type AuditReport = {
 }
 
 /** คำนวณผลรอบตรวจนับ (รอบที่ปิดแล้วจะคืน snapshot ที่เก็บไว้) */
-export async function buildAuditReport(sessionId: string): Promise<AuditReport> {
-  const session = await prisma.auditSession.findUnique({
+export async function buildAuditReport(
+  sessionId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<AuditReport> {
+  const session = await client.auditSession.findUnique({
     where: { id: sessionId },
     include: { category: true },
   })
@@ -990,6 +1046,7 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
       quantityLines: cached.quantityLines ?? [],
       categoryIds: cached.categoryIds ?? (cached.categoryId ? [cached.categoryId] : []),
       productIds: cached.productIds ?? [],
+      scanLogCount: cached.scanLogCount ?? 0,
     }
   }
 
@@ -1006,15 +1063,22 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
           ],
         }
 
-  const expectedUnits = await prisma.serialUnit.findMany({
+  // ของที่ "มีอยู่ในระบบตอนเริ่มรอบ" = รับเข้าก่อนเริ่ม และยังไม่ถูกเบิกก่อนเริ่ม
+  // ต้องไม่ใช้ status ปัจจุบันอย่างเดียว เพราะของที่ขายระหว่างรอบจะกลายเป็น OUT
+  // แล้วถูกมองข้าม จนรายงานจับคู่ไม่ได้ว่ายิงไปแล้ว
+  // กลับกันของที่รับเข้าหลังเริ่มรอบต้องไม่กลายเป็น "ของหาย" ตอนปิดรอบ
+  const expectedUnits = await client.serialUnit.findMany({
     where: {
-      status: 'IN_STOCK',
       ...(scopeOr ? { product: scopeOr } : {}),
+      AND: [
+        { OR: [{ receivedAt: null }, { receivedAt: { lte: session.startedAt } }] },
+        { OR: [{ releasedAt: null }, { releasedAt: { gt: session.startedAt } }] },
+      ],
     },
     include: unitInclude,
   })
 
-  const acceptedScans = await prisma.scanLog.findMany({
+  const acceptedScans = await client.scanLog.findMany({
     where: { auditSessionId: session.id, accepted: true, unitId: { not: null } },
     include: { unit: { include: unitInclude } },
   })
@@ -1024,10 +1088,26 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     if (log.unit) scannedUnits.set(log.unit.id, log.unit)
   }
 
-  const diff = diffAudit({
-    expectedUnitIds: expectedUnits.map((u) => u.id),
-    scannedUnitIds: [...scannedUnits.keys()],
-  })
+  const expectedIds = new Set(expectedUnits.map((u) => u.id))
+  const scannedIds = new Set(scannedUnits.keys())
+
+  // ของหาย = ตอนเริ่มรอบมีในระบบ ตอนปิดรอบยังอยู่ แต่ยิงไม่เจอ
+  // ถ้าระหว่างรอบถูกเบิกออกไปแล้ว (status OUT) ไม่ใช่ของหาย - ห้ามตัดซ้ำ
+  const missingUnits = expectedUnits.filter(
+    (u) => u.status === 'IN_STOCK' && !scannedIds.has(u.id)
+  )
+
+  // ของเกิน = ยิงเจอ แต่ตอนเริ่มรอบไม่มีในระบบ และยังไม่มีการรับเข้า/เบิกออกใหม่
+  // ระหว่างรอบ (ถ้ายิงแล้วขายต่อ ต้องปล่อยเป็น OUT ไม่ดึงกลับเข้าคลัง)
+  const surplusUnits = [...scannedUnits.values()].filter(
+    (u) =>
+      !expectedIds.has(u.id) &&
+      u.status === 'OUT' &&
+      (!u.receivedAt || u.receivedAt <= session.startedAt) &&
+      (!u.releasedAt || u.releasedAt <= session.startedAt)
+  )
+
+  const matchedCount = [...scannedIds].filter((id) => expectedIds.has(id)).length
 
   const byId = new Map<string, UnitWithProduct>()
   for (const u of expectedUnits) byId.set(u.id, u)
@@ -1044,7 +1124,7 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     }
   }
 
-  const unknownLogs = await prisma.scanLog.findMany({
+  const unknownLogs = await client.scanLog.findMany({
     where: { auditSessionId: session.id, result: 'UNKNOWN_SERIAL' },
     orderBy: { createdAt: 'asc' },
     distinct: ['serial'],
@@ -1052,7 +1132,7 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
 
   // ── สินค้านับจำนวนในขอบเขตรอบนี้ + ยอดนับล่าสุดของแต่ละตัว ──
   // บันทึกยอดนับเป็น ScanLog AUDIT ที่ serial=null (แยกจาก log ยิง serial ที่ quantity=1)
-  const quantityProducts = await prisma.product.findMany({
+  const quantityProducts = await client.product.findMany({
     where: {
       trackingType: 'QUANTITY',
       ...(scopeOr ?? {}),
@@ -1062,7 +1142,7 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
   })
   const quantityCountLogs =
     quantityProducts.length > 0
-      ? await prisma.scanLog.findMany({
+      ? await client.scanLog.findMany({
           where: {
             auditSessionId: session.id,
             type: 'AUDIT',
@@ -1093,6 +1173,11 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     }
   })
 
+  // นับ log ทุกชนิด (รวมที่ถูกปฏิเสธ) เพื่อให้ปุ่ม "ลบรอบ" ตรงกับเงื่อนไขฝั่งเซิร์ฟเวอร์
+  const scanLogCount = await client.scanLog.count({
+    where: { auditSessionId: session.id },
+  })
+
   return {
     sessionId: session.id,
     name: session.name,
@@ -1103,11 +1188,12 @@ export async function buildAuditReport(sessionId: string): Promise<AuditReport> 
     categoryName: session.category?.name ?? null,
     startedAt: session.startedAt.toISOString(),
     closedAt: session.closedAt?.toISOString() ?? null,
-    expectedCount: diff.expectedCount,
-    scannedCount: diff.scannedCount,
-    matchedCount: diff.matchedUnitIds.length,
-    missing: diff.missingUnitIds.map(toRow).sort(sortRows),
-    surplus: diff.surplusUnitIds.map(toRow).sort(sortRows),
+    expectedCount: expectedUnits.length,
+    scannedCount: scannedUnits.size,
+    scanLogCount,
+    matchedCount,
+    missing: missingUnits.map((u) => toRow(u.id)).sort(sortRows),
+    surplus: surplusUnits.map((u) => toRow(u.id)).sort(sortRows),
     unknownSerials: unknownLogs.map((l) => ({
       serial: l.serial ?? '',
       scannedAt: l.createdAt.toISOString(),
@@ -1129,25 +1215,43 @@ export async function closeAuditSession(input: {
   userId: string
   applyAdjustments: boolean
 }): Promise<AuditReport> {
-  const session = await prisma.auditSession.findUnique({ where: { id: input.sessionId } })
-  if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
-  if (session.status === 'CLOSED') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
+  return prisma.$transaction(async (tx) => {
+    // ล็อกรอบแบบ exclusive: กันปิดซ้ำ และกันสแกนเขียน log ระหว่างอ่านผลกับปรับสต็อก
+    // (auditScan/auditQuantityCount ใช้ FOR SHARE จึงรอตรงนี้จนปิดเสร็จ)
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "AuditSession" WHERE id = ${input.sessionId} FOR UPDATE
+    `
+    if (locked.length === 0) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    const session = await tx.auditSession.findUnique({ where: { id: input.sessionId } })
+    if (!session) throw new HttpError(404, 'ไม่พบรอบตรวจนับนี้')
+    if (session.status === 'CLOSED') throw new HttpError(409, 'รอบตรวจนับนี้ปิดไปแล้ว')
 
-  const report = await buildAuditReport(input.sessionId)
-  const closedAt = new Date()
-  const finalReport: AuditReport = { ...report, status: 'CLOSED', closedAt: closedAt.toISOString() }
+    // คำนวณใน transaction เดียวกับตอนปรับ เพื่อให้ snapshot ตรงกับสต็อกที่ถูกแก้จริง
+    const report = await buildAuditReport(input.sessionId, tx)
+    const closedAt = new Date()
+    const finalReport: AuditReport = {
+      ...report,
+      status: 'CLOSED',
+      closedAt: closedAt.toISOString(),
+    }
 
-  await prisma.$transaction(async (tx) => {
     if (input.applyAdjustments) {
-      if (report.missing.length > 0) {
-        const missingIds = report.missing.map((r) => r.unitId)
-        const missingUnits = await tx.serialUnit.findMany({
-          where: { id: { in: missingIds } },
-          select: { id: true, serial: true, productId: true },
-        })
+      // ── ของรายชิ้น: ของหาย ──
+      // updateManyAndReturn อัปเดตครั้งเดียวและคืนเฉพาะแถวที่ยังเป็น IN_STOCK จริง
+      // ถ้ามีคนเบิกออกไปพอดีระหว่างปิดรอบ แถวนั้นจะไม่ถูกเขียน log MISSING ซ้ำ
+      const missingIds = report.missing.map((r) => r.unitId)
+      const adjustedMissing =
+        missingIds.length > 0
+          ? await tx.serialUnit.updateManyAndReturn({
+              where: { id: { in: missingIds }, status: 'IN_STOCK' },
+              data: { status: 'OUT', releasedAt: closedAt },
+              select: { id: true, serial: true, productId: true },
+            })
+          : []
+      if (adjustedMissing.length > 0) {
         // log ก่อนตัดออก เพื่อให้ย้อนดูได้ว่าของหายจากรอบตรวจนับไหน ไม่ใช่เบิกออกตามปกติ
         await tx.scanLog.createMany({
-          data: missingUnits.map((u) => ({
+          data: adjustedMissing.map((u) => ({
             serial: u.serial,
             type: 'AUDIT' as const,
             result: 'MISSING' as const,
@@ -1159,24 +1263,81 @@ export async function closeAuditSession(input: {
             auditSessionId: input.sessionId,
           })),
         })
-        await tx.serialUnit.updateMany({
-          where: { id: { in: missingIds } },
-          data: { status: 'OUT', releasedAt: closedAt },
-        })
       }
+
+      // ── ของรายชิ้น: ของเกิน ──
+      // มี log FOUND_BUT_OUT จากตอนยิงสแกนอยู่แล้ว ไม่ต้องเขียนซ้ำ
+      // เงื่อนไข status = OUT กันไม่ให้ทับของที่เพิ่งถูกสแกนรับเข้าหรือเบิกไปแล้ว
       if (report.surplus.length > 0) {
-        // ของเกินมี log FOUND_BUT_OUT จากตอนยิงสแกนอยู่แล้ว ไม่ต้องเขียนซ้ำ
         await tx.serialUnit.updateMany({
-          where: { id: { in: report.surplus.map((r) => r.unitId) } },
+          where: {
+            id: { in: report.surplus.map((r) => r.unitId) },
+            status: 'OUT',
+          },
           data: { status: 'IN_STOCK', receivedAt: closedAt, releasedAt: null },
         })
       }
-      // ของนับจำนวน: ตั้งยอดตามที่นับได้จริง (log ยอดนับมีอยู่แล้วตอนกรอก ไม่ต้องเขียนซ้ำ)
-      const countedLines = report.quantityLines.filter((l) => l.counted !== null)
-      for (const line of countedLines) {
+
+      // ── ของนับจำนวน ──
+      // ห้ามเอาค่ายอดนับเก่าไปทับยอดที่เพิ่งรับ/เบิกหลังตอนนับ (ของหายเงียบ)
+      // ถ้ามีการเคลื่อนไหวหลังเวลานับ ให้ปิดรอบไม่สำเร็จและให้นับใหม่
+      type CountedLine = QuantityAuditLine & { counted: number; countedAt: string }
+      const countedLines = report.quantityLines.filter(
+        (l): l is CountedLine => l.counted !== null && l.countedAt !== null
+      )
+      const stale: string[] = []
+      const prepared: { line: CountedLine; current: number }[] = []
+      // ล็อกสินค้าตาม id เพื่อกัน deadlock กับรายการอื่นที่ล็อกทีละตัว
+      for (const line of [...countedLines].sort((a, b) => a.productId.localeCompare(b.productId))) {
+        await lockProduct(tx, line.productId)
+        const product = await tx.product.findUnique({
+          where: { id: line.productId },
+          select: { stockQty: true },
+        })
+        if (!product) continue
+        const moved = await tx.scanLog.count({
+          where: {
+            productId: line.productId,
+            accepted: true,
+            type: { in: ['IN', 'OUT'] },
+            createdAt: { gte: new Date(line.countedAt) },
+          },
+        })
+        if (moved > 0) {
+          stale.push(`"${line.productName}"`)
+          continue
+        }
+        prepared.push({ line, current: product.stockQty })
+      }
+      if (stale.length > 0) {
+        throw new HttpError(
+          409,
+          `ยอดนับของ ${stale.join(', ')} เก่ากว่าการรับ/เบิกครั้งล่าสุด กรุณานับใหม่ก่อนปิดรอบ`
+        )
+      }
+      for (const { line, current } of prepared) {
+        const delta = line.counted - current
+        if (delta === 0) continue
         await tx.product.update({
           where: { id: line.productId },
-          data: { stockQty: line.counted! },
+          data: { stockQty: line.counted },
+        })
+        // เก็บ log การปรับยอดด้วย เพื่อให้ย้อนดูได้ว่าใครปรับเท่าไรในรอบไหน
+        await tx.scanLog.create({
+          data: {
+            serial: null,
+            quantity: Math.abs(delta),
+            type: 'AUDIT',
+            result: 'OK',
+            accepted: true,
+            message: `ปรับยอดจากรอบ "${session.name}": ระบบ ${current} → นับได้ ${line.counted} (${
+              delta > 0 ? 'เพิ่ม' : 'ลด'
+            } ${Math.abs(delta)})`,
+            userId: input.userId,
+            productId: line.productId,
+            unitId: null,
+            auditSessionId: input.sessionId,
+          },
         })
       }
     }
@@ -1189,9 +1350,9 @@ export async function closeAuditSession(input: {
         report: finalReport as unknown as Prisma.InputJsonValue,
       },
     })
-  })
 
-  return finalReport
+    return finalReport
+  }, { maxWait: 10_000, timeout: 60_000 })
 }
 
 // ────────────────────────────── รายงานคงเหลือ ──────────────────────────────

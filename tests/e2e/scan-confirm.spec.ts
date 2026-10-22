@@ -49,4 +49,43 @@ test.describe('ยืนยันรับเข้า (confirm)', () => {
     // ของในคลังเท่าเดิม ไม่มีการบันทึกเพิ่ม
     expect(await countInStock(data.products.notebook.id)).toBe(3)
   })
+
+  test('ยิงเพิ่มระหว่างรอ confirm -> รายการใหม่ไม่หาย และยืนยันรอบสองได้', async ({
+    data,
+    page,
+  }) => {
+    await selectProduct(page, 'IT-NB')
+    await scanBurst(page, ['NB-9201'])
+    await expect(scanFeedRows(page)).toHaveCount(1)
+
+    // หน่วง response ของการยืนยันแรก เพื่อจำลองคนยิงของต่อระหว่างรอเซิร์ฟเวอร์
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let intercepted = false
+    await page.route('**/api/scan/in', async (route) => {
+      intercepted = true
+      await gate
+      await route.continue()
+    })
+
+    await confirmScan(page)
+    await expect.poll(() => intercepted).toBe(true)
+
+    // แถวเดิมยังค้าง (กำลังบันทึก) + แถวใหม่ที่ยิงระหว่างรอ = 2 แถว
+    await scanBurst(page, ['NB-9202'])
+    await expect(scanFeedRows(page)).toHaveCount(2)
+
+    release()
+    // รอบแรกบันทึก NB-9201 สำเร็จ ส่วน NB-9202 ต้องยังค้างอยู่ ไม่ถูกกลืนหาย
+    await expect(scanFeedRows(page)).toHaveCount(1)
+    await expect(scanFeedRows(page).first()).toContainText('NB-9202')
+    expect(await countInStock(data.products.notebook.id)).toBe(4)
+
+    await page.unroute('**/api/scan/in')
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
+    expect(await countInStock(data.products.notebook.id)).toBe(5)
+  })
 })

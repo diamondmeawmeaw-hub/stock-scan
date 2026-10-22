@@ -30,10 +30,28 @@ export function resolveCookieSecure(env: {
   return env.NODE_ENV === 'production'
 }
 
+const PLACEHOLDER_SECRETS = new Set([
+  // ค่าใน .env.example / Dockerfile - ใช้ได้เฉพาะ dev/ตอน build
+  'dev-secret-change-me-please-32-chars-min',
+  'build-time-placeholder-secret-value-32',
+])
+let warnedPlaceholderSecret = false
+
 function secretKey(): Uint8Array {
   const secret = process.env.AUTH_SECRET
   if (!secret || secret.length < 16) {
     throw new Error('ต้องตั้งค่า AUTH_SECRET (อย่างน้อย 16 ตัวอักษร) ใน environment')
+  }
+  if (
+    process.env.NODE_ENV === 'production' &&
+    PLACEHOLDER_SECRETS.has(secret) &&
+    !warnedPlaceholderSecret
+  ) {
+    warnedPlaceholderSecret = true
+    // ไม่ throw เพื่อไม่ให้ build/demo ล้มทั้งระบบ แต่ต้องเห็นใน log ชัด ๆ
+    console.error(
+      '[security] AUTH_SECRET ยังเป็นค่าตัวอย่าง ห้ามใช้บนเครื่องจริง - สุ่มใหม่ด้วย: openssl rand -base64 32'
+    )
   }
   return new TextEncoder().encode(secret)
 }

@@ -34,11 +34,8 @@ export function AuditSessionClient({
   const progressPct =
     progressTotal === 0 ? 100 : Math.min(100, Math.round((progressDone / progressTotal) * 100))
   // ลบรอบทิ้งได้เฉพาะรอบที่เปิดผิดและยังไม่ได้นับอะไรเลย
-  const deletable =
-    !closed &&
-    report.scannedCount === 0 &&
-    report.unknownSerials.length === 0 &&
-    qtyDone === 0
+  // ใช้ scanLogCount (นับ log ทุกชนิด) ให้ตรงกับเงื่อนไขฝั่งเซิร์ฟเวอร์
+  const deletable = !closed && report.scanLogCount === 0 && qtyDone === 0
 
   const refresh = useCallback(async () => {
     const { report: fresh } = await api<{ report: AuditReport }>(`/api/audit/sessions/${sessionId}`)

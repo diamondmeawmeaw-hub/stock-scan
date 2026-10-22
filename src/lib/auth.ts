@@ -61,20 +61,43 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 /**
+ * อ่าน session แล้วยืนยันกับฐานข้อมูลอีกชั้น - คืน null ถ้าไม่มี/ถูกปิดใช้งาน
+ *
+ * JWT อยู่ได้ 12 ชม. ถ้าเชื่อ token อย่างเดียว คนที่ถูกปิดใช้งานหรือถูกลดสิทธิ์
+ * จะทำงานต่อได้จนกว่า token จะหมดอายุ หน้าเว็บทุกหน้าจึงต้องใช้ตัวนี้
+ */
+export async function getCurrentUser(): Promise<SessionPayload | null> {
+  const session = await getSession()
+  if (!session) return null
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      role: true,
+      active: true,
+    },
+  })
+  if (!user?.active) return null
+  return {
+    userId: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+  }
+}
+
+/**
  * ใช้ในหน้า/route ที่ต้อง login - โยน HttpError 401 ถ้าไม่มี session
  *
  * ตรวจ active จากฐานข้อมูลด้วย เพราะ JWT อายุ 12 ชม. ไม่งั้นคนที่ถูกปิดใช้งาน
  * จะทำงานต่อได้จนกว่าโทเคนจะหมดอายุ
  */
 export async function requireUser(): Promise<SessionPayload> {
-  const session = await getSession()
-  if (!session) throw new HttpError(401, 'ต้องเข้าสู่ระบบก่อน')
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { active: true, role: true },
-  })
-  if (!user?.active) throw new HttpError(401, 'บัญชีนี้ถูกปิดการใช้งาน')
-  return { ...session, role: user.role }
+  const user = await getCurrentUser()
+  if (!user) throw new HttpError(401, 'ต้องเข้าสู่ระบบก่อน')
+  return user
 }
 
 export async function requireAdmin(): Promise<SessionPayload> {
