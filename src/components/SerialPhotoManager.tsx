@@ -6,11 +6,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { prepareImage } from '@/lib/image-compress'
 import {
+  ALLOWED_IMAGE_TYPES,
   DEFAULT_IMAGE_LABEL,
   IMAGE_ACCEPT,
   MAX_IMAGES_PER_UNIT,
   formatBytes,
 } from '@/lib/image-rules'
+
+const ALLOWED_IMAGE_TYPE_SET = new Set<string>(ALLOWED_IMAGE_TYPES)
+
+/** รับเฉพาะรูป - เผื่อบางระบบไม่ส่ง MIME ตอนลากไฟล์ จึงดูนามสกุลประกอบ */
+function isAllowedImageFile(file: File): boolean {
+  if (ALLOWED_IMAGE_TYPE_SET.has(file.type)) return true
+  return /\.(jpe?g|png|webp)$/i.test(file.name)
+}
 
 export type SerialImageMeta = {
   id: string
@@ -43,6 +52,8 @@ export function SerialPhotoManager({
   const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(0)
+  /** กำลังลากไฟล์มาวางอยู่เหนือโซนรูป (ใช้โชว์กรอบ/ข้อความ) */
+  const [dragging, setDragging] = useState(false)
   const [label, setLabel] = useState(DEFAULT_IMAGE_LABEL)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -50,6 +61,8 @@ export function SerialPhotoManager({
   const baseUrl = `/api/serials/${encodeURIComponent(serial)}/images`
   const visible = mode === 'inline' || open
   const remaining = MAX_IMAGES_PER_UNIT - images.length
+  /** ลากวางได้เมื่อยังไม่กำลังอัปโหลดและยังมีที่ว่าง */
+  const canDrop = uploading === 0 && remaining > 0
   const preview = images.find((image) => image.id === previewId) ?? null
 
   const load = useCallback(async () => {
@@ -89,6 +102,14 @@ export function SerialPhotoManager({
     const picked = Array.from(event.target.files ?? [])
     // เคลียร์ทันทีเพื่อให้เลือกไฟล์เดิมซ้ำได้ (เช่น อัปโหลดพลาดแล้วลองใหม่)
     event.target.value = ''
+    await uploadFiles(picked)
+  }
+
+  /**
+   * อัปโหลดไฟล์ที่เลือก (จากปุ่มหรือลากมาวาง) - ใช้ทางเดียวกันทั้งหมด
+   * ตัดไฟล์ที่ไม่ใช่รูปออกก่อน เพื่อให้ข้อความ error ตรงกับที่รับจริง
+   */
+  async function uploadFiles(picked: File[]) {
     if (picked.length === 0) return
 
     if (remaining <= 0) {
@@ -96,12 +117,23 @@ export function SerialPhotoManager({
       return
     }
 
-    const batch = picked.slice(0, remaining)
-    setError(
-      picked.length > remaining
-        ? `เลือกมา ${picked.length} รูป แต่แนบเพิ่มได้อีก ${remaining} รูป - จะอัปโหลด ${batch.length} รูปแรก`
-        : ''
-    )
+    const allowed = picked.filter(isAllowedImageFile)
+    const skipped = picked.length - allowed.length
+    if (allowed.length === 0) {
+      setError('ลากได้เฉพาะไฟล์รูป JPG, PNG หรือ WebP')
+      return
+    }
+
+    const batch = allowed.slice(0, remaining)
+    const notes: string[] = []
+    if (skipped > 0) notes.push(`ข้ามไฟล์ที่ไม่ใช่รูป ${skipped} ไฟล์ (รับเฉพาะ JPG / PNG / WebP)`)
+    if (allowed.length > remaining) {
+      notes.push(
+        `เลือกมา ${allowed.length} รูป แต่แนบเพิ่มได้อีก ${remaining} รูป - จะอัปโหลด ${batch.length} รูปแรก`
+      )
+    }
+
+    setError(notes.join('\n'))
     setUploading(batch.length)
     const uploaded: SerialImageMeta[] = []
     const failures: string[] = []
@@ -128,7 +160,28 @@ export function SerialPhotoManager({
     }
 
     if (uploaded.length > 0) setImages((prev) => [...uploaded, ...prev])
-    if (failures.length > 0) setError(failures.join('\n'))
+    if (failures.length > 0) setError([...notes, ...failures].join('\n'))
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    // ต้อง preventDefault ไม่งั้นเบราว์เซอร์จะเปิดไฟล์ทิ้งแทนการอัปโหลด
+    event.preventDefault()
+    if (!canDrop) return
+    event.dataTransfer.dropEffect = 'copy'
+    if (!dragging) setDragging(true)
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    // เลื่อนผ่านลูกหลานในโซนยังไม่ถือว่าออก - กันกรอบกะพริบ
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDragging(false)
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragging(false)
+    if (!canDrop) return
+    void uploadFiles(Array.from(event.dataTransfer.files))
   }
 
   async function removeImage(image: SerialImageMeta) {
@@ -184,7 +237,7 @@ export function SerialPhotoManager({
         </button>
       </div>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        JPG / PNG / WebP · สูงสุด {MAX_IMAGES_PER_UNIT} รูปต่อเครื่อง · แนบแล้ว{' '}
+        JPG / PNG / WebP · ลากรูปมาวางได้ · สูงสุด {MAX_IMAGES_PER_UNIT} รูปต่อเครื่อง · แนบแล้ว{' '}
         <b>
           {images.length}/{MAX_IMAGES_PER_UNIT}
         </b>
@@ -213,7 +266,7 @@ export function SerialPhotoManager({
         </div>
       ) : images.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          ยังไม่มีรูป — แนบรูปตัวเครื่องไว้ใช้ตอนเครม
+          ยังไม่มีรูป — ลากรูปมาวาง หรือกดปุ่ม “แนบรูป” เพื่อเก็บไว้ใช้ตอนเครม
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -332,8 +385,26 @@ export function SerialPhotoManager({
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           ใช้ประกอบการเครม — ถ่ายให้เห็นตัวเครื่องและป้าย serial ชัด ๆ
         </p>
-        {toolbar}
-        {gallery}
+        <div
+          data-testid="photo-dropzone"
+          className={`relative rounded-xl transition ${
+            dragging
+              ? 'ring-2 ring-sky-400 ring-offset-2 dark:ring-sky-500 dark:ring-offset-slate-900'
+              : ''
+          }`}
+          onDragEnter={handleDragOver}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {toolbar}
+          {gallery}
+          {dragging && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-sky-400 bg-sky-50/95 p-4 text-center text-sm font-semibold text-sky-800 dark:border-sky-500 dark:bg-sky-950/95 dark:text-sky-200">
+              วางรูปเพื่อแนบ (ได้อีก {remaining} รูป)
+            </div>
+          )}
+        </div>
         {previewOverlay}
       </section>
     )
@@ -380,8 +451,26 @@ export function SerialPhotoManager({
                 ✕
               </button>
             </div>
-            {toolbar}
-            {gallery}
+            <div
+              data-testid="photo-dropzone"
+              className={`relative rounded-xl transition ${
+                dragging
+                  ? 'ring-2 ring-sky-400 ring-offset-2 dark:ring-sky-500 dark:ring-offset-slate-900'
+                  : ''
+              }`}
+              onDragEnter={handleDragOver}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {toolbar}
+              {gallery}
+              {dragging && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-sky-400 bg-sky-50/95 p-4 text-center text-sm font-semibold text-sky-800 dark:border-sky-500 dark:bg-sky-950/95 dark:text-sky-200">
+                  วางรูปเพื่อแนบ (ได้อีก {remaining} รูป)
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

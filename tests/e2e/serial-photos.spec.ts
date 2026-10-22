@@ -79,6 +79,41 @@ test.describe('รูปอุปกรณ์สำหรับเครม', ()
     await expect(card).toContainText('1/8')
   })
 
+  test('ลากรูปมาวางในกล่องรูปได้เลย', async ({ page }) => {
+    await createNvr()
+    await page.goto('/scan-in')
+    await selectProduct(page, 'NVR Hik')
+    await scanBurst(page, ['NVR-9201'])
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
+
+    const panel = page.getByTestId('recent-received-photos')
+    await panel.getByTestId('photo-open').click()
+    const dialog = page.getByTestId('photo-dialog')
+    await expect(dialog).toBeVisible()
+
+    // จำลองการลากไฟล์จาก Explorer มาวาง (DataTransfer + File จริงในเบราว์เซอร์)
+    const dataTransfer = await page.evaluateHandle((base64) => {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
+      const dt = new DataTransfer()
+      dt.items.add(new File([bytes], 'dropped.png', { type: 'image/png' }))
+      return dt
+    }, PNG.toString('base64'))
+
+    const dropzone = dialog.getByTestId('photo-dropzone')
+    await dropzone.dispatchEvent('dragover', { dataTransfer })
+    await dropzone.dispatchEvent('drop', { dataTransfer })
+
+    await expect(dialog.getByTestId('photo-item')).toHaveCount(1)
+    await expect(dialog.getByTestId('photo-item')).toContainText('รูปตัวอุปกรณ์')
+
+    const saved = await prisma.serialImage.findFirstOrThrow({
+      where: { unit: { serial: 'NVR-9201' } },
+    })
+    expect(saved.fileName).toBe('dropped.png')
+    expect(saved.mimeType).toBe('image/png')
+  })
+
   test('ประวัติการขาย: เปิดดูรูป ดาวน์โหลด และลบได้ (เฉพาะประเภทที่เปิดเก็บรูป)', async ({
     page,
   }) => {
