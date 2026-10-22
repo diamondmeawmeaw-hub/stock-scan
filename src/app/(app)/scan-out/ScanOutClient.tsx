@@ -83,8 +83,8 @@ export function ScanOutClient({
   const maxQty = selectedQty?.inStock ?? 0
 
   /**
-   * ค่าฟอร์มล่าสุดแบบ ref - onScan ถูกเรียกตอน drain คิว ซึ่ง closure อาจเก่ากว่าค่าบนจอ
-   * (ยิงเบิ้ลรัวๆ แล้วเปลี่ยนเหตุผล/ลูกค้ากลางคัน) อ่านจาก ref ที่สดเสมอ ของแต่ละชิ้นจึงผูกถูกชุด
+   * ค่าฟอร์มล่าสุดแบบ ref - ตอนกดยืนยันจะใช้ค่าปัจจุบันบนฟอร์มกับทุกรายการในคิว
+   * (ผู้ใช้มักยิงของก่อน แล้วค่อยเลือกลูกค้า/โปรเจคทีหลัง)
    */
   const formRef = useRef({ reason: 'SALE', customerId: '', projectId: '', note: '' })
   useEffect(() => {
@@ -92,39 +92,30 @@ export function ScanOutClient({
   })
 
   const onScan = useCallback(async (serial: string): Promise<ScanOutcomeLike> => {
-    // ยังไม่เบิกจริง แค่เข้าคิวรอบันทึก - snapshot ค่าตอนยิงของชิ้นนี้ไว้
-    const snap = formRef.current
+    // ยังไม่เบิกจริง แค่เข้าคิวรอบันทึก - ลูกค้า/โปรเจค/เหตุผลใช้ค่าตอนกดยืนยัน
     return {
       accepted: true,
       result: 'PENDING',
       message: 'รอยืนยันการเบิกออก',
       serial,
       product: null,
-      reason: snap.reason,
-      customerId: snap.customerId || null,
-      projectId: snap.projectId || null,
-      note: snap.note || null,
     } as ScanOutcomeLike
   }, [])
 
   const onConfirm = useCallback(async (items: FeedItem[]) => {
     const outcomes: ScanOutcomeLike[] = []
+    // อ่านค่าฟอร์มตอนกดยืนยัน ไม่ใช่ตอนยิง - เลือกลูกค้าทีหลังก็ต้องมีผล
+    const form = formRef.current
     for (const item of items) {
-      // ใช้ค่าที่ snapshot ไว้ตอนยิงของชิ้นนั้น ไม่ใช่ค่าปัจจุบันบนฟอร์ม
-      const snap = item as ScanOutcomeLike & {
-        reason?: string
-        customerId?: string | null
-        projectId?: string | null
-      }
       try {
         outcomes.push(await api<ScanOutcomeLike>('/api/scan/out', {
           method: 'POST',
           body: JSON.stringify({
             serial: item.serial,
-            reason: snap.reason ?? formRef.current.reason,
-            customerId: snap.customerId ?? null,
-            projectId: snap.projectId ?? null,
-            note: item.note ?? null,
+            reason: form.reason,
+            customerId: form.customerId || null,
+            projectId: form.projectId || null,
+            note: form.note || null,
           }),
         }))
       } catch (error) {

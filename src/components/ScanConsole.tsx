@@ -14,7 +14,7 @@ export type ScanOutcomeLike = {
   scanLogId?: string | null
   /**
    * snapshot ค่าตอนยิง (scan-in แบบ pending-confirm) - ตอนกดยืนยันใช้ค่านี้รายชิ้น
-   * แทนค่าปัจจุบันบนฟอร์ม เพื่อกันยิงของ A แล้วเผลอเปลี่ยนฟอร์มเป็น B ก่อนกดยืนยัน
+   * กันยิงของ A แล้วเผลอเปลี่ยนสินค้า/ผู้ขายเป็น B ก่อนกดยืนยัน
    */
   productId?: string | null
   vendorId?: string | null

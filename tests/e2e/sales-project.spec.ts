@@ -74,6 +74,32 @@ test.describe('โปรเจคของลูกค้า', () => {
     await expect(page.getByTestId('sales-empty')).toBeVisible()
   })
 
+  test('ยิงก่อนแล้วค่อยเลือกลูกค้า + โปรเจค -> ยืนยันแล้วผูกตามที่เลือก', async ({ page }) => {
+    const customer = await prisma.customer.create({
+      data: { code: 'E2E-C4', name: 'คณะทันตแพทยศาสตร์' },
+    })
+    const project = await prisma.project.create({
+      data: { customerId: customer.id, name: 'ติดกล้อง ชั้น 2' },
+    })
+
+    await page.goto('/scan-out')
+    // ยิงของเข้าก่อน ยังไม่เลือกลูกค้า/โปรเจคเลย
+    await focusScanner(page)
+    await scan(page, 'NB-0001')
+    await expect(page.getByTestId('scan-pending')).toHaveCount(0)
+    await expect(page.getByTestId('confirm-scan')).toBeVisible()
+
+    // เลือกลูกค้า + โปรเจคทีหลัง แล้วค่อยกดยืนยัน
+    await page.getByTestId('customer-select').selectOption(customer.id)
+    await page.getByTestId('project-select').selectOption(project.id)
+    await confirmScan(page)
+    await expect(scanFeedRows(page)).toHaveCount(0)
+
+    const log = await waitForSaleLog('NB-0001')
+    expect(log.customerId).toBe(customer.id)
+    expect(log.projectId).toBe(project.id)
+  })
+
   test('ยิงขายโดยไม่ระบุโปรเจค -> log ไม่ผูกโปรเจค แต่ย้ายเข้าทีหลังได้', async ({ page }) => {
     const customer = await prisma.customer.create({ data: { code: 'E2E-C2', name: 'คณะวิศวะ' } })
     const project = await prisma.project.create({ data: { customerId: customer.id, name: 'เดินสายแลน' } })
