@@ -139,7 +139,7 @@ export function CategoriesClient({
             )}
             {categories.map((c) =>
               editingId === c.id ? (
-                <tr key={c.id} className="bg-slate-50 dark:bg-slate-800/60">
+                <tr key={c.id} data-testid="category-row-edit" className="bg-slate-50 dark:bg-slate-800/60">
                   <td className="px-4 py-2">
                     <input
                       className="field"
@@ -156,14 +156,17 @@ export function CategoriesClient({
                   </td>
                   <td className="px-4 py-2">{c.productCount}</td>
                   <td className="px-4 py-2">
-                    <input
-                      type="checkbox"
-                      data-testid={`category-photos-${c.code}`}
-                      checked={edit.photosEnabled}
-                      disabled={!canEditPhotos}
-                      title={canEditPhotos ? undefined : 'ผู้ดูแลระบบเท่านั้น'}
-                      onChange={(e) => setEdit({ ...edit, photosEnabled: e.target.checked })}
-                    />
+                    <label className="inline-flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        data-testid={`category-photos-${c.code}`}
+                        checked={edit.photosEnabled}
+                        disabled={!canEditPhotos}
+                        title={canEditPhotos ? undefined : 'ผู้ดูแลระบบเท่านั้น'}
+                        onChange={(e) => setEdit({ ...edit, photosEnabled: e.target.checked })}
+                      />
+                      เก็บรูป
+                    </label>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
@@ -190,30 +193,21 @@ export function CategoriesClient({
                   </td>
                 </tr>
               ) : (
-                <tr key={c.id}>
+                <tr key={c.id} data-testid="category-row">
                   <td className="px-4 py-2 font-mono">{c.code}</td>
                   <td className="px-4 py-2">{c.name}</td>
                   <td className="px-4 py-2">{c.productCount}</td>
                   <td className="px-4 py-2">
-                    <label className="inline-flex items-center gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        data-testid={`category-photos-${c.code}`}
-                        checked={c.photosEnabled}
-                        disabled={busy || !canEditPhotos}
-                        title={canEditPhotos ? undefined : 'ผู้ดูแลระบบเท่านั้น'}
-                        onChange={(e) => {
-                          const photosEnabled = e.target.checked
-                          void run(() =>
-                            api(`/api/categories/${c.id}`, {
-                              method: 'PATCH',
-                              body: JSON.stringify({ photosEnabled }),
-                            })
-                          )
-                        }}
-                      />
+                    <span
+                      data-testid={`category-photos-${c.code}`}
+                      className={
+                        c.photosEnabled
+                          ? 'whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                          : 'whitespace-nowrap text-xs text-slate-400 dark:text-slate-500'
+                      }
+                    >
                       {c.photosEnabled ? 'เก็บรูป' : 'ไม่เก็บ'}
-                    </label>
+                    </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
