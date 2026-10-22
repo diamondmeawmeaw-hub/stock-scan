@@ -16,6 +16,8 @@ type ProductOption = {
   trackingType: 'SERIAL' | 'QUANTITY'
   unitLabel: string | null
   inStock: number
+  /** ประเภทของนี้เปิดให้แนบรูปอุปกรณ์หรือไม่ (ผู้ดูแลระบบตั้ง) */
+  photosEnabled: boolean
   /** มีของ/ยอด/ประวัติแล้ว = วิธีนับล็อก เปลี่ยนไม่ได้ */
   hasHistory: boolean
 }
@@ -121,8 +123,13 @@ export function ScanInClient({
         }
       }
       // เก็บรายการที่รับเข้าสำเร็จไว้ให้แนบรูปต่อทันที (unit ถูกสร้างแล้วตอนนี้)
+      // เฉพาะประเภทของที่ผู้ดูแลระบบเปิด "เก็บรูป" เท่านั้น
       const received = outcomes
         .filter((outcome) => outcome.accepted && outcome.serial)
+        .filter((outcome) => {
+          const product = productsRef.current.find((p) => p.id === outcome.product?.id)
+          return product?.photosEnabled ?? false
+        })
         .map((outcome) => ({
           serial: outcome.serial,
           productName: outcome.product?.name ?? 'ไม่ระบุสินค้า',

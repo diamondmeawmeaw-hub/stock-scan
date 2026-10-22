@@ -43,6 +43,7 @@ export default async function ScanInPage() {
           categoryName: p.category.name,
           trackingType: p.trackingType,
           unitLabel: p.unitLabel,
+          photosEnabled: p.category.photosEnabled,
           inStock: p.trackingType === 'QUANTITY' ? p.stockQty : p._count.units,
           // มีของค้างหรือยอดคงเหลือหรือเคยมีประวัติ = วิธีนับล็อกแล้ว
           hasHistory:

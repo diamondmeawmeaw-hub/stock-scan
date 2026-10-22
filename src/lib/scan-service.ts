@@ -2318,6 +2318,8 @@ export type SerialDetail = {
     productName: string
     brand: string | null
     categoryName: string
+    /** ประเภทของนี้เปิดให้แนบรูปอุปกรณ์หรือไม่ (ตั้งโดยผู้ดูแลระบบ) */
+    photosEnabled: boolean
     vendorName: string | null
     receivedAt: string | null
     releasedAt: string | null
@@ -2385,6 +2387,7 @@ export async function lookupSerial(rawSerial: string): Promise<SerialDetail> {
           productName: unit.product.name,
           brand: unit.product.brand,
           categoryName: unit.product.category.name,
+          photosEnabled: unit.product.category.photosEnabled,
           vendorName: unit.vendor?.name ?? null,
           receivedAt: unit.receivedAt?.toISOString() ?? null,
           releasedAt: unit.releasedAt?.toISOString() ?? null,

@@ -109,6 +109,8 @@ model Category {
   id        String   @id @default(cuid())
   code      String   @unique
   name      String
+  /// ประเภทของที่ต้องแนบรูปอุปกรณ์ก่อนส่งเครม (เช่น NVR) - เปิด/ปิดได้ที่หน้าประเภทของ
+  photosEnabled Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

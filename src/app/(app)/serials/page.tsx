@@ -225,7 +225,7 @@ function SerialResult({
         </dl>
       </div>
 
-      <SerialPhotoManager serial={detail.serial} mode="inline" />
+      {unit.photosEnabled && <SerialPhotoManager serial={detail.serial} mode="inline" />}
 
       <HistoryTable history={history} />
     </div>

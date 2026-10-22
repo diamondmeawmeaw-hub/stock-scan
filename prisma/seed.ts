@@ -63,7 +63,7 @@ async function main() {
     const saved = await prisma.category.upsert({
       where: { code: c.code },
       update: { name: c.name },
-      create: c,
+      create: { ...c, photosEnabled: c.code === 'NVR' },
     })
     categoryByCode.set(c.code, saved.id)
   }

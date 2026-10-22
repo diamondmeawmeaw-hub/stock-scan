@@ -4,7 +4,6 @@ import {
   focusScanner,
   loginAs,
   prisma,
-  scan,
   scanBurst,
   scanFeedRows,
   selectProduct,
@@ -18,22 +17,48 @@ const PNG = Buffer.from(
 )
 const PHOTO = { name: 'nvr.png', mimeType: 'image/png', buffer: PNG }
 
+/**
+ * สร้างสินค้าประเภท NVR (ประเภทที่เปิดเก็บรูป) - ข้อมูลตั้งต้นมีแต่ IT/TOOL
+ * ที่ไม่เปิดเก็บรูป จึงต้องสร้างเองต่อเทส
+ */
+async function createNvr(serial?: string) {
+  const category = await prisma.category.create({
+    data: { code: 'NVR', name: 'เครื่องบันทึกกล้อง (NVR)', photosEnabled: true },
+  })
+  const product = await prisma.product.create({
+    data: {
+      sku: 'NVR-HIK-16',
+      name: 'NVR Hikvision 16 ช่อง',
+      brand: 'Hikvision',
+      categoryId: category.id,
+      trackingType: 'SERIAL',
+    },
+  })
+  if (serial) {
+    await prisma.serialUnit.create({
+      data: { serial, productId: product.id, status: 'IN_STOCK', receivedAt: new Date() },
+    })
+  }
+  return product
+}
+
 test.describe('รูปอุปกรณ์สำหรับเครม', () => {
   test.beforeEach(async ({ page, data: _data }) => {
     await loginAs(page, 'staff')
   })
 
   test('รับเข้าแล้วแนบรูปต่อทันที -> เห็นรูปในหน้าค้นหา serial', async ({ page }) => {
+    await createNvr()
     await page.goto('/scan-in')
-    await selectProduct(page, 'IT-NB')
-    await scanBurst(page, ['NB-9101'])
+    await selectProduct(page, 'NVR Hik')
+    await scanBurst(page, ['NVR-9101'])
     await confirmScan(page)
     await expect(scanFeedRows(page)).toHaveCount(0)
 
     // การ์ด "แนบรูปอุปกรณ์ที่เพิ่งรับเข้า" ต้องโผล่พร้อม serial ที่เพิ่งบันทึก
     const panel = page.getByTestId('recent-received-photos')
     await expect(panel).toBeVisible()
-    await expect(panel).toContainText('NB-9101')
+    await expect(panel).toContainText('NVR-9101')
 
     await panel.getByTestId('photo-open').click()
     const dialog = page.getByTestId('photo-dialog')
@@ -47,17 +72,20 @@ test.describe('รูปอุปกรณ์สำหรับเครม', ()
     await expect(dialog).toHaveCount(0)
 
     // หน้าค้นหา serial ต้องเห็นรูปที่เพิ่งแนบ (โหลดจาก DB จริง)
-    await page.goto('/serials?serial=NB-9101')
+    await page.goto('/serials?serial=NVR-9101')
     const card = page.getByTestId('serial-photos')
     await expect(card).toBeVisible()
     await expect(card.getByTestId('photo-item')).toHaveCount(1)
     await expect(card).toContainText('1/8')
   })
 
-  test('ประวัติการขาย: เปิดดูรูป ดาวน์โหลด และลบได้', async ({ page }) => {
+  test('ประวัติการขาย: เปิดดูรูป ดาวน์โหลด และลบได้ (เฉพาะประเภทที่เปิดเก็บรูป)', async ({
+    page,
+  }) => {
+    await createNvr('NVR-0001')
     await page.goto('/scan-out')
     await focusScanner(page)
-    await scan(page, 'NB-0001')
+    await scanBurst(page, ['NVR-0001', 'NB-0001'])
     await confirmScan(page)
     await expect(scanFeedRows(page)).toHaveCount(0)
 
@@ -65,24 +93,26 @@ test.describe('รูปอุปกรณ์สำหรับเครม', ()
     await expect
       .poll(
         async () =>
-          (
-            await prisma.scanLog.findFirst({
-              where: { serial: 'NB-0001', type: 'OUT' },
-              select: { id: true },
-            })
-          )?.id,
+          prisma.scanLog.count({
+            where: { type: 'OUT', serial: { in: ['NVR-0001', 'NB-0001'] } },
+          }),
         { timeout: 10_000 }
       )
-      .toBeTruthy()
+      .toBe(2)
 
     await page.goto('/sales')
-    const row = page.getByTestId('sale-row').filter({ hasText: 'NB-0001' }).first()
+    const row = page.getByTestId('sale-row').filter({ hasText: 'NVR-0001' }).first()
     await expect(row).toBeVisible()
+
+    // สินค้าประเภทอื่นที่ไม่ได้เปิดเก็บรูป ต้องไม่มีปุ่มแนบรูป
+    const otherRow = page.getByTestId('sale-row').filter({ hasText: 'NB-0001' }).first()
+    await expect(otherRow).toBeVisible()
+    await expect(otherRow.getByTestId('photo-open')).toHaveCount(0)
 
     await row.getByTestId('photo-open').click()
     const dialog = page.getByTestId('photo-dialog')
     await expect(dialog).toBeVisible()
-    await expect(dialog).toContainText('NB-0001')
+    await expect(dialog).toContainText('NVR-0001')
 
     await dialog.getByTestId('photo-input').setInputFiles(PHOTO)
     await expect(dialog.getByTestId('photo-item')).toHaveCount(1)

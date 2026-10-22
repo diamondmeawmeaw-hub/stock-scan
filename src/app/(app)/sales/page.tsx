@@ -90,7 +90,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     take: 200,
     include: {
       customer: true,
-      product: true,
+      product: { include: { category: { select: { photosEnabled: true } } } },
       user: true,
       reversedBy: { select: { id: true } },
     },
@@ -199,7 +199,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      {log.serial ? (
+                      {log.serial && log.product?.category.photosEnabled ? (
                         <SerialPhotoManager serial={log.serial} />
                       ) : (
                         <span className="text-xs text-slate-400 dark:text-slate-500">-</span>

@@ -61,19 +61,30 @@ function toMeta(row: MetaRow): SerialImageMeta {
 }
 
 /** หาเครื่องจาก serial - โยน 404 ถ้าไม่มีในคลัง (ของนับจำนวนไม่มี serial จึงใช้ฟีเจอร์นี้ไม่ได้) */
-async function unitForSerial(rawSerial: string): Promise<{ id: string; serial: string }> {
+async function unitForSerial(
+  rawSerial: string
+): Promise<{ id: string; serial: string; photosEnabled: boolean }> {
   const serial = normalizeSerial(rawSerial ?? '')
   if (!serial) throw new HttpError(400, 'ต้องระบุ serial')
   const unit = await prisma.serialUnit.findUnique({
     where: { serial },
-    select: { id: true, serial: true },
+    select: {
+      id: true,
+      serial: true,
+      product: { select: { category: { select: { photosEnabled: true } } } },
+    },
   })
   if (!unit) throw new HttpError(404, `ไม่พบ serial ${serial} ในคลัง`)
-  return unit
+  return {
+    id: unit.id,
+    serial: unit.serial,
+    photosEnabled: unit.product.category.photosEnabled,
+  }
 }
 
 export async function listSerialImages(rawSerial: string): Promise<{
   serial: string
+  photosEnabled: boolean
   maxImages: number
   images: SerialImageMeta[]
 }> {
@@ -83,7 +94,12 @@ export async function listSerialImages(rawSerial: string): Promise<{
     orderBy: { createdAt: 'desc' },
     select: META_SELECT,
   })
-  return { serial: unit.serial, maxImages: MAX_IMAGES_PER_UNIT, images: rows.map(toMeta) }
+  return {
+    serial: unit.serial,
+    photosEnabled: unit.photosEnabled,
+    maxImages: MAX_IMAGES_PER_UNIT,
+    images: rows.map(toMeta),
+  }
 }
 
 /** ตรวจลายเซ็นไฟล์จริง ไม่เชื่อ Content-Type ที่เบราว์เซอร์ส่งมา */
@@ -140,6 +156,13 @@ export async function saveSerialImage(input: {
   userId: string
 }): Promise<{ image: SerialImageMeta; maxImages: number }> {
   const unit = await unitForSerial(input.rawSerial)
+  // เฉพาะประเภทของที่ผู้ดูแลระบบเปิด "เก็บรูป" ไว้เท่านั้น (เช่น NVR)
+  if (!unit.photosEnabled) {
+    throw new HttpError(
+      403,
+      'ประเภทของนี้ยังไม่เปิดให้เก็บรูป - ให้ผู้ดูแลระบบเปิดที่หน้า "ประเภทของ"'
+    )
+  }
   const { file } = input
 
   if (file.size === 0) throw new HttpError(400, 'ไฟล์รูปว่างเปล่า')

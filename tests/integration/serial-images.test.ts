@@ -7,7 +7,9 @@ import {
   DELETE as deleteRoute,
   GET as fileRoute,
 } from '@/app/api/serials/[serial]/images/[id]/route'
-import { getJson, deleteJson, giveStock, prisma, seedFixtures, type Handler } from './helpers'
+import { PATCH as patchCategoryRoute } from '@/app/api/categories/[id]/route'
+import { POST as createCategoryRoute } from '@/app/api/categories/route'
+import { getJson, deleteJson, giveStock, login, patchJson, postJson, prisma, seedFixtures, type Handler } from './helpers'
 
 type Fixtures = Awaited<ReturnType<typeof seedFixtures>>
 let fx: Fixtures
@@ -64,6 +66,11 @@ const remove = (serial: string, id: string) =>
 describe('รูปอุปกรณ์ต่อ serial (ใช้ตอนเครม)', () => {
   beforeEach(async () => {
     fx = await seedFixtures()
+    // ฟีเจอร์รูปเปิดเฉพาะประเภทของที่ผู้ดูแลระบบเลือก (ในระบบจริงคือ NVR)
+    await prisma.category.update({
+      where: { id: fx.categories.it.id },
+      data: { photosEnabled: true },
+    })
     await giveStock(fx.products.notebook.id, ['NB-0001', 'NB-0002'])
   })
 
@@ -166,5 +173,53 @@ describe('รูปอุปกรณ์ต่อ serial (ใช้ตอนเ�
     const unit = await prisma.serialUnit.findUnique({ where: { serial: 'NB-0001' } })
     await prisma.serialUnit.delete({ where: { id: unit!.id } })
     expect(await prisma.serialImage.count()).toBe(0)
+  })
+
+  it('ประเภทของที่ยังไม่เปิดเก็บรูป -> แนบไม่ได้ แต่ยังดูรายการได้', async () => {
+    await giveStock(fx.products.drill.id, ['TL-0001'])
+
+    const res = await upload('TL-0001')
+    expect(res.status).toBe(403)
+    expect(res.body.error).toContain('ยังไม่เปิดให้เก็บรูป')
+
+    const listed = await list('TL-0001')
+    expect(listed.status).toBe(200)
+    expect(listed.body.photosEnabled).toBe(false)
+    expect(listed.body.images).toHaveLength(0)
+  })
+
+  it('เฉพาะผู้ดูแลระบบที่เปิด/ปิดการเก็บรูปของประเภทได้', async () => {
+    const patch = (body: unknown) =>
+      patchJson(patchCategoryRoute as unknown as Handler, body, { id: fx.categories.tool.id })
+
+    // staff แก้ชื่อประเภทได้ตามปกติ แต่ตั้งค่าการเก็บรูปไม่ได้
+    const staffName = await patch({ name: 'เครื่องมือช่าง (แก้ชื่อ)' })
+    expect(staffName.status).toBe(200)
+
+    const staffPhotos = await patch({ photosEnabled: true })
+    expect(staffPhotos.status).toBe(403)
+    expect(staffPhotos.body.error).toContain('ผู้ดูแลระบบ')
+
+    // staff สร้างประเภทพร้อมตั้งค่าเก็บรูปก็ไม่ได้
+    const staffCreate = await postJson(createCategoryRoute as unknown as Handler, {
+      code: 'NVR2',
+      name: 'เครื่องบันทึก 2',
+      photosEnabled: true,
+    })
+    expect(staffCreate.status).toBe(403)
+
+    // admin ตั้งค่าได้
+    await login('admin', 'admin123')
+    const adminPhotos = await patch({ photosEnabled: true })
+    expect(adminPhotos.status).toBe(200)
+    expect(adminPhotos.body.category.photosEnabled).toBe(true)
+
+    const adminCreate = await postJson(createCategoryRoute as unknown as Handler, {
+      code: 'NVR2',
+      name: 'เครื่องบันทึก 2',
+      photosEnabled: true,
+    })
+    expect(adminCreate.status).toBe(200)
+    expect(adminCreate.body.category.photosEnabled).toBe(true)
   })
 })

@@ -4,15 +4,30 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { api } from '@/lib/client'
 
-type Category = { id: string; code: string; name: string; productCount: number }
+type Category = {
+  id: string
+  code: string
+  name: string
+  productCount: number
+  photosEnabled: boolean
+}
 
-export function CategoriesClient({ categories }: { categories: Category[] }) {
+type EditState = { code: string; name: string; photosEnabled: boolean }
+
+export function CategoriesClient({
+  categories,
+  canEditPhotos,
+}: {
+  categories: Category[]
+  /** เฉพาะผู้ดูแลระบบเท่านั้นที่เลือกได้ว่าประเภทไหนเก็บรูปอุปกรณ์ */
+  canEditPhotos: boolean
+}) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ code: '', name: '' })
+  const [form, setForm] = useState({ code: '', name: '', photosEnabled: false })
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [edit, setEdit] = useState({ code: '', name: '' })
+  const [edit, setEdit] = useState<EditState>({ code: '', name: '', photosEnabled: false })
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true)
@@ -34,18 +49,27 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           ใช้จัดกลุ่มสินค้า และใช้เป็นขอบเขตตอนตรวจนับ · {categories.length} ประเภท
         </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {canEditPhotos
+            ? 'เปิด “เก็บรูปอุปกรณ์” เฉพาะประเภทที่ต้องแนบรูปตอนเครม (เช่น NVR)'
+            : 'การเปิด/ปิด “เก็บรูปอุปกรณ์” ทำได้เฉพาะผู้ดูแลระบบ'}
+        </p>
       </div>
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       <form
         data-testid="category-form"
-        className="card grid gap-3 p-4 sm:grid-cols-3"
+        className="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
         onSubmit={(e) => {
           e.preventDefault()
           void run(async () => {
-            await api('/api/categories', { method: 'POST', body: JSON.stringify(form) })
-            setForm({ code: '', name: '' })
+            // ส่ง photosEnabled เฉพาะ admin - staff แก้ master data ได้แต่ไม่ใช่สิทธิ์นี้
+            const payload = canEditPhotos
+              ? form
+              : { code: form.code, name: form.name }
+            await api('/api/categories', { method: 'POST', body: JSON.stringify(payload) })
+            setForm({ code: '', name: '', photosEnabled: false })
           })
         }}
       >
@@ -74,6 +98,19 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
         </div>
+        {canEditPhotos ? (
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <input
+                type="checkbox"
+                data-testid="category-photos-new"
+                checked={form.photosEnabled}
+                onChange={(e) => setForm({ ...form, photosEnabled: e.target.checked })}
+              />
+              เก็บรูปอุปกรณ์
+            </label>
+          </div>
+        ) : null}
         <div className="flex items-end">
           <button className="btn-primary" disabled={busy}>
             เพิ่มประเภทของ
@@ -88,13 +125,14 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
               <th className="px-4 py-2 font-medium">รหัส</th>
               <th className="px-4 py-2 font-medium">ชื่อ</th>
               <th className="px-4 py-2 font-medium">จำนวนสินค้า</th>
+              <th className="px-4 py-2 font-medium">เก็บรูป</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {categories.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-slate-500 dark:text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-slate-500 dark:text-slate-400">
                   ยังไม่มีประเภทของ
                 </td>
               </tr>
@@ -117,15 +155,28 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
                     />
                   </td>
                   <td className="px-4 py-2">{c.productCount}</td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      data-testid={`category-photos-${c.code}`}
+                      checked={edit.photosEnabled}
+                      disabled={!canEditPhotos}
+                      title={canEditPhotos ? undefined : 'ผู้ดูแลระบบเท่านั้น'}
+                      onChange={(e) => setEdit({ ...edit, photosEnabled: e.target.checked })}
+                    />
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-primary mr-2"
                       disabled={busy}
                       onClick={() =>
                         void run(async () => {
+                          const payload = canEditPhotos
+                            ? edit
+                            : { code: edit.code, name: edit.name }
                           await api(`/api/categories/${c.id}`, {
                             method: 'PATCH',
-                            body: JSON.stringify(edit),
+                            body: JSON.stringify(payload),
                           })
                           setEditingId(null)
                         })
@@ -143,12 +194,37 @@ export function CategoriesClient({ categories }: { categories: Category[] }) {
                   <td className="px-4 py-2 font-mono">{c.code}</td>
                   <td className="px-4 py-2">{c.name}</td>
                   <td className="px-4 py-2">{c.productCount}</td>
+                  <td className="px-4 py-2">
+                    <label className="inline-flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        data-testid={`category-photos-${c.code}`}
+                        checked={c.photosEnabled}
+                        disabled={busy || !canEditPhotos}
+                        title={canEditPhotos ? undefined : 'ผู้ดูแลระบบเท่านั้น'}
+                        onChange={(e) => {
+                          const photosEnabled = e.target.checked
+                          void run(() =>
+                            api(`/api/categories/${c.id}`, {
+                              method: 'PATCH',
+                              body: JSON.stringify({ photosEnabled }),
+                            })
+                          )
+                        }}
+                      />
+                      {c.photosEnabled ? 'เก็บรูป' : 'ไม่เก็บ'}
+                    </label>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-ghost mr-2"
                       onClick={() => {
                         setEditingId(c.id)
-                        setEdit({ code: c.code, name: c.name })
+                        setEdit({
+                          code: c.code,
+                          name: c.name,
+                          photosEnabled: c.photosEnabled,
+                        })
                       }}
                     >
                       แก้ไข
