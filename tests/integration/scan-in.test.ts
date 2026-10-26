@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { POST as scanInRoute } from '@/app/api/scan/in/route'
+import { POST as scanOutRoute } from '@/app/api/scan/out/route'
 import { POST as undoRoute } from '@/app/api/scan/undo/route'
-import type { ScanOutcome } from '@/lib/scan-service'
+import { buildStockReport, type ScanOutcome } from '@/lib/scan-service'
 import { giveStock, postJson, prisma, seedFixtures, unitBySerial } from './helpers'
 import type { Handler } from './helpers'
 
@@ -79,6 +80,40 @@ describe('POST /api/scan/in', () => {
     const unit = await unitBySerial('NB0001')
     expect(unit?.status).toBe('IN_STOCK')
     expect(unit?.releasedAt).toBeNull()
+  })
+
+  it('รับคืนด้วยการยิงรับเข้า -> ผูกกลับรายการเบิกเดิม ไม่ให้ค้างในรายงานลูกค้า', async () => {
+    await giveStock(fx.products.notebook.id, ['NB0001'])
+    const customer = await prisma.customer.create({
+      data: { code: 'C-RETURN', name: 'ลูกค้าทดสอบคืนของ' },
+    })
+    const out = await postJson<ScanOutcome>(scanOutRoute, {
+      serial: 'NB0001',
+      reason: 'SALE',
+      customerId: customer.id,
+    })
+    expect(out.body.scanLogId).toBeTruthy()
+
+    const returned = await scanIn('NB0001', fx.products.notebook.id)
+    expect(returned.body).toMatchObject({ accepted: true, result: 'RETURNED' })
+
+    const original = await prisma.scanLog.findUniqueOrThrow({
+      where: { id: out.body.scanLogId! },
+      include: { reversedBy: { select: { id: true } } },
+    })
+    expect(original.reversedBy?.id).toBe(returned.body.scanLogId)
+
+    // ของกลับเข้าคลังแล้ว จึงไม่ควรถูกกรองเจอในรายงานของลูกค้ารายนี้อีก
+    expect((await buildStockReport({ customerId: customer.id })).categories).toHaveLength(0)
+
+    // ยกเลิกการรับคืนต้องปลดสายโยง เพื่อให้กดคืนรายการเดิมได้อีกครั้ง
+    expect((await postJson(undoRoute, { scanLogId: returned.body.scanLogId })).status).toBe(200)
+    const restored = await prisma.scanLog.findUniqueOrThrow({
+      where: { id: out.body.scanLogId! },
+      include: { reversedBy: { select: { id: true } } },
+    })
+    expect(restored.reversedBy).toBeNull()
+    expect((await unitBySerial('NB0001'))?.status).toBe('OUT')
   })
 
   it('serial ที่ผูกกับสินค้าอื่นอยู่แล้ว -> ปฏิเสธ ไม่ย้ายสินค้าให้เอง', async () => {

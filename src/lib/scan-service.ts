@@ -137,6 +137,7 @@ export async function scanIn(input: {
     const now = new Date()
 
     let unitId = unit?.id ?? null
+    let reversesId: string | null = null
     if (decision.accepted) {
       if (decision.result === 'CREATED') {
         const created = await tx.serialUnit.create({
@@ -163,6 +164,21 @@ export async function scanIn(input: {
           },
         })
         unitId = unit!.id
+
+        // รับคืนด้วยการยิงรับเข้า (ไม่ผ่านปุ่ม "คืนของ") ต้องปิดรายการเบิกเดิมด้วย
+        // ไม่งั้นรายงานที่กรองตามลูกค้าจะยังเห็นชิ้นนี้เป็นของที่ขายอยู่ทั้งที่กลับเข้าคลังแล้ว
+        const originalOut = await tx.scanLog.findFirst({
+          where: {
+            serial,
+            type: 'OUT',
+            accepted: true,
+            result: 'OK',
+            reversedBy: null,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        })
+        reversesId = originalOut?.id ?? null
       }
     }
 
@@ -178,6 +194,7 @@ export async function scanIn(input: {
         productId: product.id,
         unitId,
         vendorId,
+        reversesId,
       },
     })
 
