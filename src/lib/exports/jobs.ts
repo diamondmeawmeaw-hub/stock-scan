@@ -69,10 +69,11 @@ export async function processExportJob(jobId: string): Promise<void> {
 
 async function executeJob(job: ExportJob): Promise<void> {
   const generatedAt = new Date()
-  const input = exportRequestSchema.parse(job.params)
-  const filePath = exportFilePath(job.id, input.format)
+  let input: ExportRequest | null = null
 
   try {
+    input = exportRequestSchema.parse(job.params)
+    const filePath = exportFilePath(job.id, input.format)
     await ensureExportDirectory()
 
     let fileName: string | null = null
@@ -115,9 +116,13 @@ async function executeJob(job: ExportJob): Promise<void> {
       },
     })
   } catch (err) {
-    await removeExportFile(job.id, input.format).catch(() => {})
+    if (input) await removeExportFile(job.id, input.format).catch(() => {})
     const message =
-      err instanceof Error && err.message ? err.message.slice(0, 500) : 'สร้างไฟล์ไม่สำเร็จ'
+      err instanceof Error && err.name === 'ZodError'
+        ? 'ข้อมูลงาน export ไม่ถูกต้อง กรุณาสร้างไฟล์ใหม่'
+        : err instanceof Error && err.message
+          ? err.message.slice(0, 500)
+          : 'สร้างไฟล์ไม่สำเร็จ'
     await prisma.exportJob.update({
       where: { id: job.id },
       data: {
@@ -193,6 +198,11 @@ export function kickExportWorker(): void {
   state.running = true
   void runWorker().finally(() => {
     state.running = false
+    // มีงานใหม่เข้ามาช่วงที่ worker กำลังจะจบรอบ - ปลุกอีกรอบไม่ให้งานค้าง PENDING
+    if (state.again) {
+      state.again = false
+      kickExportWorker()
+    }
   })
 }
 

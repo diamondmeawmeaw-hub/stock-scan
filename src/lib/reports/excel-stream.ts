@@ -115,16 +115,18 @@ function styleHeader(row: ExcelJS.Row) {
 function appendStockCategory(
   sheet: ExcelJS.Worksheet,
   category: StockReportDetailedRow,
-  options: { heading: boolean; total: boolean }
+  options: { heading: boolean; total: boolean; headingTotal?: boolean }
 ) {
   if (options.heading) {
-    addRow(
-      sheet,
-      [`${category.categoryName} (${category.categoryCode}) · คงเหลือรวม ${category.totalInStock} ชิ้น`],
-      (row) => {
-        row.font = { bold: true, size: 12 }
-      }
-    )
+    // ตอนแบ่งไฟล์ตามสินค้า ค่า totalInStock ของ chunk คือยอดสินค้าตัวเดียวยอดเดียว
+    // ไม่ใช่ยอดทั้งหมวด จึงไม่ควรแสดงตัวเลขนั้นในหัวหมวด
+    const heading =
+      options.headingTotal === false
+        ? `${category.categoryName} (${category.categoryCode})`
+        : `${category.categoryName} (${category.categoryCode}) · คงเหลือรวม ${category.totalInStock} ชิ้น`
+    addRow(sheet, [heading], (row) => {
+      row.font = { bold: true, size: 12 }
+    })
   }
 
   for (const p of category.products) {
@@ -225,7 +227,7 @@ async function streamStockCategoryByProduct(
 
     const chunk = report.categories[0]
     if (!chunk) continue
-    appendStockCategory(sheet, chunk, { heading: first, total: false })
+    appendStockCategory(sheet, chunk, { heading: first, total: false, headingTotal: false })
     first = false
     total += chunk.totalInStock
   }
@@ -298,16 +300,17 @@ export async function streamStockDetailedToXlsx(
 function appendOutCategory(
   sheet: ExcelJS.Worksheet,
   category: OutReportDetailedRow,
-  options: { heading: boolean; total: boolean }
+  options: { heading: boolean; total: boolean; headingTotal?: boolean }
 ) {
   if (options.heading) {
-    addRow(
-      sheet,
-      [`${category.categoryName} (${category.categoryCode}) · เบิกออกรวม ${category.totalOut} ชิ้น`],
-      (row) => {
-        row.font = { bold: true, size: 12 }
-      }
-    )
+    // เช่นเดียวกับรายงานคงเหลือ - chunk ตามสินค้าไม่มียอดรวมทั้งหมวด
+    const heading =
+      options.headingTotal === false
+        ? `${category.categoryName} (${category.categoryCode})`
+        : `${category.categoryName} (${category.categoryCode}) · เบิกออกรวม ${category.totalOut} ชิ้น`
+    addRow(sheet, [heading], (row) => {
+      row.font = { bold: true, size: 12 }
+    })
   }
 
   for (const p of category.products) {
@@ -382,7 +385,7 @@ async function streamOutCategoryByProduct(
 
     const chunk = report.categories[0]
     if (!chunk) continue
-    appendOutCategory(sheet, chunk, { heading: first, total: false })
+    appendOutCategory(sheet, chunk, { heading: first, total: false, headingTotal: false })
     first = false
     total += chunk.totalOut
   }

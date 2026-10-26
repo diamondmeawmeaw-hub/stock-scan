@@ -104,6 +104,9 @@ describe('export jobs', () => {
       expect(text).toContain('NB-S-0')
       expect(text).toContain('NB-S-6')
       expect(text).toContain('MON-S-6')
+      // แบ่งตามสินค้าแล้วหัวหมวดต้องไม่แสดงยอดของสินค้าตัวแรกเป็นยอดทั้งหมวด
+      expect(text).toContain('อุปกรณ์ไอที (IT)\n')
+      expect(text).not.toContain('อุปกรณ์ไอที (IT) · คงเหลือรวม')
     } finally {
       if (previous === undefined) delete process.env.EXPORT_ROW_LIMIT
       else process.env.EXPORT_ROW_LIMIT = previous
@@ -195,6 +198,24 @@ describe('export jobs', () => {
       if (previous === undefined) delete process.env.EXPORT_ROW_LIMIT
       else process.env.EXPORT_ROW_LIMIT = previous
     }
+  })
+
+  it('params ในงานเสีย -> mark FAILED ไม่ค้าง RUNNING', async () => {
+    const job = await prisma.exportJob.create({
+      data: {
+        userId: fx.user.id,
+        type: 'sales',
+        format: 'xlsx',
+        params: { type: 'sales', format: 'not-a-format' },
+      },
+    })
+
+    await processExportJob(job.id)
+
+    const failed = await prisma.exportJob.findUniqueOrThrow({ where: { id: job.id } })
+    expect(failed.status).toBe('FAILED')
+    expect(failed.error).toContain('ข้อมูลงาน export ไม่ถูกต้อง')
+    expect(failed.finishedAt).toBeInstanceOf(Date)
   })
 
   it('คนอื่นเปิดงานของเราไม่ได้', async () => {
