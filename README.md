@@ -24,7 +24,7 @@
 
 ### ข้อกำหนดเบื้องต้น
 
-- Node.js
+- Node.js 24.22.1 ขึ้นไป (LTS) — แนะนำให้ใช้ `.nvmrc` ด้วย `nvm use`
 - Docker และ Docker Compose (สำหรับรัน PostgreSQL)
 
 ### ติดตั้ง
