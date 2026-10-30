@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { POST as qtyInRoute } from '@/app/api/quantity/in/route'
 import { POST as qtyOutRoute } from '@/app/api/quantity/out/route'
+import { POST as returnRoute } from '@/app/api/scan/return/route'
 import { POST as auditQtyRoute } from '@/app/api/audit/sessions/[id]/quantity/route'
 import { POST as scanInRoute } from '@/app/api/scan/in/route'
 import { PATCH as patchProductRoute } from '@/app/api/products/[id]/route'
@@ -125,6 +126,83 @@ describe('สินค้านับจำนวน (QUANTITY)', () => {
     const movement = await buildMovementReport({ ...dayRange(today, today) })
     const row = movement.rows.find((r) => r.productId === rackId)
     expect(row).toMatchObject({ inCount: 10, outCount: 4 })
+  })
+
+  it('รายงานตามลูกค้าหักยอดคืนของสินค้านับจำนวน', async () => {
+    await qtyIn(rackId, 10)
+    const customer = await prisma.customer.create({
+      data: { code: 'C-QTY-RET', name: 'ลูกค้าคืนตู้แร็ค' },
+    })
+
+    const first = await qtyOut(rackId, 4, { reason: 'SALE', customerId: customer.id })
+    expect(first.status).toBe(200)
+    expect(first.body.scanLogId).toBeTruthy()
+
+    const returned = await postJson(returnRoute, { scanLogId: first.body.scanLogId })
+    expect(returned.status).toBe(200)
+
+    const second = await qtyOut(rackId, 2, { reason: 'SALE', customerId: customer.id })
+    expect(second.status).toBe(200)
+
+    const stock = await buildStockReport({ customerId: customer.id })
+    const row = stock.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.productId === rackId)
+    // ขาย 4 -> คืน 4 -> ขาย 2 = เบิกสุทธิ 2
+    expect(row).toMatchObject({ trackingType: 'QUANTITY', out: 2 })
+
+    const returnLog = await prisma.scanLog.findFirstOrThrow({
+      where: { reversesId: first.body.scanLogId },
+    })
+    expect(returnLog).toMatchObject({ customerId: customer.id, projectId: null })
+  })
+
+  it('รายงานลูกค้ายังหักคืนเก่าที่ customerId ว่างได้', async () => {
+    await qtyIn(rackId, 10)
+    const customer = await prisma.customer.create({
+      data: { code: 'C-QTY-OLD', name: 'ลูกค้าคืนของเก่า' },
+    })
+
+    const first = await qtyOut(rackId, 4, { reason: 'SALE', customerId: customer.id })
+    const returned = await postJson(returnRoute, { scanLogId: first.body.scanLogId })
+    expect(returned.status).toBe(200)
+
+    // จำลอง log คืนจากข้อมูลเก่าที่สร้างก่อนแก้ bug
+    await prisma.scanLog.update({
+      where: { id: returned.body.scanLogId },
+      data: { customerId: null, projectId: null },
+    })
+
+    await qtyOut(rackId, 2, { reason: 'SALE', customerId: customer.id })
+
+    const stock = await buildStockReport({ customerId: customer.id })
+    const row = stock.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.productId === rackId)
+    expect(row).toMatchObject({ out: 2 })
+  })
+
+  it('คืนของลูกค้า B ไม่ไปหักยอดเบิกของลูกค้า A', async () => {
+    await qtyIn(rackId, 20)
+    const customerA = await prisma.customer.create({
+      data: { code: 'C-QTY-A', name: 'ลูกค้า A' },
+    })
+    const customerB = await prisma.customer.create({
+      data: { code: 'C-QTY-B', name: 'ลูกค้า B' },
+    })
+
+    const outA = await qtyOut(rackId, 10, { reason: 'SALE', customerId: customerA.id })
+    const outB = await qtyOut(rackId, 10, { reason: 'SALE', customerId: customerB.id })
+    expect(outA.status).toBe(200)
+    expect(outB.status).toBe(200)
+    expect((await postJson(returnRoute, { scanLogId: outB.body.scanLogId })).status).toBe(200)
+
+    const stockA = await buildStockReport({ customerId: customerA.id })
+    const rowA = stockA.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.productId === rackId)
+    // การคืนของ B ต้องไม่ลดยอดของ A
+    expect(rowA).toMatchObject({ out: 10 })
   })
 
   it('ตรวจนับ: กรอกยอดนับ + ปิดแบบปรับสต็อก -> stockQty เท่ายอดนับ', async () => {

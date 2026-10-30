@@ -216,6 +216,63 @@ describe('POST /api/scan/in', () => {
     expect(logs[0].message).toContain('ยกเลิกการรับเข้า')
   })
 
+  it('ยกเลิกรับเข้าถือ serial lock ตอนลบ unit', async () => {
+    const res = await scanIn('NB0001', fx.products.notebook.id)
+    const scanLogId = res.body.scanLogId
+    expect(scanLogId).toBeTruthy()
+
+    // trigger ตรวจว่า backend ที่ลบ unit ถือ advisory lock อยู่จริง
+    // ถ้า undo ไม่ได้ล็อก serial ไว้ trigger จะ throw -> route ตอบ 500
+    await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS test_undo_lock_assert ON "SerialUnit"')
+    await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS test_undo_lock_assert()')
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION test_undo_lock_assert() RETURNS trigger AS $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_locks
+          WHERE locktype = 'advisory'
+            AND granted
+            AND pid = pg_backend_pid()
+        ) THEN
+          RAISE EXCEPTION 'undo did not hold serial advisory lock';
+        END IF;
+        RETURN OLD;
+      END;
+      $$ LANGUAGE plpgsql;
+    `)
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER test_undo_lock_assert
+      BEFORE DELETE ON "SerialUnit"
+      FOR EACH ROW EXECUTE FUNCTION test_undo_lock_assert();
+    `)
+
+    try {
+      const undoRes = await postJson(undoRoute as Handler, { scanLogId })
+      expect(undoRes.status).toBe(200)
+      expect(await unitBySerial('NB0001')).toBeNull()
+    } finally {
+      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS test_undo_lock_assert ON "SerialUnit"')
+      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS test_undo_lock_assert()')
+    }
+  })
+
+  it('ยกเลิกการรับเข้าหลังของถูกเบิกออก -> 409 และไม่ลบ unit', async () => {
+    const res = await scanIn('NB0001', fx.products.notebook.id)
+    const scanLogId = res.body.scanLogId
+    expect(scanLogId).toBeTruthy()
+
+    const out = await postJson<ScanOutcome>(scanOutRoute, {
+      serial: 'NB0001',
+      reason: 'OTHER',
+    })
+    expect(out.status).toBe(200)
+
+    const undoRes = await postJson(undoRoute as Handler, { scanLogId })
+    expect(undoRes.status).toBe(409)
+    expect((await unitBySerial('NB0001'))?.status).toBe('OUT')
+  })
+
   it('ยกเลิกการรับเข้า RETURNED -> คืนสถานะเป็น OUT และล้าง receivedAt', async () => {
     await giveStock(fx.products.notebook.id, ['NB0001'])
     await prisma.serialUnit.update({

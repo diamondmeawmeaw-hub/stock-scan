@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { readJson, route } from '@/lib/api'
-import { requireUser } from '@/lib/auth'
+import { HttpError, requireUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { HttpError } from '@/lib/auth'
+import { lockSerial } from '@/lib/scan-service'
 
 const schema = z.object({
   scanLogId: z.string().min(1, 'ต้องระบุ scanLogId'),
@@ -24,6 +24,11 @@ export async function POST(request: Request) {
     if (!log.unitId) {
       throw new HttpError(400, 'รายการนับจำนวนยกเลิกไม่ได้ - ให้เบิกออกเพื่อปรับยอดแทน')
     }
+    if (!log.serial) {
+      throw new HttpError(400, 'รายการนี้ไม่มี serial ผูกอยู่ ยกเลิกไม่ได้')
+    }
+    const serial = log.serial
+    const unitId = log.unitId
     // รองรับแค่ 2 แบบที่ย้อนกลับได้อย่างปลอดภัย - ชนิดอื่นตอบ error ชัดเจน
     // (เดิมตกทะลุไปตอบ success ทั้งที่ไม่ได้ทำอะไร)
     if (log.result !== 'CREATED' && log.result !== 'RETURNED') {
@@ -31,9 +36,14 @@ export async function POST(request: Request) {
     }
 
     await prisma.$transaction(async (tx) => {
-      // อ่านสถานะล่าสุดใน transaction - กันเคสของเปลี่ยนมือไปแล้ว
+      // ต้องล็อก serial ตัวเดียวกับ scan-in/scan-out ก่อนอ่านสถานะ
+      // ไม่งั้นการเบิกออกที่เกิดพร้อมกันอาจ commit หลังเราเช็กสถานะแต่ก่อนลบ unit
+      // ทำให้เหลือ log ขายที่ชี้ unit ที่ถูกลบไปแล้ว
+      await lockSerial(tx, serial)
+
+      // อ่านสถานะล่าสุดหลังได้ lock - กันเคสของเปลี่ยนมือไปแล้ว
       // (เช่น รับเข้า -> เบิกออกไปขาย -> มากดลบแถวรับเข้า จะลบของที่ขายไปแล้วทิ้ง)
-      const unit = await tx.serialUnit.findUnique({ where: { id: log.unitId! } })
+      const unit = await tx.serialUnit.findUnique({ where: { id: unitId } })
       if (!unit) throw new HttpError(404, 'ไม่พบของชิ้นนี้ในระบบแล้ว')
       if (unit.status !== 'IN_STOCK') {
         throw new HttpError(
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
       // ห้ามลบ unit ทิ้งเพราะจะทำให้ประวัติเหล่านั้นผูกของที่หายไป
       const later = await tx.scanLog.findFirst({
         where: {
-          unitId: log.unitId,
+          unitId,
           id: { not: log.id },
           accepted: true,
           createdAt: { gte: log.createdAt },
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
         )
       }
 
-      if (log.result === 'CREATED' && log.unitId) {
+      if (log.result === 'CREATED') {
         // สร้าง log ยกเลิกก่อนลบ unit เพื่อไม่ให้ foreign key error
         await tx.scanLog.create({
           data: {
@@ -71,14 +81,14 @@ export async function POST(request: Request) {
             message: `ยกเลิกการรับเข้า: ${log.message}`,
             userId: log.userId,
             productId: log.productId,
-            unitId: log.unitId,
+            unitId,
             vendorId: log.vendorId,
           },
         })
-        await tx.serialUnit.delete({ where: { id: log.unitId } })
-      } else if (log.result === 'RETURNED' && log.unitId) {
+        await tx.serialUnit.delete({ where: { id: unitId } })
+      } else if (log.result === 'RETURNED') {
         await tx.serialUnit.update({
-          where: { id: log.unitId },
+          where: { id: unitId },
           data: { status: 'OUT', receivedAt: null, releasedAt: new Date(), lastScanAt: new Date() },
         })
 
@@ -97,7 +107,7 @@ export async function POST(request: Request) {
             message: `ยกเลิกการรับคืน: ${log.message}`,
             userId: log.userId,
             productId: log.productId,
-            unitId: log.unitId,
+            unitId,
             vendorId: log.vendorId,
           },
         })

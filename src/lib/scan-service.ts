@@ -67,7 +67,7 @@ function toSnapshot(unit: UnitWithProduct | null): UnitSnapshot | null {
  * หรือสร้าง serial ใหม่ชนกันจนติด unique constraint
  * ล็อกนี้ปลดเองอัตโนมัติเมื่อ transaction จบ (commit หรือ rollback ก็ตาม)
  */
-async function lockSerial(tx: Prisma.TransactionClient, serial: string): Promise<void> {
+export async function lockSerial(tx: Prisma.TransactionClient, serial: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${serial}))`
 }
 
@@ -641,6 +641,8 @@ export async function returnOut(input: {
           userId: input.userId,
           productId: product.id,
           unitId: null,
+          customerId: original.customerId,
+          projectId: original.projectId,
           reversesId: original.id,
         },
       })
@@ -693,6 +695,8 @@ export async function returnOut(input: {
         userId: input.userId,
         productId: unit.productId,
         unitId: unit.id,
+        customerId: original.customerId,
+        projectId: original.projectId,
         reversesId: original.id,
       },
     })
@@ -1461,17 +1465,36 @@ async function sumOutQuantity(
   const base = {
     accepted: true,
     productId: { in: productIds },
+  }
+  // ใบเบิกใช้ customerId ตรง ๆ
+  // ใบคืนรุ่นเก่าอาจยังไม่มี customerId จึงดู customerId ของรายการเบิกเดิมผ่าน reverses ด้วย
+  const outWhere: Prisma.ScanLogWhereInput = {
+    ...base,
+    type: 'OUT',
     ...(opts.customerId ? { customerId: opts.customerId } : {}),
+  }
+  const returnedWhere: Prisma.ScanLogWhereInput = {
+    ...base,
+    type: 'IN',
+    result: 'RETURNED',
+    ...(opts.customerId
+      ? {
+          OR: [
+            { customerId: opts.customerId },
+            { reverses: { is: { customerId: opts.customerId } } },
+          ],
+        }
+      : {}),
   }
   const [outGrouped, returnedGrouped] = await Promise.all([
     prisma.scanLog.groupBy({
       by: ['productId'],
-      where: { ...base, type: 'OUT' },
+      where: outWhere,
       _sum: { quantity: true },
     }),
     prisma.scanLog.groupBy({
       by: ['productId'],
-      where: { ...base, type: 'IN', result: 'RETURNED' },
+      where: returnedWhere,
       _sum: { quantity: true },
     }),
   ])
