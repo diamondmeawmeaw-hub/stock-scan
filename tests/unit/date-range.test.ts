@@ -106,20 +106,20 @@ describe('timePeriodRange', () => {
     expect(fromUtc).toMatch(/T17:00:00\.000Z$/)
   })
 
-  it('7d มีช่วงประมาณ 7 วัน', () => {
+  it('7d ครอบคลุม 7 วันรวมวันนี้', () => {
     const range = timePeriodRange('7d')!
     const diffMs = range.to.getTime() - range.from.getTime()
     const diffDays = diffMs / (1000 * 60 * 60 * 24)
-    expect(diffDays).toBeGreaterThanOrEqual(7)
-    expect(diffDays).toBeLessThan(8)
+    expect(diffDays).toBeGreaterThanOrEqual(6)
+    expect(diffDays).toBeLessThan(7)
   })
 
-  it('30d มีช่วงประมาณ 30 วัน', () => {
+  it('30d ครอบคลุม 30 วันรวมวันนี้', () => {
     const range = timePeriodRange('30d')!
     const diffMs = range.to.getTime() - range.from.getTime()
     const diffDays = diffMs / (1000 * 60 * 60 * 24)
-    expect(diffDays).toBeGreaterThanOrEqual(30)
-    expect(diffDays).toBeLessThan(31)
+    expect(diffDays).toBeGreaterThanOrEqual(29)
+    expect(diffDays).toBeLessThan(30)
   })
 
   it('6m มีช่วงประมาณ 6 เดือน', () => {

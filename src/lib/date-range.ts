@@ -76,10 +76,12 @@ export function timePeriodRange(period: TimePeriod): { from: Date; to: Date } | 
   let from: string
   switch (period) {
     case '7d':
-      from = shiftDays(today, -7)
+      // รวมวันนี้ด้วย = 7 วัน (เดิม -7 ทำให้ได้ 8 วัน)
+      from = shiftDays(today, -6)
       break
     case '30d':
-      from = shiftDays(today, -30)
+      // รวมวันนี้ด้วย = 30 วัน
+      from = shiftDays(today, -29)
       break
     case '6m':
       from = shiftDays(today, -183)
