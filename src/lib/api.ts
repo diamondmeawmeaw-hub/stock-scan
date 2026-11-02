@@ -23,7 +23,10 @@ export async function fileRoute(fn: () => Promise<Response>): Promise<Response> 
 
 function errorResponse(err: unknown): NextResponse {
   if (err instanceof HttpError) {
-    return NextResponse.json({ error: err.message }, { status: err.status })
+    const headers = err.retryAfterSeconds
+      ? { 'Retry-After': String(err.retryAfterSeconds) }
+      : undefined
+    return NextResponse.json({ error: err.message }, { status: err.status, headers })
   }
   if (err instanceof ZodError) {
     return NextResponse.json(

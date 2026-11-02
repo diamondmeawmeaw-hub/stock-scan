@@ -14,6 +14,10 @@ export { SESSION_COOKIE, type SessionPayload }
 
 const BCRYPT_ROUNDS = 10
 
+// ใช้เทียบตอนไม่พบผู้ใช้ เพื่อให้เวลาตอบใกล้เคียงกรณีรหัสผ่านผิดจริง
+// (bcrypt hash ของข้อความสุ่ม ไม่ใช่รหัสผ่านของใคร)
+const DUMMY_PASSWORD_HASH = '$2a$10$/DOvHI3hzarOIjBC0ZfQTOd48kJ68dcIyZso7GGJlkdtpBqlKz.cC'
+
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, BCRYPT_ROUNDS)
 }
@@ -28,8 +32,12 @@ export async function authenticate(
   password: string
 ): Promise<SessionPayload | null> {
   const user = await prisma.user.findUnique({ where: { username: username.trim().toLowerCase() } })
-  if (!user || !user.active) return null
-  if (!(await verifyPassword(password, user.passwordHash))) return null
+
+  // ตรวจ bcrypt ทุกครั้งแม้ไม่พบผู้ใช้หรือผู้ใช้ถูกปิดใช้งาน
+  // เพื่อไม่ให้การมี/ไม่มี username หรือสถานะ active ถูกเดาจากเวลาตอบ
+  const passwordOk = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH)
+  if (!user || !user.active || !passwordOk) return null
+
   return {
     userId: user.id,
     username: user.username,
@@ -109,7 +117,8 @@ export async function requireAdmin(): Promise<SessionPayload> {
 export class HttpError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
+    public retryAfterSeconds?: number
   ) {
     super(message)
     this.name = 'HttpError'
