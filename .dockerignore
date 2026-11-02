@@ -2,8 +2,9 @@ node_modules
 .next
 .next-e2e
 .git
+# ไม่เอาไฟล์ env ใด ๆ เข้า build context - secrets ต้องมาจาก runtime/compose เท่านั้น
 .env
-.env.local
+.env.*
 tests/e2e
 playwright.config.ts
 test-results
