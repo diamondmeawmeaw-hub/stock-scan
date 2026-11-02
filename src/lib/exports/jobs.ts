@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import type { ExportJob, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -22,7 +23,8 @@ import {
 } from './schema'
 
 const RETENTION_MS = 24 * 60 * 60 * 1000
-const STALE_RUNNING_MS = 10 * 60 * 1000
+const STALE_LEASE_MS = 15 * 60 * 1000
+const HEARTBEAT_MS = 30 * 1000
 const MAX_EXPORT_FILE_BYTES = 200 * 1024 * 1024
 
 type WorkerState = { running: boolean; again: boolean }
@@ -55,21 +57,53 @@ export async function createExportJob(
 
 /** ประมวลผลงานหนึ่งรายการ - เรียกจาก worker หรือเทสโดยตรง */
 export async function processExportJob(jobId: string): Promise<void> {
-  const claimed = await prisma.exportJob.updateMany({
-    where: { id: jobId, status: 'PENDING' },
-    data: { status: 'RUNNING', startedAt: new Date(), progress: 5, error: null },
-  })
-  if (claimed.count === 0) return
-
-  const job = await prisma.exportJob.findUnique({ where: { id: jobId } })
+  const leaseId = randomUUID()
+  const job = await claimJob(jobId, leaseId)
   if (!job) return
-
-  await executeJob(job)
+  await executeJob(job, leaseId)
 }
 
-async function executeJob(job: ExportJob): Promise<void> {
+async function claimJob(jobId: string, leaseId: string): Promise<ExportJob | null> {
+  const now = new Date()
+  const claimed = await prisma.exportJob.updateMany({
+    where: { id: jobId, status: 'PENDING' },
+    data: {
+      status: 'RUNNING',
+      startedAt: now,
+      heartbeatAt: now,
+      leaseId,
+      progress: 5,
+      error: null,
+    },
+  })
+  if (claimed.count === 0) return null
+  return prisma.exportJob.findUnique({ where: { id: jobId } })
+}
+
+async function executeJob(job: ExportJob, leaseId: string): Promise<void> {
   const generatedAt = new Date()
   let input: ExportRequest | null = null
+  let leaseLost = false
+
+  // lease ต้องมี heartbeat ระหว่างทำงาน ไม่งั้น worker อื่นอาจเข้าใจว่างานค้าง
+  // แล้ว reset ไปทำซ้ำพร้อมกัน
+  const heartbeat = setInterval(() => {
+    void prisma.exportJob
+      .updateMany({
+        where: { id: job.id, leaseId, status: 'RUNNING' },
+        data: { heartbeatAt: new Date() },
+      })
+      .then((updated) => {
+        if (updated.count === 0) {
+          leaseLost = true
+          clearInterval(heartbeat)
+        }
+      })
+      .catch((err) => {
+        console.error(`[export] heartbeat ${job.id} failed:`, err)
+      })
+  }, HEARTBEAT_MS)
+  if (typeof heartbeat.unref === 'function') heartbeat.unref()
 
   try {
     input = exportRequestSchema.parse(job.params)
@@ -103,8 +137,8 @@ async function executeJob(job: ExportJob): Promise<void> {
       throw new Error('ไฟล์ที่สร้างมีขนาดเกิน 200 MB กรุณากรองข้อมูลให้แคบลง')
     }
 
-    await prisma.exportJob.update({
-      where: { id: job.id },
+    const done = await prisma.exportJob.updateMany({
+      where: { id: job.id, leaseId, status: 'RUNNING' },
       data: {
         status: 'DONE',
         progress: 100,
@@ -113,27 +147,46 @@ async function executeJob(job: ExportJob): Promise<void> {
         size,
         finishedAt: new Date(),
         expiresAt: new Date(Date.now() + RETENTION_MS),
+        leaseId: null,
+        heartbeatAt: null,
       },
     })
+    if (done.count === 0) {
+      console.warn(`[export] job ${job.id} lease lost before DONE`)
+    }
   } catch (err) {
-    if (input) await removeExportFile(job.id, input.format).catch(() => {})
+    const stillOwned =
+      !leaseLost &&
+      (await prisma.exportJob
+        .count({ where: { id: job.id, leaseId, status: 'RUNNING' } })
+        .catch(() => 0)) > 0
+
+    if (stillOwned && input) await removeExportFile(job.id, input.format).catch(() => {})
     const message =
       err instanceof Error && err.name === 'ZodError'
         ? 'ข้อมูลงาน export ไม่ถูกต้อง กรุณาสร้างไฟล์ใหม่'
         : err instanceof Error && err.message
           ? err.message.slice(0, 500)
           : 'สร้างไฟล์ไม่สำเร็จ'
-    await prisma.exportJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'FAILED',
-        progress: 0,
-        error: message,
-        finishedAt: new Date(),
-        expiresAt: new Date(Date.now() + RETENTION_MS),
-      },
-    }).catch(() => {})
+    if (stillOwned) {
+      await prisma.exportJob
+        .updateMany({
+          where: { id: job.id, leaseId, status: 'RUNNING' },
+          data: {
+            status: 'FAILED',
+            progress: 0,
+            error: message,
+            finishedAt: new Date(),
+            expiresAt: new Date(Date.now() + RETENTION_MS),
+            leaseId: null,
+            heartbeatAt: null,
+          },
+        })
+        .catch(() => {})
+    }
     console.error(`[export] job ${job.id} failed:`, err)
+  } finally {
+    clearInterval(heartbeat)
   }
 }
 
@@ -165,7 +218,9 @@ async function streamLargeExport(
   await streamOutDetailedToXlsx(filters, meta, filePath)
 }
 
-async function claimNextJob(): Promise<ExportJob | null> {
+type ClaimedJob = { job: ExportJob; leaseId: string }
+
+async function claimNextJob(): Promise<ClaimedJob | null> {
   while (true) {
     const next = await prisma.exportJob.findFirst({
       where: { status: 'PENDING' },
@@ -174,13 +229,9 @@ async function claimNextJob(): Promise<ExportJob | null> {
     })
     if (!next) return null
 
-    const claimed = await prisma.exportJob.updateMany({
-      where: { id: next.id, status: 'PENDING' },
-      data: { status: 'RUNNING', startedAt: new Date(), progress: 5, error: null },
-    })
-    if (claimed.count === 0) continue
-
-    return prisma.exportJob.findUnique({ where: { id: next.id } })
+    const leaseId = randomUUID()
+    const job = await claimJob(next.id, leaseId)
+    if (job) return { job, leaseId }
   }
 }
 
@@ -215,9 +266,9 @@ async function runWorker(): Promise<void> {
     do {
       state.again = false
       while (true) {
-        const job = await claimNextJob()
-        if (!job) break
-        await executeJob(job)
+        const claimed = await claimNextJob()
+        if (!claimed) break
+        await executeJob(claimed.job, claimed.leaseId)
       }
     } while (state.again)
   } catch (err) {
@@ -225,13 +276,27 @@ async function runWorker(): Promise<void> {
   }
 }
 
-async function resetStaleJobs(): Promise<void> {
+export async function resetStaleJobs(): Promise<void> {
+  const staleBefore = new Date(Date.now() - STALE_LEASE_MS)
   await prisma.exportJob.updateMany({
     where: {
       status: 'RUNNING',
-      startedAt: { lt: new Date(Date.now() - STALE_RUNNING_MS) },
+      OR: [
+        // มี heartbeat แต่เก่าเกินกำหนด = worker ตาย/ค้าง
+        { heartbeatAt: { lt: staleBefore } },
+        // งานเก่าก่อนมี lease field
+        { heartbeatAt: null, startedAt: { lt: staleBefore } },
+        // ไม่มีข้อมูลเวลาเลย = ปล่อยให้เริ่มใหม่
+        { heartbeatAt: null, startedAt: null },
+      ],
     },
-    data: { status: 'PENDING', startedAt: null, progress: 0 },
+    data: {
+      status: 'PENDING',
+      startedAt: null,
+      heartbeatAt: null,
+      leaseId: null,
+      progress: 0,
+    },
   })
 }
 

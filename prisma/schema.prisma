@@ -287,6 +287,10 @@ model ExportJob {
   params      Json
   status      ExportJobStatus @default(PENDING)
   progress    Int             @default(0)
+  /// เจ้าของงานขณะ RUNNING - กัน worker อื่นเขียนทับหลัง lease หมดอายุ
+  leaseId     String?
+  /// เวลาที่ worker ล่าสุดส่งสัญญาณว่ายังทำงานอยู่
+  heartbeatAt DateTime?
   fileName    String?
   contentType String?
   size        Int?
@@ -299,6 +303,7 @@ model ExportJob {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([status, heartbeatAt])
   @@index([userId, createdAt])
   @@index([expiresAt])
 }

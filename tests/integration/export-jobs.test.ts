@@ -6,7 +6,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { GET as downloadRoute } from '@/app/api/exports/[id]/download/route'
 import { GET as statusRoute } from '@/app/api/exports/[id]/route'
 import { POST as createRoute } from '@/app/api/exports/route'
-import { processExportJob } from '@/lib/exports/jobs'
+import { processExportJob, resetStaleJobs } from '@/lib/exports/jobs'
 import { getJson, giveStock, postJson, prisma, seedFixtures } from './helpers'
 
 type Fixtures = Awaited<ReturnType<typeof seedFixtures>>
@@ -242,5 +242,55 @@ describe('export jobs', () => {
     // createExportJob เรียก cleanupExpiredExports ก่อนสร้างงานใหม่
     await createAndProcess({ type: 'sales', format: 'xlsx' })
     expect(await prisma.exportJob.findUnique({ where: { id: job.id } })).toBeNull()
+  })
+
+  it('reset เฉพาะงานที่ heartbeat เก่า และคืนสถานะเป็น PENDING พร้อมล้าง lease', async () => {
+    const staleAt = new Date(Date.now() - 20 * 60 * 1000)
+    const stale = await prisma.exportJob.create({
+      data: {
+        userId: fx.user.id,
+        type: 'sales',
+        format: 'xlsx',
+        params: { type: 'sales', format: 'xlsx' },
+        status: 'RUNNING',
+        startedAt: staleAt,
+        heartbeatAt: staleAt,
+        leaseId: 'old-lease',
+      },
+    })
+    const fresh = await prisma.exportJob.create({
+      data: {
+        userId: fx.user.id,
+        type: 'sales',
+        format: 'xlsx',
+        params: { type: 'sales', format: 'xlsx' },
+        status: 'RUNNING',
+        startedAt: staleAt,
+        heartbeatAt: new Date(),
+        leaseId: 'fresh-lease',
+      },
+    })
+
+    await resetStaleJobs()
+
+    expect(await prisma.exportJob.findUniqueOrThrow({ where: { id: stale.id } })).toMatchObject({
+      status: 'PENDING',
+      leaseId: null,
+      heartbeatAt: null,
+      startedAt: null,
+    })
+    expect(await prisma.exportJob.findUniqueOrThrow({ where: { id: fresh.id } })).toMatchObject({
+      status: 'RUNNING',
+      leaseId: 'fresh-lease',
+    })
+  })
+
+  it('งานที่ทำเสร็จแล้วต้องไม่ค้าง lease', async () => {
+    const job = await createAndProcess({ type: 'sales', format: 'xlsx' })
+    expect(await prisma.exportJob.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({
+      status: 'DONE',
+      leaseId: null,
+      heartbeatAt: null,
+    })
   })
 })
