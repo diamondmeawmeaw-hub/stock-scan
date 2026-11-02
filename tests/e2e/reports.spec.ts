@@ -1,4 +1,4 @@
-import { confirmScan, expect, loginAs, scanBurst, selectProduct, test } from './fixtures'
+import { confirmScan, expect, loginAs, prisma, scanBurst, selectProduct, test } from './fixtures'
 
 test.describe('รายงาน', () => {
   test('กรองยอดคงเหลือตามประเภทของ แบรนด์ และค้นหาชื่อ', async ({ page, data }) => {
@@ -62,12 +62,37 @@ test.describe('รายงาน', () => {
     await expect(page.getByTestId('movement-empty')).toBeVisible()
   })
 
+  test('Serial ในรายงานแบ่งหน้าเมื่อเกิน 100 รายการ', async ({ page, data }) => {
+    // 3 ตัวเดิม + 101 ตัวใหม่ = 104 -> หน้าแรก 100, หน้าสอง 4
+    await prisma.serialUnit.createMany({
+      data: Array.from({ length: 101 }, (_, i) => ({
+        serial: `ZZZ-${String(i + 1).padStart(3, '0')}`,
+        productId: data.products.notebook.id,
+        status: 'IN_STOCK' as const,
+        receivedAt: new Date(),
+      })),
+    })
+
+    await loginAs(page, 'staff')
+    await page.goto('/reports')
+    await page.getByTestId('expand-IT-NB-001').click()
+
+    await expect(page.getByTestId('serial-pagination')).toBeVisible()
+    await expect(page.getByTestId('serial-row')).toHaveCount(100)
+
+    await page.getByTestId('serial-next').click()
+    await expect(page.getByTestId('serial-row')).toHaveCount(4)
+    await expect(page.getByTestId('serial-prev')).toBeEnabled()
+    await expect(page.getByTestId('serial-next')).toBeDisabled()
+  })
+
   test('โหลดไฟล์ Excel และ PDF ได้ทั้งสองแท็บ', async ({ page, data: _data }) => {
     await loginAs(page, 'staff')
     await page.goto('/reports')
 
+    // dev server อาจ compile route export ครั้งแรกช้า - เผื่อเวลาเกิน 15s ปกติ
     const [xlsx] = await Promise.all([
-      page.waitForEvent('download'),
+      page.waitForEvent('download', { timeout: 45_000 }),
       page.getByTestId('export-xlsx').click(),
     ])
     expect(xlsx.suggestedFilename()).toMatch(/\.xlsx$/)
@@ -76,7 +101,7 @@ test.describe('รายงาน', () => {
     await expect(page.getByTestId('total-in')).toBeVisible()
 
     const [pdf] = await Promise.all([
-      page.waitForEvent('download'),
+      page.waitForEvent('download', { timeout: 45_000 }),
       page.getByTestId('export-pdf').click(),
     ])
     expect(pdf.suggestedFilename()).toMatch(/\.pdf$/)

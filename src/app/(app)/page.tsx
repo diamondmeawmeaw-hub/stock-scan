@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
+import { countSerialOut } from '@/lib/scan-service'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const [serialInStock, serialOut, qtyInStock, qtyOut, qtyReturned, productCount, categoryCount, openSession, recentScans] = await Promise.all([
     prisma.serialUnit.count({ where: { status: 'IN_STOCK' } }),
-    prisma.serialUnit.count({ where: { status: 'OUT' } }),
+    countSerialOut(),
     prisma.product.aggregate({
       where: { trackingType: 'QUANTITY' },
       _sum: { stockQty: true },

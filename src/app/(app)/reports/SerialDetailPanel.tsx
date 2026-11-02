@@ -27,6 +27,10 @@ type SerialDetailResponse = {
     categoryName: string
   } | null
   serials: SerialDetail[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 type Props = {
@@ -46,6 +50,13 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
   const [data, setData] = useState<SerialDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const { categoryId, brand, vendorId, q, customerId, timePeriod } = filters
+
+  // เปลี่ยนสินค้า/ตัวกรอง -> กลับไปหน้าแรก
+  useEffect(() => {
+    setPage(1)
+  }, [productId, serialMode, categoryId, brand, vendorId, q, customerId, timePeriod])
 
   useEffect(() => {
     let cancelled = false
@@ -57,20 +68,25 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
       const params = new URLSearchParams()
       params.set('productId', productId)
       params.set('status', serialMode)
-      if (filters.categoryId) params.set('categoryId', filters.categoryId)
-      if (filters.brand) params.set('brand', filters.brand)
-      if (filters.vendorId) params.set('vendorId', filters.vendorId)
-      if (filters.q) params.set('q', filters.q)
-      if (filters.customerId) params.set('customerId', filters.customerId)
-      if (filters.timePeriod && filters.timePeriod !== 'all') {
-        params.set('timePeriod', filters.timePeriod)
+      params.set('page', String(page))
+      if (categoryId) params.set('categoryId', categoryId)
+      if (brand) params.set('brand', brand)
+      if (vendorId) params.set('vendorId', vendorId)
+      if (q) params.set('q', q)
+      if (customerId) params.set('customerId', customerId)
+      if (timePeriod && timePeriod !== 'all') {
+        params.set('timePeriod', timePeriod)
       }
 
       try {
         const res = await fetch(`/api/reports/stock-serials?${params}`)
         if (!res.ok) throw new Error('Failed to load')
         const json: SerialDetailResponse = await res.json()
-        if (!cancelled) setData(json)
+        if (!cancelled) {
+          setData(json)
+          // API clamp หน้าเกินช่วงให้อัตโนมัติ - sync state กลับด้วย
+          if (json.page !== page) setPage(json.page)
+        }
       } catch {
         if (!cancelled) setError('ไม่สามารถโหลดข้อมูล Serial ได้')
       } finally {
@@ -80,7 +96,17 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
 
     load()
     return () => { cancelled = true }
-  }, [productId, filters, serialMode])
+  }, [
+    productId,
+    serialMode,
+    categoryId,
+    brand,
+    vendorId,
+    q,
+    customerId,
+    timePeriod,
+    page,
+  ])
 
   if (loading) {
     return (
@@ -101,7 +127,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
     )
   }
 
-  if (!data || data.serials.length === 0) {
+  if (!data || data.total === 0) {
     return (
       <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
         <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบ Serial</p>
@@ -109,14 +135,18 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
     )
   }
 
+  const firstRow = (data.page - 1) * data.pageSize + 1
+  const lastRow = Math.min(data.page * data.pageSize, data.total)
+
   return (
     <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
           {data.product?.sku} · {data.product?.name}
         </span>
         <span className="text-xs text-slate-500 dark:text-slate-400">
-          ({data.serials.length} Serial)
+          ({data.total.toLocaleString('th-TH')} Serial
+          {data.totalPages > 1 ? ` · หน้า ${data.page}/${data.totalPages}` : ''})
         </span>
       </div>
 
@@ -152,6 +182,38 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
           </tbody>
         </table>
       </div>
+
+      {data.totalPages > 1 && (
+        <div
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm"
+          data-testid="serial-pagination"
+        >
+          <span className="text-slate-500 dark:text-slate-400">
+            แสดง {firstRow.toLocaleString('th-TH')}-{lastRow.toLocaleString('th-TH')} จาก{' '}
+            {data.total.toLocaleString('th-TH')}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(data.page - 1)}
+              disabled={data.page <= 1}
+              data-testid="serial-prev"
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              ก่อนหน้า
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(data.page + 1)}
+              disabled={data.page >= data.totalPages}
+              data-testid="serial-next"
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              ถัดไป
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

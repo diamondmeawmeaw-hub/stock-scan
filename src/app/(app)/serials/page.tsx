@@ -203,7 +203,7 @@ function SerialResult({
           <span className="font-mono text-2xl font-semibold text-slate-900 dark:text-slate-100" data-testid="serial-value">
             {detail.serial}
           </span>
-          <StatusBadge status={unit.status} />
+          <StatusBadge status={unit.missing ? 'MISSING' : unit.status} />
         </div>
         <div className="mt-1 text-slate-600 dark:text-slate-300">
           {unit.productName} <span className="text-slate-400 dark:text-slate-500">({unit.sku})</span> ·{' '}
@@ -276,18 +276,24 @@ function ResultBadge({
   )
 }
 
-function StatusBadge({ status }: { status: 'IN_STOCK' | 'OUT' }) {
+function StatusBadge({ status }: { status: 'IN_STOCK' | 'OUT' | 'MISSING' }) {
+  const tone =
+    status === 'IN_STOCK'
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+      : status === 'MISSING'
+        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+        : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+  const label =
+    status === 'IN_STOCK' ? 'อยู่ในคลัง' : status === 'MISSING' ? 'ของหาย' : 'เบิกออกไปแล้ว'
+
   return (
     <span
       data-testid="serial-status"
       data-status={status}
-      className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${
-        status === 'IN_STOCK'
-          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-      }`}
+      title={status === 'MISSING' ? 'ตัดออกจากคลังเพราะนับไม่เจอในรอบตรวจนับ' : undefined}
+      className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${tone}`}
     >
-      {status === 'IN_STOCK' ? 'อยู่ในคลัง' : 'เบิกออกไปแล้ว'}
+      {label}
     </span>
   )
 }

@@ -8,7 +8,17 @@ import { POST as auditScanRoute } from '@/app/api/audit/sessions/[id]/scan/route
 import { GET as listSessionsRoute, POST as openSessionRoute } from '@/app/api/audit/sessions/route'
 import { POST as scanOutRoute } from '@/app/api/scan/out/route'
 import { POST as qtyInRoute } from '@/app/api/quantity/in/route'
-import type { AuditReport, ScanOutcome } from '@/lib/scan-service'
+import { GET as stockSerialsRoute } from '@/app/api/reports/stock-serials/route'
+import {
+  buildOutReport,
+  buildOutReportDetailed,
+  buildStockReport,
+  buildStockReportDetailed,
+  countSerialOut,
+  lookupSerial,
+  type AuditReport,
+  type ScanOutcome,
+} from '@/lib/scan-service'
 import { getJson, giveStock, postJson, prisma, seedFixtures } from './helpers'
 
 type Fixtures = Awaited<ReturnType<typeof seedFixtures>>
@@ -223,6 +233,62 @@ describe('การตรวจนับสต็อก (audit)', () => {
     ])
     expect(logs.every((l) => l.type === 'AUDIT' && l.accepted && l.unitId && l.productId)).toBe(true)
     expect(logs.find((l) => l.serial === 'NB0002')?.message).toContain('รอบ ส.ค.')
+  })
+
+  it('ของหายจากรอบตรวจนับไม่ถูกนับเป็นเบิกออกในรายงาน', async () => {
+    const session = await openSession()
+    await auditScan(session.id, 'NB0001')
+    await closeSession(session.id, true)
+
+    // หลังปิดรอบ NB0002/NB0003/DRL0001/DRL0002 เป็นของหาย
+    // ขาย NB0001 เพิ่มเพื่อให้มีรายการเบิกออกจริง 1 ตัวไว้เทียบ
+    const sale = await postJson(scanOutRoute, { serial: 'NB0001', reason: 'SALE' })
+    expect(sale.status).toBe(200)
+
+    const stock = await buildStockReport()
+    const notebook = stock.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.productId === fx.products.notebook.id)!
+    const drill = stock.categories
+      .flatMap((c) => c.products)
+      .find((p) => p.productId === fx.products.drill.id)!
+    expect(notebook).toMatchObject({ inStock: 0, out: 1 })
+    expect(drill).toMatchObject({ inStock: 0, out: 0 })
+
+    const out = await buildOutReport()
+    expect(out.grandTotalOut).toBe(1)
+    expect(
+      out.categories.flatMap((c) => c.products).find((p) => p.productId === fx.products.notebook.id)
+    ).toMatchObject({ out: 1 })
+    expect(
+      out.categories.flatMap((c) => c.products).find((p) => p.productId === fx.products.drill.id)
+    ).toBeUndefined()
+
+    const detailedStock = await buildStockReportDetailed()
+    expect(
+      detailedStock.categories
+        .flatMap((c) => c.products)
+        .find((p) => p.productId === fx.products.drill.id)
+    ).toMatchObject({ out: 0 })
+
+    const detailedOut = await buildOutReportDetailed()
+    expect(detailedOut.grandTotalOut).toBe(1)
+    expect(
+      detailedOut.categories
+        .flatMap((c) => c.products)
+        .find((p) => p.productId === fx.products.drill.id)
+    ).toBeUndefined()
+
+    const serials = await getJson<{ serials: { serial: string }[] }>(
+      stockSerialsRoute,
+      undefined,
+      { productId: fx.products.notebook.id, status: 'OUT' }
+    )
+    expect(serials.body.serials.map((s) => s.serial)).toEqual(['NB0001'])
+
+    expect(await countSerialOut()).toBe(1)
+    expect((await lookupSerial('NB0002')).unit).toMatchObject({ status: 'OUT', missing: true })
+    expect((await lookupSerial('NB0001')).unit).toMatchObject({ status: 'OUT', missing: false })
   })
 
   it('ปิดรอบแบบไม่ปรับสต็อก -> ไม่มี log ของหาย', async () => {

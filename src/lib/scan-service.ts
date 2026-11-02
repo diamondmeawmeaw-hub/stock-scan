@@ -1506,6 +1506,52 @@ async function sumOutQuantity(
 }
 
 /**
+ * unit ที่ถูกตัดออกจากคลังเพราะ "นับไม่เจอ" ในรอบตรวจนับ และยังไม่มีการเคลื่อนไหวใหม่
+ *
+ * ใช้ log ล่าสุดแทนการเพิ่ม field ใหม่ใน schema เพื่อให้ข้อมูลเก่าที่มีอยู่แล้ว
+ * ถูกต้องทันที - ถ้าหลังจากนั้นของถูกขาย/รับกลับ/พบในรอบใหม่ log ล่าสุดจะไม่ใช่
+ * MISSING และ unit นั้นจะกลับไปนับเป็นเบิกออกตามปกติ
+ */
+export async function findMissingUnitIds(): Promise<Set<string>> {
+  const candidates = await prisma.serialUnit.findMany({
+    where: {
+      status: 'OUT',
+      scanLogs: {
+        some: {
+          type: 'AUDIT',
+          result: 'MISSING',
+          accepted: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      scanLogs: {
+        where: { accepted: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 1,
+        select: { result: true },
+      },
+    },
+  })
+
+  return new Set(
+    candidates
+      .filter((unit) => unit.scanLogs[0]?.result === 'MISSING')
+      .map((unit) => unit.id)
+  )
+}
+
+/** จำนวนของรายชิ้นที่เบิกออกจริง - ไม่นับของหายจากรอบตรวจนับ */
+export async function countSerialOut(): Promise<number> {
+  const [totalOut, missing] = await Promise.all([
+    prisma.serialUnit.count({ where: { status: 'OUT' } }),
+    findMissingUnitIds(),
+  ])
+  return Math.max(0, totalOut - missing.size)
+}
+
+/**
  * ชื่อผู้ขายจากใบรับเข้าล่าสุดของสินค้านับจำนวน (ของแบบนี้ไม่มี vendor ติดตัว)
  * ไม่มีใบรับเข้าที่ระบุผู้ขายเลย = null (ให้ UI โชว์ "ไม่ระบุ")
  */
@@ -1656,8 +1702,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         orderBy: { name: 'asc' },
         include: {
           units: hasUnitFilter
-            ? { where: unitWhere, select: { status: true, vendor: { select: { name: true } } } }
-            : { select: { status: true, vendor: { select: { name: true } } } },
+            ? { where: unitWhere, select: { id: true, status: true, vendor: { select: { name: true } } } }
+            : { select: { id: true, status: true, vendor: { select: { name: true } } } },
         },
       },
     },
@@ -1667,7 +1713,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
   const quantityIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const [outQty, qtyVendors, qtyTraffic] = await Promise.all([
+  const [outQty, qtyVendors, qtyTraffic, missingUnitIds] = await Promise.all([
     sumOutQuantity(quantityIds, {
       customerId: filters.customerId,
     }),
@@ -1675,6 +1721,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
     vendorId && !customerSerials && quantityIds.length > 0
       ? quantityVendorTraffic(quantityIds, vendorId)
       : Promise.resolve(null as Set<string> | null),
+    findMissingUnitIds(),
   ])
 
   const rows: StockReportRow[] = categories.map((c) => {
@@ -1695,7 +1742,8 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
           vendorName: qtyVendors.get(p.id) ?? null,
         }
       }
-      const inStockUnits = p.units.filter((u) => u.status === 'IN_STOCK')
+      const availableUnits = p.units.filter((u) => !missingUnitIds.has(u.id))
+      const inStockUnits = availableUnits.filter((u) => u.status === 'IN_STOCK')
       const inStock = inStockUnits.length
       return {
         productId: p.id,
@@ -1705,7 +1753,7 @@ export async function buildStockReport(filters: StockReportFilters = {}): Promis
         trackingType: 'SERIAL' as const,
         unitLabel: null,
         inStock,
-        out: p.units.length - inStock,
+        out: availableUnits.filter((u) => u.status === 'OUT').length,
         vendorName: serialVendorName(inStockUnits.map((u) => u.vendor?.name ?? null)),
       }
     })
@@ -1901,7 +1949,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
         where: finalWhere,
         orderBy: { name: 'asc' },
         include: {
-          units: { where: unitWhere, select: { status: true, vendor: { select: { name: true } } } },
+          units: { where: unitWhere, select: { id: true, status: true, vendor: { select: { name: true } } } },
         },
       },
     },
@@ -1911,7 +1959,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
   const outQuantityIds = categories.flatMap((c) =>
     c.products.filter((p) => p.trackingType === 'QUANTITY').map((p) => p.id)
   )
-  const [outQtySums, outQtyVendors, outQtyTraffic] = await Promise.all([
+  const [outQtySums, outQtyVendors, outQtyTraffic, missingUnitIds] = await Promise.all([
     // ใบเบิกไม่มี vendorId จึงนับยอดเบิกแบบไม่กรอง vendor แล้วค่อยกรองแถวด้วย traffic แทน
     sumOutQuantity(outQuantityIds, {
       customerId: filters.customerId,
@@ -1920,6 +1968,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
     vendorId && outQuantityIds.length > 0
       ? quantityVendorTraffic(outQuantityIds, vendorId)
       : Promise.resolve(null as Set<string> | null),
+    findMissingUnitIds(),
   ])
 
   const rows: OutReportRow[] = categories.map((c) => {
@@ -1937,6 +1986,7 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
             vendorName: outQtyVendors.get(p.id) ?? null,
           }
         }
+        const outUnits = p.units.filter((u) => !missingUnitIds.has(u.id))
         return {
           productId: p.id,
           sku: p.sku,
@@ -1944,8 +1994,8 @@ export async function buildOutReport(filters: StockReportFilters = {}): Promise<
           brand: p.brand,
           trackingType: 'SERIAL' as const,
           unitLabel: null,
-          out: p.units.length,
-          vendorName: serialVendorName(p.units.map((u) => u.vendor?.name ?? null)),
+          out: outUnits.length,
+          vendorName: serialVendorName(outUnits.map((u) => u.vendor?.name ?? null)),
         }
       })
       .filter((p) =>
@@ -2147,6 +2197,8 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
     },
   })
 
+  const missingUnitIds = await findMissingUnitIds()
+
   // ── ดึง ScanLog ทั้งหมดของ serial ที่เกี่ยวข้อง ──
   // ถ้ามี timePeriod filter ต้อง limit scanLog ด้วยช่วงเวลาด้วย
   const allUnitSerials = categories.flatMap((c) =>
@@ -2231,9 +2283,10 @@ export async function buildStockReportDetailed(filters: StockReportFilters = {})
         }
       }
       // ถ้ามี customerId filter ให้ count เฉพาะ serial ที่เกี่ยวข้องกับลูกค้า
-      const countedUnits = customerSerials
+      const countedUnits = (customerSerials
         ? p.units.filter((u) => customerSerials!.has(u.serial))
         : p.units
+      ).filter((u) => !missingUnitIds.has(u.id))
       const inStock = countedUnits.filter((u) => u.status === 'IN_STOCK').length
       // ถ้ามี customerId filter ให้แสดงเฉพาะ serial ที่เคยเบิกให้ลูกค้ารายนี้
       // แสดงเฉพาะ serial ที่ยังอยู่ในคลัง (IN_STOCK)
@@ -2441,9 +2494,13 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
     },
   })
 
+  const missingUnitIds = await findMissingUnitIds()
+
   // ── ดึง ScanLog ทั้งหมดของ serial ที่เกี่ยวข้อง ──
   const allUnitSerials = categories.flatMap((c) =>
-    c.products.flatMap((p) => p.units.map((u) => u.serial))
+    c.products.flatMap((p) =>
+      p.units.filter((u) => !missingUnitIds.has(u.id)).map((u) => u.serial)
+    )
   )
 
   const { timePeriodRange } = await import('./date-range')
@@ -2501,6 +2558,7 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
               serials: [],
             }
           }
+          const outUnits = p.units.filter((u) => !missingUnitIds.has(u.id))
           return {
             productId: p.id,
             sku: p.sku,
@@ -2508,8 +2566,8 @@ export async function buildOutReportDetailed(filters: StockReportFilters = {}): 
             brand: p.brand,
             trackingType: 'SERIAL' as const,
             unitLabel: null,
-            out: p.units.length,
-            serials: p.units.map((u) => ({
+            out: outUnits.length,
+            serials: outUnits.map((u) => ({
               serial: u.serial,
               status: u.status,
               receivedAt: u.receivedAt?.toISOString() ?? null,
@@ -2630,6 +2688,8 @@ export type SerialDetail = {
     categoryName: string
     /** ประเภทของนี้เปิดให้แนบรูปอุปกรณ์หรือไม่ (ตั้งโดยผู้ดูแลระบบ) */
     photosEnabled: boolean
+    /** ถูกตัดออกเพราะนับไม่เจอในรอบตรวจนับ (ไม่ใช่การเบิกออกปกติ) */
+    missing: boolean
     vendorName: string | null
     receivedAt: string | null
     releasedAt: string | null
@@ -2687,6 +2747,8 @@ export async function lookupSerial(rawSerial: string): Promise<SerialDetail> {
     }),
   ])
 
+  const latestAccepted = logs.find((log) => log.accepted)
+
   return {
     serial,
     unit: unit
@@ -2698,6 +2760,7 @@ export async function lookupSerial(rawSerial: string): Promise<SerialDetail> {
           brand: unit.product.brand,
           categoryName: unit.product.category.name,
           photosEnabled: unit.product.category.photosEnabled,
+          missing: unit.status === 'OUT' && latestAccepted?.result === 'MISSING',
           vendorName: unit.vendor?.name ?? null,
           receivedAt: unit.receivedAt?.toISOString() ?? null,
           releasedAt: unit.releasedAt?.toISOString() ?? null,
