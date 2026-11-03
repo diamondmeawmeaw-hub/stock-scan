@@ -370,63 +370,71 @@ export function ScanConsole({
                 data-testid="confirm-scan"
                 title="หรือกด Ctrl+Enter ขณะอยู่ในช่องสแกน"
               >
-                {confirming ? 'กำลังบันทึก...' : `ยืนยันบันทึก ${feed.length} รายการ (Ctrl+Enter)`}
+                {confirming ? 'กำลังบันทึก...' : (
+                  <>
+                    ยืนยันบันทึก {feed.length} รายการ
+                    <span className="hidden sm:inline"> (Ctrl+Enter)</span>
+                  </>
+                )}
               </button>
             </div>
           )}
-          <table className="w-full text-sm" data-testid="scan-feed">
-            <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
-              <tr>
-                <th className="px-4 py-2 font-medium">เวลา</th>
-                <th className="px-4 py-2 font-medium">Serial</th>
-                <th className="px-4 py-2 font-medium">สินค้า</th>
-                <th className="px-4 py-2 font-medium">ผล</th>
-                <th className="px-4 py-2 font-medium w-12 text-center">ลบ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {feed.map((item) => (
-                <tr key={item.key} className={item.accepted ? '' : 'bg-red-50/50 dark:bg-red-950/40'}>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
-                    {item.at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} {item.at.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
-                  </td>
-                  <td className="px-4 py-2 font-mono">{item.serial}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{item.product?.name ?? '-'}</td>
-                  <td
-                    className={`px-4 py-2 ${item.accepted ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}
-                  >
-                    {item.message}
-                  </td>
-                  <td className="px-2 py-2 text-center">
-                    {onDelete && (
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item)}
-                        className="inline-flex items-center justify-center w-9 h-9 rounded-xl border-2 border-rose-200 hover:bg-rose-100 text-rose-700 transition-colors dark:border-rose-800 dark:hover:bg-rose-950 dark:text-rose-300"
-                        title="ลบรายการนี้"
-                        data-testid={`delete-${item.key}`}
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="table-cards w-full text-sm" data-testid="scan-feed">
+              <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
+                <tr>
+                  <th className="hidden px-4 py-2 font-medium sm:table-cell">เวลา</th>
+                  <th className="px-4 py-2 font-medium">Serial</th>
+                  <th className="px-4 py-2 font-medium">สินค้า</th>
+                  <th className="px-4 py-2 font-medium">ผล</th>
+                  <th className="px-4 py-2 font-medium w-12 text-center">ลบ</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {feed.map((item) => (
+                  <tr key={item.key} className={item.accepted ? '' : 'bg-red-50/50 dark:bg-red-950/40'}>
+                    <td data-label="เวลา" className="hidden whitespace-nowrap px-4 py-2 text-slate-500 sm:table-cell dark:text-slate-400">
+                      {item.at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} {item.at.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                    </td>
+                    <td data-label="Serial" className="whitespace-nowrap px-4 py-2 font-mono">{item.serial}</td>
+                    <td data-label="สินค้า" className="px-4 py-2 text-slate-600 dark:text-slate-300">{item.product?.name ?? '-'}</td>
+                    <td
+                      data-label="ผล"
+                      className={`whitespace-nowrap px-4 py-2 ${item.accepted ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}
+                    >
+                      {item.message}
+                    </td>
+                    <td data-label="ลบ" className="px-2 py-2 text-center">
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-xl border-2 border-rose-200 hover:bg-rose-100 text-rose-700 transition-colors dark:border-rose-800 dark:hover:bg-rose-950 dark:text-rose-300"
+                          title="ลบรายการนี้"
+                          data-testid={`delete-${item.key}`}
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

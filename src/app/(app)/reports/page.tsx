@@ -285,7 +285,7 @@ async function MovementView({
       ) : (
         <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="table-cards w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-2 font-medium">วันที่</th>
@@ -300,8 +300,8 @@ async function MovementView({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {report.rows.map((r) => (
                   <tr key={r.id} data-testid="movement-row">
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">{thaiDateTime(r.at)}</td>
-                    <td className="px-4 py-2">
+                    <td data-label="วันที่" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">{thaiDateTime(r.at)}</td>
+                    <td data-label="รายการ" className="px-4 py-2">
                       <span className={`font-medium ${
                         r.type === 'IN'
                         ? 'text-emerald-700 dark:text-emerald-300'
@@ -312,16 +312,16 @@ async function MovementView({
                         {SCAN_TYPE_LABEL[r.type] ?? r.type}
                       </span>
                     </td>
-                    <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">
+                    <td data-label="Serial" className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">
                       {r.serial ?? (r.quantity > 1 ? `× ${r.quantity}` : '—')}
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="สินค้า" className="px-4 py-2">
                       <span className="text-slate-700 dark:text-slate-200">{r.productName}</span>
                       <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">{r.sku}</span>
                     </td>
-                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.customerName ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.userName}</td>
-                    <td className="px-4 py-2 text-slate-500 dark:text-slate-400">
+                    <td data-label="ผู้ซื้อ / ลูกค้า" className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.customerName ?? '-'}</td>
+                    <td data-label="ผู้ทำรายการ" className="px-4 py-2 text-slate-600 dark:text-slate-300">{r.userName}</td>
+                    <td data-label="หมายเหตุ" className="px-4 py-2 text-slate-500 dark:text-slate-400">
                       {r.note ?? (r.reason ? `(${r.reason})` : '-')}
                     </td>
                   </tr>

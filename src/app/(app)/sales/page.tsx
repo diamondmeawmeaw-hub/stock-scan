@@ -176,7 +176,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
       ) : (
         <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="table-cards w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-2 font-medium">เวลา</th>
@@ -193,13 +193,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {logs.map((log) => (
                   <tr key={log.id} data-testid="sale-row">
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
+                    <td data-label="เวลา" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                       {log.createdAt.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="ลูกค้า" className="px-4 py-2">
                       {log.customer ? `${log.customer.code} · ${log.customer.name}` : '-'}
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="โปรเจค" className="px-4 py-2">
                       <ProjectAssign
                         logId={log.id}
                         customerId={log.customerId}
@@ -213,7 +213,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                         }))}
                       />
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="Serial" className="px-4 py-2">
                       {log.serial ? (
                         <Link
                           className="font-mono text-sky-700 underline dark:text-sky-300"
@@ -227,17 +227,17 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="รูป" className="px-4 py-2">
                       {log.serial && log.product?.category.photosEnabled ? (
                         <SerialPhotoManager serial={log.serial} />
                       ) : (
                         <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-2">{log.product?.name ?? '-'}</td>
-                    <td className="px-4 py-2">{log.user.displayName}</td>
-                    <td className="px-4 py-2">{log.note ?? '-'}</td>
-                    <td className="px-4 py-2 text-right">
+                    <td data-label="สินค้า" className="px-4 py-2">{log.product?.name ?? '-'}</td>
+                    <td data-label="ผู้ทำรายการ" className="px-4 py-2">{log.user.displayName}</td>
+                    <td data-label="หมายเหตุ" className="px-4 py-2">{log.note ?? '-'}</td>
+                    <td data-label="" className="px-4 py-2 text-right">
                       {!log.reversedBy && (!log.serial || log.unit?.status === 'OUT') ? (
                         <ReturnButton scanLogId={log.id} />
                       ) : (

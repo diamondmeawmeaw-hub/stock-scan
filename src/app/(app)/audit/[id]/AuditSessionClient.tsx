@@ -114,7 +114,7 @@ export function AuditSessionClient({
             {closed ? `ปิดรอบแล้ว ${formatTime(report.closedAt)}` : 'กำลังนับ'}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <button className="btn-ghost" onClick={() => void refresh()} disabled={busy}>
             รีเฟรชผล
           </button>
@@ -154,7 +154,7 @@ export function AuditSessionClient({
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label="ระบบว่ามี" value={report.expectedCount} />
         <Tile label="ยิงเจอ" value={report.scannedCount} testId="audit-scanned" />
         <Tile label="ของหาย" value={report.missing.length} tone="red" testId="audit-missing" />
@@ -278,7 +278,7 @@ function QuantityAuditSection({
       </h2>
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">{error}</p>}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="table-cards w-full text-sm">
           <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
             <tr>
               <th className="px-4 py-2 font-medium">สินค้า</th>
@@ -293,20 +293,21 @@ function QuantityAuditSection({
               const diff = l.counted === null ? null : l.counted - l.expected
               return (
                 <tr key={l.productId}>
-                  <td className="px-4 py-2">
+                  <td data-label="สินค้า" className="px-4 py-2">
                     {l.productName} <span className="text-slate-400 dark:text-slate-500">({l.sku})</span>
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums">{l.expected}</td>
-                  <td className="px-4 py-2 text-right font-medium tabular-nums">
+                  <td data-label="ระบบว่ามี" className="px-4 py-2 text-right tabular-nums">{l.expected}</td>
+                  <td data-label="นับได้" className="px-4 py-2 text-right font-medium tabular-nums">
                     {l.counted ?? '-'}
                   </td>
                   <td
+                    data-label="ผลต่าง"
                     className={`px-4 py-2 text-right font-medium tabular-nums ${diff === null ? 'text-slate-400 dark:text-slate-500' : diff === 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'}`}
                   >
                     {diff === null ? '-' : diff > 0 ? `+${diff}` : `${diff}`}
                   </td>
                   {!closed && (
-                    <td className="px-4 py-2">
+                    <td data-label="กรอกยอดนับ" className="table-card-block px-4 py-2">
                       <form
                         className="flex gap-2"
                         onSubmit={(e) => {
@@ -385,7 +386,7 @@ function UnitTable({
   testId: string
 }) {
   return (
-    <div className="card-pop overflow-hidden" data-testid={testId}>
+    <div className="card-pop overflow-x-auto" data-testid={testId}>
       <h2 className="border-b-2 border-sky-100 bg-sky-50/60 px-4 py-3 font-semibold text-sky-950 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-100">
         {title} ({rows.length})
       </h2>

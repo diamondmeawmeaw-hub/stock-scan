@@ -310,7 +310,7 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" data-testid="serial-history">
+          <table className="table-cards w-full text-sm" data-testid="serial-history">
             <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
               <tr>
                 <th className="px-4 py-2 font-medium">เวลา</th>
@@ -326,25 +326,25 @@ function HistoryTable({ history }: { history: SerialDetail['history'] }) {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {history.map((h) => (
                 <tr key={h.id} data-testid="serial-history-row" className={h.accepted ? '' : 'bg-red-50/50 dark:bg-red-950/40'}>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">{thaiDateTime(h.at)}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="เวลา" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">{thaiDateTime(h.at)}</td>
+                  <td data-label="ประเภท" className="px-4 py-2">
                     {TYPE_LABEL[h.type]}
                     {h.auditSessionName && (
                       <span className="text-slate-400 dark:text-slate-500"> · {h.auditSessionName}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2">
+                  <td data-label="ผล" className="whitespace-nowrap px-4 py-2">
                     <ResultBadge result={h.result} accepted={h.accepted} message={h.message} />
                   </td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.vendorName ?? '-'}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.customerName ?? '-'}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                  <td data-label="ซื้อจาก" className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.vendorName ?? '-'}</td>
+                  <td data-label="ลูกค้า" className="px-4 py-2 text-slate-600 dark:text-slate-300">{h.customerName ?? '-'}</td>
+                  <td data-label="เหตุผล / หมายเหตุ" className="px-4 py-2 text-slate-600 dark:text-slate-300">
                     {[h.reason ? OUT_REASON_LABELS[h.reason] : null, h.note]
                       .filter(Boolean)
                       .join(' · ') || '-'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{h.userName}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td data-label="ผู้สแกน" className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{h.userName}</td>
+                  <td data-label="" className="px-4 py-2 text-right">
                     {h.canReturn && (
                       <ReturnButton scanLogId={h.id} />
                     )}
@@ -400,7 +400,7 @@ function ScanLogSection({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" data-testid="scan-log-table">
+          <table className="table-cards w-full text-sm" data-testid="scan-log-table">
             <thead className="bg-sky-50 text-left text-xs uppercase text-sky-900 dark:bg-sky-950 dark:text-sky-200">
               <tr>
                 <th className="px-4 py-2 font-medium">เวลา</th>
@@ -420,10 +420,10 @@ function ScanLogSection({
                   data-testid="scan-log-row"
                   className={row.accepted ? '' : 'bg-red-50/50 dark:bg-red-950/40'}
                 >
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
+                  <td data-label="เวลา" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                     {thaiDateTime(row.at)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2">
+                  <td data-label="Serial" className="whitespace-nowrap px-4 py-2">
                     {row.serial ? (
                       <Link
                         href={`/serials?serial=${encodeURIComponent(row.serial)}`}
@@ -438,23 +438,23 @@ function ScanLogSection({
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2">
+                  <td data-label="ประเภท" className="whitespace-nowrap px-4 py-2">
                     {TYPE_LABEL[row.type]}
                     {row.auditSessionName && (
                       <span className="text-slate-400 dark:text-slate-500"> · {row.auditSessionName}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{row.productName ?? '-'}</td>
-                  <td className="whitespace-nowrap px-4 py-2">
+                  <td data-label="สินค้า" className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{row.productName ?? '-'}</td>
+                  <td data-label="ผล" className="whitespace-nowrap px-4 py-2">
                     <ResultBadge result={row.result} accepted={row.accepted} message={row.message} />
                   </td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                  <td data-label="เหตุผล / หมายเหตุ" className="px-4 py-2 text-slate-600 dark:text-slate-300">
                     {[row.reason ? OUT_REASON_LABELS[row.reason] : null, row.note]
                       .filter(Boolean)
                       .join(' · ') || '-'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{row.userName}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td data-label="ผู้สแกน" className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{row.userName}</td>
+                  <td data-label="" className="px-4 py-2 text-right">
                     {row.canReturn && (
                       <ReturnButton scanLogId={row.id} />
                     )}

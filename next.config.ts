@@ -3,6 +3,8 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   // standalone output keeps the Docker image small when this moves to the NAS
   output: 'standalone',
+  // ปิดป้าย dev indicator มุมล่างซ้าย เพราะทับแท็บเมนูล่างบนมือถือ
+  devIndicators: false,
   // เทส E2E เปิด next dev ของตัวเองที่พอร์ตแยก ถ้าใช้ .next ร่วมกับ dev server ที่เปิดค้างไว้
   // สองตัวจะเขียนทับ chunk ของกันและกัน จนหน้าเว็บขึ้น "Loading chunk ... failed"
   distDir: process.env.NEXT_DIST_DIR ?? '.next',

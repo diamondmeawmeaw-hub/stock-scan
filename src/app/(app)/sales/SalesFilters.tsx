@@ -193,7 +193,7 @@ export function SalesFilters({
         onChange={(v) => setForm({ ...form, to: v })}
       />
 
-      <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+      <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-4">
         <button
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
           data-testid="apply-filters"

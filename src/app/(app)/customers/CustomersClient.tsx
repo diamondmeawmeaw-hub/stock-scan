@@ -59,8 +59,8 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
       <input className="field" placeholder="หมายเหตุ / เบอร์ติดต่อ" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
       <button className="btn-primary" disabled={busy}>เพิ่มลูกค้า</button>
     </form>
-    <div className="card overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="card overflow-x-auto">
+      <table className="table-cards w-full text-sm">
         <thead className="bg-slate-50 text-left dark:bg-slate-800">
           <tr>
             <th className="px-4 py-2">รหัส</th>
@@ -80,8 +80,8 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
             return (
               <Fragment key={c.id}>
                 <tr className={!c.active ? 'text-slate-400 dark:text-slate-500' : ''}>
-                  <td className="px-4 py-2 font-mono">{c.code}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="รหัส" className="px-4 py-2 font-mono">{c.code}</td>
+                  <td data-label="ชื่อ" className="table-card-block px-4 py-2">
                     {editingCustomer ? (
                       <span className="flex items-center gap-1.5">
                         <input
@@ -105,9 +105,9 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2">{c.note ?? '-'}</td>
-                  <td className="px-4 py-2 text-right">{c.saleCount}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td data-label="หมายเหตุ" className="px-4 py-2">{c.note ?? '-'}</td>
+                  <td data-label="ขายแล้ว" className="px-4 py-2 text-right">{c.saleCount}</td>
+                  <td data-label="โปรเจค" className="px-4 py-2 text-right">
                     <button
                       className="rounded-md px-2 py-1 text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950"
                       data-testid="toggle-projects"
@@ -117,12 +117,12 @@ export function CustomersClient({ customers, projects }: { customers: Customer[]
                       {list.length} โปรเจค {expanded ? '▴' : '▾'}
                     </button>
                   </td>
-                  <td className="px-4 py-2">{c.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</td>
-                  <td className="px-4 py-2 text-right"><button className="btn-ghost" disabled={busy} onClick={() => void (async () => { await api(`/api/customers/${c.id}`, { method: 'PATCH', body: JSON.stringify({ active: !c.active }) }); router.refresh() })()}>{c.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button></td>
+                  <td data-label="สถานะ" className="px-4 py-2">{c.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</td>
+                  <td data-label="" className="px-4 py-2 text-right"><button className="btn-ghost" disabled={busy} onClick={() => void (async () => { await api(`/api/customers/${c.id}`, { method: 'PATCH', body: JSON.stringify({ active: !c.active }) }); router.refresh() })()}>{c.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button></td>
                 </tr>
                 {expanded && (
                   <tr data-testid="project-list">
-                    <td colSpan={7} className="bg-slate-50/60 px-4 py-3 dark:bg-slate-800/60">
+                    <td data-label="" colSpan={7} className="table-card-block bg-slate-50/60 px-4 py-3 dark:bg-slate-800/60">
                       <p className="mb-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
                         โปรเจคของ {c.name} · สร้างใหม่ได้ตอนเบิกขาย (หน้าเบิกออก)
                       </p>

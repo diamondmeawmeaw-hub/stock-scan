@@ -87,7 +87,7 @@ export function ThemeToggle() {
       data-testid="theme-toggle"
       aria-label={dark ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
       title={dark ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
-      className="relative ml-2 h-6 w-12 shrink-0 cursor-grab touch-none rounded-full border border-white/60 bg-white/50 shadow-[inset_0_2px_6px_rgba(15,23,42,0.12),0_2px_8px_rgba(15,23,42,0.12)] backdrop-blur-md transition-colors duration-300 active:cursor-grabbing dark:border-white/15 dark:bg-white/10 dark:shadow-[inset_0_2px_6px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.4)]"
+      className="relative ml-2 h-6 w-12 shrink-0 cursor-grab touch-none rounded-full before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] border border-white/60 bg-white/50 shadow-[inset_0_2px_6px_rgba(15,23,42,0.12),0_2px_8px_rgba(15,23,42,0.12)] backdrop-blur-md transition-colors duration-300 active:cursor-grabbing dark:border-white/15 dark:bg-white/10 dark:shadow-[inset_0_2px_6px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.4)]"
     >
       <span
         aria-hidden

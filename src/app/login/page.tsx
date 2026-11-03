@@ -74,6 +74,9 @@ function LoginForm() {
             name="username"
             className="field"
             autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoFocus
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -90,6 +93,9 @@ function LoginForm() {
               type={showPassword ? 'text' : 'password'}
               className="field pr-12"
               autoComplete="current-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -131,7 +137,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <main className="flex min-h-dvh items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <Suspense>
         <LoginForm />
       </Suspense>

@@ -12,6 +12,111 @@ body {
   height: 100%;
 }
 
+/* ── พื้นฐานมือถือ: ตัด tell ที่ทำให้เว็บดูเป็นเว็บ ── */
+html {
+  -webkit-tap-highlight-color: transparent; /* ไม่มีแถบเทา/ฟ้าแวบตอนแตะ */
+  -webkit-text-size-adjust: 100%; /* ไม่ให้ Safari ขยายฟอนต์เองตอนหมุนจอ */
+  overscroll-behavior: none; /* กัน pull-to-refresh / rubber-band มาดึงทั้งหน้าแอป */
+}
+
+/* แตะแล้วต้องตอบสนองทันที + long-press ไม่ควรเลือกข้อความบนปุ่ม */
+button,
+[role='button'],
+[role='tab'],
+.tappable {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ลิงก์ยังเลือกข้อความได้ (เป็นเนื้อหา) แต่ไม่ต้องรอ double-tap zoom */
+a {
+  touch-action: manipulation;
+}
+
+/* จอสัมผัส: input ต้อง >= 16px ไม่งั้น iOS zoom หน้าแล้วไม่ย่อกลับ */
+@media (pointer: coarse) {
+  .field,
+  input.text-sm,
+  select.text-sm,
+  textarea.text-sm {
+    font-size: 16px;
+  }
+
+  /* เป้าแตะขั้นต่ำ ~44px ตามที่นิ้วต้องการ */
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger,
+  .btn-pop,
+  .btn-pop-primary {
+    min-height: 44px;
+  }
+
+  .field {
+    min-height: 44px;
+  }
+
+  [role='tab'] {
+    min-height: 44px;
+  }
+
+  /* สวิตช์ธีมตัวเล็ก (48x24) - ขยายพื้นที่กดโดยไม่เปลี่ยนหน้าตา */
+  [data-testid='theme-toggle']::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+}
+
+/* feedback ตอนกด (ไม่ใช่ตอนปล่อย) - สั้นและ ease-out ให้รู้สึกเหมือนปุ่ม native */
+.btn,
+.btn-primary,
+.btn-ghost,
+.btn-danger,
+.btn-pop,
+.btn-pop-primary {
+  transition-duration: 120ms;
+}
+
+.btn:active,
+.btn-primary:active,
+.btn-ghost:active,
+.btn-danger:active,
+.btn-pop:active,
+.btn-pop-primary:active {
+  transform: scale(0.97);
+}
+
+/* แถบเมนูเลื่อนแนวนอนบนมือถือ - ซ่อน scrollbar แต่ยังลากได้ */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ชีตเมนูล่างเลื่อนขึ้นแบบสั้น ๆ - เคารพ prefers-reduced-motion */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-up {
+    animation: none;
+  }
+}
+
 /* พาเลตต์โหมดสว่าง/มืด - utilities หลักอ้าง variables พวกนี้ โหมดสว่าง = ค่า slate เดิม */
 :root {
   --bg: #f1f5f9;
@@ -77,9 +182,6 @@ body.theme-anim *::after {
   @apply btn;
   background-color: var(--primary-bg);
   color: var(--primary-text);
-  &:hover {
-    background-color: var(--primary-bg-hover);
-  }
 }
 
 @utility btn-ghost {
@@ -87,13 +189,6 @@ body.theme-anim *::after {
   border: 1px solid var(--field-border);
   background-color: var(--surface);
   color: var(--muted);
-  &:hover {
-    filter: brightness(0.97);
-  }
-}
-
-.dark .btn-ghost:hover {
-  filter: brightness(1.3);
 }
 
 @utility btn-danger {
@@ -101,16 +196,49 @@ body.theme-anim *::after {
   border: 1px solid var(--field-border);
   background-color: var(--surface);
   color: #dc2626;
-  &:hover {
+}
+
+/* hover มีเฉพาะอุปกรณ์ที่มีเมาส์จริง - จอสัมผัสไม่ค้างสถานะหลังแตะ */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background-color: var(--primary-bg-hover);
+  }
+
+  .btn-ghost:hover {
+    filter: brightness(0.97);
+  }
+
+  .dark .btn-ghost:hover {
+    filter: brightness(1.3);
+  }
+
+  .btn-danger:hover {
     background-color: #fef2f2;
+  }
+
+  .dark .btn-danger:hover {
+    background-color: #450a0a;
+  }
+
+  .btn-pop:hover {
+    background-color: #e0f2fe;
+  }
+
+  .dark .btn-pop:hover {
+    background-color: #075985;
+  }
+
+  .btn-pop-primary:hover {
+    background-color: #a7f3d0;
+  }
+
+  .dark .btn-pop-primary:hover {
+    background-color: #047857;
   }
 }
 
 .dark .btn-danger {
   color: #f87171;
-  &:hover {
-    background-color: #450a0a;
-  }
 }
 
 @utility field {
@@ -147,11 +275,11 @@ body.theme-anim *::after {
 }
 
 @utility btn-pop {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-sky-300 bg-white px-5 py-3 text-base font-semibold text-sky-950 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-sky-300 bg-white px-5 py-3 text-base font-semibold text-sky-950 transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility btn-pop-primary {
-  @apply inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-400 bg-emerald-300 px-5 py-3 text-base font-semibold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-400 bg-emerald-300 px-5 py-3 text-base font-semibold text-emerald-950 transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility scan-input {
@@ -164,6 +292,113 @@ body.theme-anim *::after {
 
 @utility stat-pop-bad {
   @apply rounded-xl border-2 border-rose-300 bg-rose-100 px-4 py-3 text-rose-950;
+}
+
+/* ── ตารางข้อมูลบนมือถือ: ยุบแต่ละแถวเป็นการ์ด อ่านครบโดยไม่ต้องเลื่อนแนวนอน ── */
+@media (max-width: 767px) {
+  .table-cards {
+    display: block;
+    width: 100%;
+  }
+
+  .table-cards thead {
+    display: none;
+  }
+
+  .table-cards tbody {
+    display: block;
+  }
+
+  .table-cards tr {
+    display: block;
+    padding: 0.7rem 1rem;
+  }
+
+  .table-cards td:not(.hidden) {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.18rem 0;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .table-cards td.hidden {
+    display: none;
+  }
+
+  .table-cards td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    margin-right: auto;
+    max-width: 45%;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--faint);
+  }
+
+  .table-cards td[data-label='']::before,
+  .table-cards td[data-label='-']::before {
+    content: none;
+  }
+
+  /* ช่องปุ่ม/ฟอร์มทั้งแถว ให้กินเต็มความกว้างและจัดชิดขวา */
+  .table-cards td[data-label=''] {
+    display: block;
+    text-align: right;
+  }
+
+  /* ช่องที่มีฟอร์ม/อินพุต ให้ label อยู่บรรทัดบนและกินเต็มความกว้าง */
+  .table-cards td.table-card-block {
+    display: block;
+    text-align: left;
+  }
+
+  .table-cards td.table-card-block::before {
+    display: block;
+    max-width: none;
+    margin-bottom: 0.15rem;
+  }
+
+  .table-cards tr.table-card-form td {
+    display: block;
+    text-align: left;
+  }
+
+  .table-cards tr.table-card-form td::before {
+    display: block;
+    max-width: none;
+    margin-bottom: 0.15rem;
+  }
+
+  /* ปุ่มบันทึก/ยกเลิกในแถวฟอร์ม ให้ชิดขวาเหมือนการ์ดปกติ */
+  .table-cards tr.table-card-form td[data-label=''] {
+    text-align: right;
+  }
+
+  .table-cards td > * {
+    min-width: 0;
+  }
+
+  /* ข้อความผลสแกนยาว ๆ ต้องตัดบรรทัดได้ ไม่ล้นการ์ด */
+  .table-cards .result-badge {
+    white-space: normal;
+    border-radius: 0.75rem;
+    text-align: left;
+  }
+
+  /* ลิงก์ในตารางการ์ด (serial/รอบ) ให้แตะง่ายขึ้น */
+  .table-cards td[data-label='Serial'] a,
+  .table-cards td[data-label='รอบ'] a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding-block: 0.25rem;
+  }
 }
 
 /* รุ่นโหมดมืดของชุดพาสเทล - เขียนทับด้วย CSS ธรรมดา (layer utilities แพ้ unlayered) */
@@ -183,18 +418,10 @@ body.theme-anim *::after {
   color: #e0f2fe;
 }
 
-.dark .btn-pop:hover {
-  background-color: #075985;
-}
-
 .dark .btn-pop-primary {
   border-color: #065f46;
   background-color: #065f46;
   color: #ecfdf5;
-}
-
-.dark .btn-pop-primary:hover {
-  background-color: #047857;
 }
 
 .dark .scan-input {

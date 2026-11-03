@@ -139,7 +139,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
   const lastRow = Math.min(data.page * data.pageSize, data.total)
 
   return (
-    <div className="bg-slate-50 px-6 py-4 dark:bg-slate-800/60">
+    <div className="bg-slate-50 px-4 py-4 sm:px-6 dark:bg-slate-800/60">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
           {data.product?.sku} · {data.product?.name}
@@ -151,7 +151,7 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        <table className="w-full text-sm">
+        <table className="table-cards w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">Serial</th>
@@ -164,17 +164,17 @@ export function SerialDetailPanel({ productId, filters, serialMode = 'IN_STOCK' 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {data.serials.map((s) => (
               <tr key={s.serial} data-testid="serial-row">
-                <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{s.serial}</td>
-                <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">
+                <td data-label="Serial" className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{s.serial}</td>
+                <td data-label="ซื้อจาก" className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.vendorName ?? 'ไม่ระบุ'}
                 </td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                <td data-label="วันที่รับเข้า" className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.receivedAt ? formatThaiDate(s.receivedAt) : '-'}
                 </td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                <td data-label="วันที่เบิกออก" className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.releasedAt ? formatThaiDate(s.releasedAt) : '-'}
                 </td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                <td data-label="ผู้ซื้อ" className="px-4 py-2 text-slate-600 dark:text-slate-300">
                   {s.customerName ?? '-'}
                 </td>
               </tr>

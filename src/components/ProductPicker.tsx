@@ -174,7 +174,7 @@ export function ProductPicker({
           role="listbox"
           id={`${testid}-listbox`}
           data-testid={`${testid}-options`}
-          className="absolute right-0 left-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {filtered.length === 0 && (
             <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">ไม่พบสินค้าที่ตรงกับคำค้น</li>

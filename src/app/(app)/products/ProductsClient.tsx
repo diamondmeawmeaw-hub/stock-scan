@@ -172,7 +172,7 @@ export function ProductsClient({
         </div>
       </form>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
           <input
             data-testid="product-search"
@@ -188,7 +188,7 @@ export function ProductsClient({
             </p>
           )}
         </div>
-        <table className="w-full text-sm">
+        <table className="table-cards w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">SKU</th>
@@ -203,43 +203,43 @@ export function ProductsClient({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {products.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-slate-500 dark:text-slate-400">
+                <td data-label="" colSpan={7} className="table-card-block px-4 py-6 text-slate-500 dark:text-slate-400">
                   ยังไม่มีสินค้า
                 </td>
               </tr>
             )}
             {products.length > 0 && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-slate-500 dark:text-slate-400" data-testid="product-empty">
+                <td data-label="" colSpan={7} className="table-card-block px-4 py-6 text-slate-500 dark:text-slate-400" data-testid="product-empty">
                   ไม่พบสินค้าที่ตรงกับคำค้น
                 </td>
               </tr>
             )}
             {filtered.map((p) =>
               editingId === p.id ? (
-                <tr key={p.id} className="bg-slate-50 dark:bg-slate-800/60">
-                  <td className="px-4 py-2">
+                <tr key={p.id} className="table-card-form bg-slate-50 dark:bg-slate-800/60">
+                  <td data-label="SKU" className="px-4 py-2">
                     <input
                       className="field"
                       value={edit.sku}
                       onChange={(e) => setEdit({ ...edit, sku: e.target.value })}
                     />
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="ชื่อสินค้า" className="px-4 py-2">
                     <input
                       className="field"
                       value={edit.name}
                       onChange={(e) => setEdit({ ...edit, name: e.target.value })}
                     />
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="แบรนด์" className="px-4 py-2">
                     <input
                       className="field"
                       value={edit.brand}
                       onChange={(e) => setEdit({ ...edit, brand: e.target.value })}
                     />
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="ประเภทของ" className="px-4 py-2">
                     <select
                       className="field"
                       value={edit.categoryId}
@@ -252,7 +252,7 @@ export function ProductsClient({
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="วิธีนับ" className="px-4 py-2">
                     {edit.trackingType === 'QUANTITY' ? (
                       <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                         จำนวน{edit.unitLabel ? ` (${edit.unitLabel})` : ''}
@@ -266,8 +266,8 @@ export function ProductsClient({
                       เปลี่ยนวิธีนับที่หน้ารับเข้า (เฉพาะของที่ยังไม่มีประวัติ)
                     </span>
                   </td>
-                  <td className="px-4 py-2">{p.inStock}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">
+                  <td data-label="คงเหลือ" className="px-4 py-2">{p.inStock}</td>
+                  <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-primary mr-2"
                       disabled={busy}
@@ -295,11 +295,11 @@ export function ProductsClient({
                 </tr>
               ) : (
                 <tr key={p.id}>
-                  <td className="px-4 py-2 font-mono">{p.sku}</td>
-                  <td className="px-4 py-2">{p.name}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.categoryName}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="SKU" className="px-4 py-2 font-mono">{p.sku}</td>
+                  <td data-label="ชื่อสินค้า" className="px-4 py-2">{p.name}</td>
+                  <td data-label="แบรนด์" className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
+                  <td data-label="ประเภทของ" className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.categoryName}</td>
+                  <td data-label="วิธีนับ" className="px-4 py-2">
                     {p.trackingType === 'QUANTITY' ? (
                       <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                         จำนวน{p.unitLabel ? ` (${p.unitLabel})` : ''}
@@ -310,13 +310,13 @@ export function ProductsClient({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="คงเหลือ" className="px-4 py-2">
                     {p.inStock}
                     {p.trackingType === 'QUANTITY' && (
                       <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">{p.unitLabel ?? ''}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">
+                  <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-ghost mr-2"
                       onClick={() => {

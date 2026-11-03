@@ -27,7 +27,7 @@ export function SerialSearchForm({ initial }: { initial: string }) {
         router.push(q ? `/serials?serial=${encodeURIComponent(q)}` : '/serials')
       }}
     >
-      <div className="min-w-64 flex-1">
+      <div className="w-full min-w-0 flex-1 sm:min-w-64">
         <label className="label" htmlFor="serial-query">
           ยิงบาร์โค้ดหรือพิมพ์ serial
         </label>

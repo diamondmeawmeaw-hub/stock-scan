@@ -40,9 +40,24 @@ export function resolveTheme(choice?: ThemeChoice): ResolvedTheme {
   return systemDark() ? 'dark' : 'light'
 }
 
+/** สีแถบสถานะ/เบราว์เซอร์ - ต้องตรงกับพื้นหลังหัวเว็บ (NavBar) ทั้งสองโหมด */
+const THEME_COLOR: Record<ResolvedTheme, string> = {
+  light: '#ffffff',
+  dark: '#020617',
+}
+
+/** ธีมสลับด้วย class ไม่ใช่ตาม OS - ต้องอัปเดต theme-color เอง ไม่งั้นแถบสถานะสีไม่ตรง */
+function syncThemeColor(resolved: ResolvedTheme): void {
+  if (typeof document === 'undefined') return
+  document.querySelectorAll('meta[name="theme-color"]').forEach((tag) => {
+    tag.setAttribute('content', THEME_COLOR[resolved])
+  })
+}
+
 /** สลับ class บน <html> ให้ตรงค่าที่จำไว้ */
 export function applyTheme(choice?: ThemeChoice): ResolvedTheme {
   const resolved = resolveTheme(choice)
   document.documentElement.classList.toggle('dark', resolved === 'dark')
+  syncThemeColor(resolved)
   return resolved
 }

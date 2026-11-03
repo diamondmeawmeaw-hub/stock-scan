@@ -144,7 +144,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
 
       <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="table-cards w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">ชื่อผู้ใช้</th>
@@ -159,16 +159,16 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
               {users.map((u) => {
                 const isSelf = u.id === currentUserId
                 return editingId === u.id ? (
-                  <tr key={u.id} className="bg-sky-50/50 dark:bg-sky-950/50">
-                    <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{u.username}</td>
-                    <td className="px-4 py-2">
+                  <tr key={u.id} className="table-card-form bg-sky-50/50 dark:bg-sky-950/50">
+                    <td data-label="ชื่อผู้ใช้" className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{u.username}</td>
+                    <td data-label="ชื่อที่แสดง" className="px-4 py-2">
                       <input
                         className={fieldClass}
                         value={edit.displayName}
                         onChange={(e) => setEdit({ ...edit, displayName: e.target.value })}
                       />
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="สิทธิ์" className="px-4 py-2">
                       <select
                         className={fieldClass}
                         disabled={isSelf}
@@ -179,9 +179,9 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                         <option value="ADMIN">ผู้ดูแล</option>
                       </select>
                     </td>
-                    <td className="px-4 py-2">{u.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</td>
-                    <td className="px-4 py-2">{u.historyCount}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                    <td data-label="สถานะ" className="px-4 py-2">{u.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</td>
+                    <td data-label="ประวัติ" className="px-4 py-2">{u.historyCount}</td>
+                    <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                       <button
                         className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={busy}
@@ -207,7 +207,7 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                   </tr>
                 ) : (
                   <tr key={u.id} className={u.active ? '' : 'text-slate-400 dark:text-slate-500'}>
-                    <td className="px-4 py-2 font-mono text-slate-800 dark:text-slate-200">
+                    <td data-label="ชื่อผู้ใช้" className="px-4 py-2 font-mono text-slate-800 dark:text-slate-200">
                       {u.username}
                       {isSelf && (
                         <span className="ml-2 rounded-full bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700">
@@ -215,11 +215,11 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2">{u.displayName}</td>
-                    <td className="px-4 py-2">
+                    <td data-label="ชื่อที่แสดง" className="px-4 py-2">{u.displayName}</td>
+                    <td data-label="สิทธิ์" className="px-4 py-2">
                       <RoleBadge role={u.role} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td data-label="สถานะ" className="px-4 py-2">
                       {u.active ? (
                         <span className="inline-flex items-center gap-1.5 font-medium text-emerald-700">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -232,8 +232,8 @@ export function UsersClient({ users, currentUserId }: { users: User[]; currentUs
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 tabular-nums">{u.historyCount}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                    <td data-label="ประวัติ" className="px-4 py-2 tabular-nums">{u.historyCount}</td>
+                    <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                       <button
                         className="mr-2 inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         onClick={() => {
@@ -361,14 +361,14 @@ function PasswordDialog({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4 dark:bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 dark:bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
       }}
     >
       <form
         data-testid="password-dialog"
-        className="w-full max-w-sm space-y-3 rounded-2xl border border-sky-100 bg-white p-5 shadow-xl dark:border-sky-900 dark:bg-slate-900"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-sm space-y-3 overflow-y-auto rounded-2xl border border-sky-100 bg-white p-5 shadow-xl dark:border-sky-900 dark:bg-slate-900"
         onSubmit={submit}
       >
         <div className="flex items-center gap-3">

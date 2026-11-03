@@ -80,12 +80,12 @@ export default async function AuditListPage() {
         />
       )}
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <h2 className="border-b border-slate-200 px-4 py-3 font-medium dark:border-slate-700">ประวัติการตรวจนับ</h2>
         {sessions.length === 0 ? (
           <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">ยังไม่เคยตรวจนับ</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="table-cards w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">รอบ</th>
@@ -99,20 +99,20 @@ export default async function AuditListPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {sessions.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2">
+                  <td data-label="รอบ" className="px-4 py-2">
                     <Link href={`/audit/${s.id}`} className="font-medium hover:underline">
                       {s.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{scopeLabel(s)}</td>
-                  <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{s.startedBy.displayName}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
+                  <td data-label="ขอบเขต" className="px-4 py-2 text-slate-600 dark:text-slate-300">{scopeLabel(s)}</td>
+                  <td data-label="เริ่มโดย" className="px-4 py-2 text-slate-600 dark:text-slate-300">{s.startedBy.displayName}</td>
+                  <td data-label="เริ่มเมื่อ" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
                     {s.startedAt.toLocaleString('th-TH', {
                       timeZone: 'Asia/Bangkok',
                         })}
                   </td>
-                  <td className="px-4 py-2">{s._count.scans}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="ยิงแล้ว" className="px-4 py-2">{s._count.scans}</td>
+                  <td data-label="สถานะ" className="px-4 py-2">
                     {s.status === 'OPEN' ? (
                       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                         กำลังนับ

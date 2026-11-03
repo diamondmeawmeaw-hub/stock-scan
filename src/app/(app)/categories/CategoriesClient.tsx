@@ -118,8 +118,8 @@ export function CategoriesClient({
         </div>
       </form>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="table-cards w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2 font-medium">รหัส</th>
@@ -132,30 +132,30 @@ export function CategoriesClient({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {categories.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-slate-500 dark:text-slate-400">
+                <td data-label="" colSpan={5} className="table-card-block px-4 py-6 text-slate-500 dark:text-slate-400">
                   ยังไม่มีประเภทของ
                 </td>
               </tr>
             )}
             {categories.map((c) =>
               editingId === c.id ? (
-                <tr key={c.id} data-testid="category-row-edit" className="bg-slate-50 dark:bg-slate-800/60">
-                  <td className="px-4 py-2">
+                <tr key={c.id} data-testid="category-row-edit" className="table-card-form bg-slate-50 dark:bg-slate-800/60">
+                  <td data-label="รหัส" className="px-4 py-2">
                     <input
                       className="field"
                       value={edit.code}
                       onChange={(e) => setEdit({ ...edit, code: e.target.value })}
                     />
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="ชื่อ" className="px-4 py-2">
                     <input
                       className="field"
                       value={edit.name}
                       onChange={(e) => setEdit({ ...edit, name: e.target.value })}
                     />
                   </td>
-                  <td className="px-4 py-2">{c.productCount}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="จำนวนสินค้า" className="px-4 py-2">{c.productCount}</td>
+                  <td data-label="" className="table-card-block px-4 py-2">
                     <label className="inline-flex items-center gap-2 text-xs">
                       <input
                         type="checkbox"
@@ -168,7 +168,7 @@ export function CategoriesClient({
                       เก็บรูป
                     </label>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">
+                  <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-primary mr-2"
                       disabled={busy}
@@ -194,10 +194,10 @@ export function CategoriesClient({
                 </tr>
               ) : (
                 <tr key={c.id} data-testid="category-row">
-                  <td className="px-4 py-2 font-mono">{c.code}</td>
-                  <td className="px-4 py-2">{c.name}</td>
-                  <td className="px-4 py-2">{c.productCount}</td>
-                  <td className="px-4 py-2">
+                  <td data-label="รหัส" className="px-4 py-2 font-mono">{c.code}</td>
+                  <td data-label="ชื่อ" className="px-4 py-2">{c.name}</td>
+                  <td data-label="จำนวนสินค้า" className="px-4 py-2">{c.productCount}</td>
+                  <td data-label="เก็บรูป" className="px-4 py-2">
                     <span
                       data-testid={`category-photos-${c.code}`}
                       className={
@@ -209,7 +209,7 @@ export function CategoriesClient({
                       {c.photosEnabled ? 'เก็บรูป' : 'ไม่เก็บ'}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">
+                  <td data-label="" className="whitespace-nowrap px-4 py-2 text-right">
                     <button
                       className="btn-ghost mr-2"
                       onClick={() => {

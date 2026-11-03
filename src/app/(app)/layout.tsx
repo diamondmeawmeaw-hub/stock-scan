@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { MobileTabBar } from '@/components/MobileTabBar'
 import { NavBar } from '@/components/NavBar'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -9,9 +10,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login?reauth=1')
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <NavBar displayName={user.displayName} role={user.role} />
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6">
+        {children}
+      </main>
+      <MobileTabBar displayName={user.displayName} role={user.role} />
     </div>
   )
 }

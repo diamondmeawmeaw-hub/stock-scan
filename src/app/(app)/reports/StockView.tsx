@@ -103,7 +103,7 @@ function CategorySection({
         <p className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400">ยังไม่มีสินค้าในประเภทนี้</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="table-cards w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">SKU</th>
@@ -128,8 +128,8 @@ function CategorySection({
                 return (
                   <Fragment key={p.productId}>
                     <tr>
-                      <td className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{p.sku}</td>
-                      <td className="px-4 py-2">
+                      <td data-label="SKU" className="px-4 py-2 font-mono text-slate-700 dark:text-slate-200">{p.sku}</td>
+                      <td data-label="สินค้า" className="px-4 py-2">
                         {p.name}
                         {isQty && (
                           <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
@@ -137,21 +137,21 @@ function CategorySection({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{p.vendorName ?? 'ไม่ระบุ'}</td>
+                      <td data-label="แบรนด์" className="px-4 py-2 text-slate-600 dark:text-slate-300">{p.brand ?? '-'}</td>
+                      <td data-label="ซื้อจาก" className="whitespace-nowrap px-4 py-2 text-slate-600 dark:text-slate-300">{p.vendorName ?? 'ไม่ระบุ'}</td>
                       {isOut ? (
-                        <td className="px-4 py-2 text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
+                        <td data-label="เบิกออก" className="px-4 py-2 text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
                           {p.out}
                         </td>
                       ) : (
                         <>
-                          <td className="px-4 py-2 text-right font-medium tabular-nums">
+                          <td data-label="คงเหลือ" className="px-4 py-2 text-right font-medium tabular-nums">
                             {p.inStock}
                           </td>
-                          <td className="px-4 py-2 text-right text-slate-500 dark:text-slate-400">{p.out}</td>
+                          <td data-label="เบิกออกไปแล้ว" className="px-4 py-2 text-right text-slate-500 dark:text-slate-400">{p.out}</td>
                         </>
                       )}
-                      <td className="px-4 py-2 text-center">
+                      <td data-label="Serial" className="px-4 py-2 text-center">
                         {isQty ? (
                           <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
                         ) : (
@@ -168,7 +168,7 @@ function CategorySection({
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={isOut ? 6 : 7} className="p-0">
+                        <td data-label="" colSpan={isOut ? 6 : 7} className="p-0">
                           <SerialDetailPanel
                             productId={p.productId}
                             filters={filters}

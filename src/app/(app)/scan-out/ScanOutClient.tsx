@@ -193,7 +193,7 @@ export function ScanOutClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2" role="tablist" aria-label="วิธีเบิกออก">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="วิธีเบิกออก">
         <button
           type="button"
           role="tab"

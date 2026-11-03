@@ -395,7 +395,7 @@ export function SerialPhotoManager({
       <img
         src={`${baseUrl}/${preview.id}`}
         alt={preview.label}
-        className="max-h-[78vh] max-w-[calc(100%-6rem)] rounded-xl object-contain shadow-2xl"
+        className="max-h-[78dvh] max-w-[calc(100%-4rem)] rounded-xl object-contain shadow-2xl sm:max-w-[calc(100%-6rem)]"
         onClick={(e) => e.stopPropagation()}
       />
       <div

@@ -356,7 +356,7 @@ export function ScanInClient({
       </div>
 
       {selected && unlocked && (
-        <div className="flex gap-2" role="tablist" aria-label="วิธีรับของ" data-testid="receive-mode">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="วิธีรับของ" data-testid="receive-mode">
           <button
             type="button"
             role="tab"
