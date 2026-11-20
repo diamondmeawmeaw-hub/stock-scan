@@ -247,7 +247,8 @@ async function MovementView({
   to: string
 }) {
   const report = await buildMovementDetail({ ...filters, ...dayRange(from, to) })
-  const thaiDate = (d: string) => new Date(`${d}T00:00:00+07:00`).toLocaleDateString('th-TH')
+  const thaiDate = (d: string) =>
+    new Date(`${d}T00:00:00+07:00`).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })
 
   const thaiDateTime = (iso: string) => new Date(iso).toLocaleString('th-TH', {
     timeZone: 'Asia/Bangkok',
