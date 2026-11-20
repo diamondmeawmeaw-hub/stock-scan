@@ -47,6 +47,8 @@ export const salesExportSchema = z.object({
   q: optionalText,
   from: date,
   to: date,
+  /** true = สรุปยอดรวมรายการซ้ำตามสินค้า/ลูกค้า/โปรเจค แทนรายการละเอียด */
+  sum: z.boolean().optional(),
 })
 
 // reportExportSchema มี refine อยู่ จึงใช้ discriminatedUnion ไม่ได้ ต้องใช้ union ปกติ

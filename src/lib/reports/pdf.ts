@@ -1,6 +1,6 @@
 import PdfPrinter from 'pdfmake'
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { MovementDetailReport, OutReportDetailed, SalesReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type { MovementDetailReport, OutReportDetailed, SalesReport, SalesSummary, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 import { SARABUN_BOLD_BASE64, SARABUN_REGULAR_BASE64 } from './sarabun-font'
 
@@ -419,6 +419,64 @@ export function salesToPdf(report: SalesReport, meta: ExportMeta): Promise<Buffe
 
   content.push({
     text: `รวมทั้งหมด ${report.total.toLocaleString('th-TH')} รายการ`,
+    style: 'section',
+    alignment: 'right',
+  })
+
+  return render(content)
+}
+
+// ─────────────────── ประวัติการขายแบบรวมรายการซ้ำ (PDF) ───────────────────
+
+export function salesSummaryToPdf(
+  summary: SalesSummary,
+  meta: ExportMeta
+): Promise<Buffer> {
+  const content: Content[] = header(
+    'รายงานประวัติการขาย (รวมรายการซ้ำ)',
+    `รวม ${summary.total.toLocaleString('th-TH')} กลุ่ม จาก ${summary.totalRounds.toLocaleString('th-TH')} รายการ`,
+    meta
+  )
+
+  if (summary.rows.length === 0) {
+    content.push({ text: 'ไม่มีประวัติการขายตามเงื่อนไขที่เลือก', style: 'empty' })
+    return render(content)
+  }
+
+  content.push({
+    table: {
+      headerRows: 1,
+      widths: [80, 80, '*', 55, 35, 50, 45, 70],
+      body: [
+        [
+          th('ลูกค้า'),
+          th('โปรเจค'),
+          th('สินค้า'),
+          th('จำนวนที่ขาย', true),
+          th('หน่วย'),
+          th('เบิก (ครั้ง)', true),
+          th('คืนแล้ว', true),
+          th('เบิกครั้งล่าสุด'),
+        ],
+        ...summary.rows.map(
+          (r): TableCell[] => [
+            r.customerName ?? '-',
+            r.projectName ?? '-',
+            r.sku ? `${r.productName} (${r.sku})` : r.productName,
+            num(r.netQty),
+            r.unitLabel ?? '-',
+            num(r.rounds),
+            r.returnedQty > 0 ? num(r.returnedQty) : '-',
+            thaiDateTimeShort(r.lastAt),
+          ]
+        ),
+      ],
+    },
+    layout: TABLE_LAYOUT,
+  })
+
+  content.push({
+    text: `รวม ${summary.total.toLocaleString('th-TH')} กลุ่ม · ${summary.totalRounds.toLocaleString('th-TH')} รายการ · คืนแล้ว ${summary.totalReturned.toLocaleString('th-TH')}`,
     style: 'section',
     alignment: 'right',
   })

@@ -1,5 +1,12 @@
 import ExcelJS from 'exceljs'
-import type { MovementDetailReport, OutReportDetailed, SalesReport, StockReportDetailed, StockReportRow } from '@/lib/scan-service'
+import type {
+  MovementDetailReport,
+  OutReportDetailed,
+  SalesReport,
+  SalesSummary,
+  StockReportDetailed,
+  StockReportRow,
+} from '@/lib/scan-service'
 import { filterSummary, thaiDate, thaiDateTime, type ExportMeta } from './common'
 
 type StockReport = { categories: StockReportRow[]; grandTotalInStock: number }
@@ -471,6 +478,78 @@ export async function salesToExcel(report: SalesReport, meta: ExportMeta): Promi
   }
 
   const total = sheet.addRow(['', '', '', '', '', '', 'รวม', `${report.total} รายการ`, ''])
+  total.font = { bold: true }
+
+  return toBuffer(wb)
+}
+
+// ─────────────────── ประวัติการขายแบบรวมรายการซ้ำ (Excel) ───────────────────
+
+export async function salesSummaryToExcel(
+  summary: SalesSummary,
+  meta: ExportMeta
+): Promise<Buffer> {
+  const wb = newWorkbook()
+  const sheet = wb.addWorksheet('ประวัติการขาย (รวม)')
+  sheet.columns = [
+    { width: 24 }, // A: ลูกค้า
+    { width: 24 }, // B: โปรเจค
+    { width: 34 }, // C: สินค้า
+    { width: 12 }, // D: จำนวนที่ขาย
+    { width: 8 }, // E: หน่วย
+    { width: 10 }, // F: เบิก (ครั้ง)
+    { width: 10 }, // G: คืนแล้ว
+    { width: 18 }, // H: เบิกครั้งล่าสุด
+  ]
+
+  writeTitle(
+    sheet,
+    'รายงานประวัติการขาย (รวมรายการซ้ำ)',
+    `รวม ${summary.total.toLocaleString('th-TH')} กลุ่ม จาก ${summary.totalRounds.toLocaleString('th-TH')} รายการ`,
+    meta
+  )
+
+  if (summary.rows.length === 0) {
+    sheet.addRow(['ไม่มีประวัติการขายตามเงื่อนไขที่เลือก'])
+    return toBuffer(wb)
+  }
+
+  const headerRow = sheet.addRow([
+    'ลูกค้า',
+    'โปรเจค',
+    'สินค้า',
+    'จำนวนที่ขาย',
+    'หน่วย',
+    'เบิก (ครั้ง)',
+    'คืนแล้ว',
+    'เบิกครั้งล่าสุด',
+  ])
+  styleHeader(headerRow)
+  sheet.views = [{ state: 'frozen', ySplit: headerRow.number }]
+
+  for (const r of summary.rows) {
+    sheet.addRow([
+      r.customerName ?? '-',
+      r.projectName ?? '-',
+      r.sku ? `${r.productName} (${r.sku})` : r.productName,
+      r.netQty,
+      r.unitLabel ?? '',
+      r.rounds,
+      r.returnedQty,
+      thaiDateTimeShort(r.lastAt),
+    ])
+  }
+
+  const total = sheet.addRow([
+    '',
+    '',
+    'รวม',
+    '',
+    '',
+    summary.totalRounds,
+    summary.totalReturned,
+    '',
+  ])
   total.font = { bold: true }
 
   return toBuffer(wb)

@@ -90,4 +90,31 @@ describe('GET /api/sales/export', () => {
     expect(filtered).toContain('NB-0002')
     expect(filtered).toContain('ลูกค้า ก')
   })
+
+  it('sum=1 -> ไฟล์ Excel เป็นยอดรวมรายการซ้ำ', async () => {
+    expect((await postJson(scanOutRoute, { serial: 'NB-0001', reason: 'SALE' })).status).toBe(200)
+
+    const res = await download({ format: 'xlsx', sum: '1' })
+    expect(res.status).toBe(200)
+    expect(magic(res.buffer, 4)).toBe('PK\x03\x04')
+    expect(decodeURIComponent(res.headers.get('content-disposition')!)).toContain('รวมรายการซ้ำ')
+
+    const ExcelJS = (await import('exceljs')).default
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(res.buffer as unknown as ArrayBuffer)
+    const lines: string[] = []
+    wb.worksheets[0].eachRow((row) => lines.push((row.values as unknown[]).slice(1).join(' | ')))
+    const text = lines.join('\n')
+    expect(text).toContain('รวมรายการซ้ำ')
+    expect(text).toContain('เบิก (ครั้ง)')
+  })
+
+  it('sum=1 -> ไฟล์ PDF เป็นยอดรวมรายการซ้ำ', async () => {
+    expect((await postJson(scanOutRoute, { serial: 'NB-0001', reason: 'SALE' })).status).toBe(200)
+
+    const res = await download({ format: 'pdf', sum: '1' })
+    expect(res.status).toBe(200)
+    expect(magic(res.buffer, 5)).toBe('%PDF-')
+    expect(decodeURIComponent(res.headers.get('content-disposition')!)).toContain('รวมรายการซ้ำ')
+  })
 })

@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       q: params.get('q'),
       from: params.get('from') ?? undefined,
       to: params.get('to') ?? undefined,
+      sum: ['1', 'true', 'on'].includes((params.get('sum') ?? '').toLowerCase()),
     })
 
     const file = await buildSmallExport(input)

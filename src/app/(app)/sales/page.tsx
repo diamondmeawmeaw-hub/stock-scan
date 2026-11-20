@@ -152,9 +152,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     return qs ? `/sales?${qs}` : '/sales'
   }
 
-  // ไฟล์ export ยังเป็นรายการละเอียดเสมอ เพื่อให้ตรวจย้อนหลังได้ทีละรายการ
+  // ไฟล์ export ใช้ตัวกรองเดียวกับหน้าจอ (โหมดรวมจะได้ไฟล์สรุปยอดรวมด้วย)
   const exportHref = (format: 'xlsx' | 'pdf') => {
     const query = new URLSearchParams(filterQuery)
+    if (sumMode) query.set('sum', '1')
     query.set('format', format)
     return `/api/sales/export?${query}`
   }
@@ -167,6 +168,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
     q: q || null,
     from: from || null,
     to: to || null,
+    sum: sumMode,
   })
 
   return (
@@ -281,7 +283,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
             </div>
             <p className="border-t border-sky-100 px-4 py-2 text-xs text-slate-500 dark:border-sky-900 dark:text-slate-400">
               รวมเฉพาะสินค้าเดียวกันในลูกค้า/โปรเจคเดียวกัน · “จำนวนที่ขาย” ไม่นับรายการที่คืนแล้ว
-              (ยอดคืนแสดงแยก) · ไฟล์ Excel/PDF ยังเป็นรายการละเอียดทีละครั้ง
+              (ยอดคืนแสดงแยก) · ไฟล์ Excel/PDF ที่โหลดจะใช้ยอดรวมชุดนี้
             </p>
           </div>
         )

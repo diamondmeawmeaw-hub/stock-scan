@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { dayRange, todayInThailand, type TimePeriod } from '@/lib/date-range'
+import { HttpError } from '@/lib/auth'
 import {
   buildMovementDetail,
   buildOutReportDetailed,
   buildSalesReport,
+  buildSalesSummary,
   buildStockReportDetailed,
+  exportRowLimit,
   type SalesReportFilters,
   type StockReportFilters,
 } from '@/lib/scan-service'
@@ -12,12 +15,14 @@ import type { ExportMeta } from '@/lib/reports/common'
 import {
   movementDetailedToExcel,
   outDetailedToExcel,
+  salesSummaryToExcel,
   salesToExcel,
   stockDetailedToExcel,
 } from '@/lib/reports/excel'
 import {
   movementDetailedToPdf,
   outDetailedToPdf,
+  salesSummaryToPdf,
   salesToPdf,
   stockDetailedToPdf,
 } from '@/lib/reports/pdf'
@@ -88,6 +93,26 @@ export async function buildSmallExport(
 ): Promise<ExportFile> {
   if (input.type === 'sales') {
     const filters = salesFiltersFromInput(input)
+
+    // โหมดรวมรายการซ้ำ: ไฟล์ต้องเป็นยอดสรุปชุดเดียวกับที่เห็นบนหน้าจอ
+    if (input.sum) {
+      const summary = await buildSalesSummary(filters)
+      const limit = exportRowLimit()
+      if (summary.rows.length > limit) {
+        // อย่าใช้ 413 เพราะ worker จะสลับไป export รายละเอียดซึ่งไม่ตรงกับโหมดรวม
+        throw new HttpError(
+          400,
+          `ข้อมูลเกิน ${limit.toLocaleString('th-TH')} กลุ่ม กรุณากรองช่วงเวลาหรือเงื่อนไขให้แคบลง`
+        )
+      }
+      const meta = await describeSalesFilters(input, generatedAt)
+      const buffer =
+        input.format === 'xlsx'
+          ? await salesSummaryToExcel(summary, meta)
+          : await salesSummaryToPdf(summary, meta)
+      return fileResult(buffer, 'ประวัติการขาย-รวมรายการซ้ำ', input.format, generatedAt)
+    }
+
     const report = await buildSalesReport(filters)
     const meta = await describeSalesFilters(input, generatedAt)
     const buffer =
@@ -145,7 +170,9 @@ export function exportFileName(
 
 /** ชื่อรายงานตามประเภทรายการ export */
 export function exportTitle(input: ExportRequest): string {
-  if (input.type === 'sales') return 'ประวัติการขาย'
+  if (input.type === 'sales') {
+    return input.sum ? 'ประวัติการขาย-รวมรายการซ้ำ' : 'ประวัติการขาย'
+  }
   if (input.view === 'movement') return 'ความเคลื่อนไหว'
   return input.view === 'stock' ? 'ยอดคงเหลือ' : 'สินค้าเบิกออก'
 }
