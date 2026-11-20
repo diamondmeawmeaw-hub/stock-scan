@@ -10,6 +10,7 @@ type Values = {
   q: string
   from: string
   to: string
+  sum: boolean
 }
 
 const fieldClass =
@@ -105,6 +106,7 @@ export function SalesFilters({
     if (next.q.trim()) query.set('q', next.q.trim())
     if (next.from) query.set('from', next.from)
     if (next.to) query.set('to', next.to)
+    if (next.sum) query.set('sum', '1')
     router.push(`/sales${query.toString() ? `?${query}` : ''}`)
   }
 
@@ -205,13 +207,32 @@ export function SalesFilters({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           data-testid="clear-filters"
           onClick={() => {
-            const cleared = { customerId: '', projectId: '', q: '', from: '', to: '' }
+            const cleared = { customerId: '', projectId: '', q: '', from: '', to: '', sum: false }
             setForm(cleared)
             apply(cleared)
           }}
         >
           ล้างตัวกรอง
         </button>
+        <label
+          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50 dark:border-sky-900 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          htmlFor="filter-sum"
+          title="รวมจำนวนสินค้าเดียวกันในลูกค้า/โปรเจคเดียวกันเป็นแถวเดียว"
+        >
+          <input
+            id="filter-sum"
+            data-testid="toggle-sum"
+            type="checkbox"
+            className="h-4 w-4 accent-sky-600"
+            checked={form.sum}
+            onChange={(e) => {
+              const next = { ...form, sum: e.target.checked }
+              setForm(next)
+              apply(next)
+            }}
+          />
+          รวมรายการซ้ำ (sum ตามสินค้า)
+        </label>
         {exportHrefs && exportPayloads && (
           <span className="ml-auto flex gap-2">
             <ExportButton

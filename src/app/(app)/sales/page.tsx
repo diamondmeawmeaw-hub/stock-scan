@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { dayRange, isValidDateInput } from '@/lib/date-range'
-import { listCustomers } from '@/lib/scan-service'
+import { buildSalesSummary, listCustomers } from '@/lib/scan-service'
 import { getCurrentUser } from '@/lib/auth'
 import { ReturnButton } from '@/components/ReturnButton'
 import { SerialPhotoManager } from '@/components/SerialPhotoManager'
@@ -12,6 +13,16 @@ import { SalesFilters } from './SalesFilters'
 export const dynamic = 'force-dynamic'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+type SaleLogRow = Prisma.ScanLogGetPayload<{
+  include: {
+    customer: true
+    product: { include: { category: { select: { photosEnabled: true } } } }
+    user: true
+    reversedBy: { select: { id: true } }
+    unit: { select: { status: true } }
+  }
+}>
 
 function one(params: Record<string, string | string[] | undefined>, key: string): string {
   const value = params[key]
@@ -26,6 +37,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   const rawFrom = one(params, 'from')
   const rawTo = one(params, 'to')
   const requestedPage = Math.max(1, Math.floor(Number(one(params, 'page')) || 1))
+  // โหมดรวมรายการซ้ำ: สินค้าเดียวกันในลูกค้า/โปรเจคเดียวกันถูกรวมเป็นแถวเดียว
+  const sumMode = one(params, 'sum') === '1'
 
   const from = isValidDateInput(rawFrom) ? rawFrom : ''
   const to = isValidDateInput(rawTo) ? rawTo : ''
@@ -51,11 +64,14 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   ])
 
   // ── สร้าง where clause ──
-  const where: Record<string, unknown> = {
+  const where: Prisma.ScanLogWhereInput = {
     type: 'OUT',
     reason: 'SALE',
     accepted: true,
   }
+
+  let rangeFrom: Date | null = null
+  let rangeTo: Date | null = null
 
   if (customerId) {
     where.customerId = customerId
@@ -71,6 +87,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
       : [from || to, from || to]
     const range = dayRange(start, end)
     where.createdAt = { gte: range.from, lte: range.to }
+    rangeFrom = range.from
+    rangeTo = range.to
   }
 
   if (q) {
@@ -86,24 +104,37 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
   }
 
   const PAGE_SIZE = 50
-  const total = await prisma.scanLog.count({ where })
+
+  // โหมดปกติ = ทีละรายการ / โหมดรวม = กลุ่มสินค้า + ลูกค้า + โปรเจค
+  const summary = sumMode
+    ? await buildSalesSummary({ customerId, projectId, q, from: rangeFrom, to: rangeTo })
+    : null
+
+  const total = summary ? summary.total : await prisma.scanLog.count({ where })
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const page = Math.min(requestedPage, totalPages)
 
-  const logs = await prisma.scanLog.findMany({
-    where,
-    // ใช้ id เป็นตัวตัดสินลำดับรอง กันแถวเวลาเดียวกันกระโดดข้ามหน้า
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    include: {
-      customer: true,
-      product: { include: { category: { select: { photosEnabled: true } } } },
-      user: true,
-      reversedBy: { select: { id: true } },
-      unit: { select: { status: true } },
-    },
-  })
+  let logs: SaleLogRow[] = []
+  if (!summary) {
+    logs = await prisma.scanLog.findMany({
+      where,
+      // ใช้ id เป็นตัวตัดสินลำดับรอง กันแถวเวลาเดียวกันกระโดดข้ามหน้า
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        customer: true,
+        product: { include: { category: { select: { photosEnabled: true } } } },
+        user: true,
+        reversedBy: { select: { id: true } },
+        unit: { select: { status: true } },
+      },
+    })
+  }
+
+  const summaryRows = summary
+    ? summary.rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : []
 
   // ตัวกรองชุดเดียวกับที่เห็นบนจอ - ใช้ทั้งลิงก์ export และลิงก์แบ่งหน้า
   const filterQuery = new URLSearchParams()
@@ -115,11 +146,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
 
   const pageHref = (target: number) => {
     const query = new URLSearchParams(filterQuery)
+    if (sumMode) query.set('sum', '1')
     if (target > 1) query.set('page', String(target))
     const qs = query.toString()
     return qs ? `/sales?${qs}` : '/sales'
   }
 
+  // ไฟล์ export ยังเป็นรายการละเอียดเสมอ เพื่อให้ตรวจย้อนหลังได้ทีละรายการ
   const exportHref = (format: 'xlsx' | 'pdf') => {
     const query = new URLSearchParams(filterQuery)
     query.set('format', format)
@@ -146,7 +179,16 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
           <div>
             <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">ประวัติการขาย</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              รายการเบิกออกที่มีเหตุผลเป็นขาย · {total.toLocaleString('th-TH')} รายการ
+              {summary ? (
+                <>
+                  รวมรายการซ้ำตามสินค้า · {total.toLocaleString('th-TH')} กลุ่ม ·{' '}
+                  {summary.totalRounds.toLocaleString('th-TH')} รายการ
+                </>
+              ) : (
+                <>
+                  รายการเบิกออกที่มีเหตุผลเป็นขาย · {total.toLocaleString('th-TH')} รายการ
+                </>
+              )}
               {totalPages > 1 ? ` · หน้า ${page}/${totalPages}` : ''}
             </p>
           </div>
@@ -161,12 +203,89 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
           name: p.name,
           customerLabel: `${p.customer.code} · ${p.customer.name}`,
         }))}
-        values={{ customerId, projectId, q, from, to }}
+        values={{ customerId, projectId, q, from, to, sum: sumMode }}
         exportHrefs={{ xlsx: exportHref('xlsx'), pdf: exportHref('pdf') }}
         exportPayloads={{ xlsx: exportPayload('xlsx'), pdf: exportPayload('pdf') }}
       />
 
-      {logs.length === 0 ? (
+      {summary ? (
+        summaryRows.length === 0 ? (
+          <p
+            className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-sky-900 dark:bg-slate-900 dark:text-slate-400"
+            data-testid="sales-empty"
+          >
+            ไม่พบประวัติการขายตามเงื่อนไขที่เลือก
+          </p>
+        ) : (
+          <div
+            className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-900"
+            data-testid="sales-summary"
+          >
+            <div className="overflow-x-auto">
+              <table className="table-cards w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">ลูกค้า</th>
+                    <th className="px-4 py-2 font-medium">โปรเจค</th>
+                    <th className="px-4 py-2 font-medium">สินค้า</th>
+                    <th className="px-4 py-2 font-medium">จำนวนที่ขาย</th>
+                    <th className="px-4 py-2 font-medium">เบิก (ครั้ง)</th>
+                    <th className="px-4 py-2 font-medium">คืนแล้ว</th>
+                    <th className="px-4 py-2 font-medium">เบิกครั้งล่าสุด</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {summaryRows.map((row) => (
+                    <tr
+                      key={`${row.productId ?? '-'}|${row.customerId ?? '-'}|${row.projectId ?? '-'}`}
+                      data-testid="sale-summary-row"
+                    >
+                      <td data-label="ลูกค้า" className="px-4 py-2">
+                        {row.customerName ?? '-'}
+                      </td>
+                      <td data-label="โปรเจค" className="px-4 py-2">
+                        {row.projectName ?? '-'}
+                      </td>
+                      <td data-label="สินค้า" className="px-4 py-2">
+                        {row.productName}
+                        {row.sku ? (
+                          <span className="text-xs text-slate-400 dark:text-slate-500"> · {row.sku}</span>
+                        ) : null}
+                      </td>
+                      <td
+                        data-label="จำนวนที่ขาย"
+                        className="whitespace-nowrap px-4 py-2 font-medium tabular-nums text-slate-900 dark:text-slate-100"
+                      >
+                        {row.netQty.toLocaleString('th-TH')}
+                        {row.unitLabel ? ` ${row.unitLabel}` : ''}
+                      </td>
+                      <td data-label="เบิก (ครั้ง)" className="px-4 py-2 tabular-nums">
+                        {row.rounds.toLocaleString('th-TH')}
+                      </td>
+                      <td data-label="คืนแล้ว" className="px-4 py-2 tabular-nums">
+                        {row.returnedQty > 0 ? (
+                          <span className="text-amber-700 dark:text-amber-300">
+                            {row.returnedQty.toLocaleString('th-TH')}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">-</span>
+                        )}
+                      </td>
+                      <td data-label="เบิกครั้งล่าสุด" className="whitespace-nowrap px-4 py-2 text-slate-500 dark:text-slate-400">
+                        {new Date(row.lastAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t border-sky-100 px-4 py-2 text-xs text-slate-500 dark:border-sky-900 dark:text-slate-400">
+              รวมเฉพาะสินค้าเดียวกันในลูกค้า/โปรเจคเดียวกัน · “จำนวนที่ขาย” ไม่นับรายการที่คืนแล้ว
+              (ยอดคืนแสดงแยก) · ไฟล์ Excel/PDF ยังเป็นรายการละเอียดทีละครั้ง
+            </p>
+          </div>
+        )
+      ) : logs.length === 0 ? (
         <p
           className="rounded-2xl border border-sky-100 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-sky-900 dark:bg-slate-900 dark:text-slate-400"
           data-testid="sales-empty"
@@ -258,7 +377,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Search
           className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-white px-4 py-3 text-sm shadow-sm dark:border-sky-900 dark:bg-slate-900"
         >
           <span className="text-slate-500 dark:text-slate-400">
-            หน้า {page} จาก {totalPages} · ทั้งหมด {total.toLocaleString('th-TH')} รายการ
+            หน้า {page} จาก {totalPages} · ทั้งหมด {total.toLocaleString('th-TH')}{' '}
+            {summary ? 'กลุ่ม' : 'รายการ'}
           </span>
           <div className="flex items-center gap-2">
             {page > 1 ? (

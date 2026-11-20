@@ -2994,6 +2994,146 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
   }
 }
 
+// ─────────────────────── สรุปยอดขายรวมรายการซ้ำ ───────────────────────
+
+export type SalesSummaryRow = {
+  productId: string | null
+  sku: string | null
+  productName: string
+  unitLabel: string | null
+  customerId: string | null
+  customerName: string | null
+  projectId: string | null
+  projectName: string | null
+  /** จำนวนที่เบิกออกทั้งหมด (รวมรายการที่ถูกคืนแล้ว) */
+  quantity: number
+  /** จำนวนที่ถูกคืนแล้ว - ไม่นับเป็นยอดขาย */
+  returnedQty: number
+  /** จำนวนที่ขายจริง = quantity - returnedQty */
+  netQty: number
+  /** จำนวนครั้งที่เบิกสินค้านี้ในลูกค้า/โปรเจคเดียวกัน */
+  rounds: number
+  /** เวลาที่เบิกครั้งล่าสุด */
+  lastAt: string
+}
+
+export type SalesSummary = {
+  /** เรียงจากรายการที่เพิ่งเบิกล่าสุด */
+  rows: SalesSummaryRow[]
+  /** จำนวนกลุ่ม (สินค้า + ลูกค้า + โปรเจค) */
+  total: number
+  /** จำนวนรายการเบิกทั้งหมดในกลุ่มที่แสดง */
+  totalRounds: number
+  totalQuantity: number
+  totalReturned: number
+  totalNet: number
+}
+
+const summaryGroupKey = (
+  productId: string | null,
+  customerId: string | null,
+  projectId: string | null
+) => `${productId ?? ''}\u0000${customerId ?? ''}\u0000${projectId ?? ''}`
+
+/**
+ * สรุปยอดขายแบบรวมรายการซ้ำ: สินค้าเดียวกันในลูกค้า/โปรเจคเดียวกันถูกรวมเป็นแถวเดียว
+ * - ยอดที่ขายจริงไม่นับรายการที่ถูกคืนแล้ว (แสดงยอดคืนแยก)
+ * - ใช้ตัวกรองชุดเดียวกับหน้าประวัติการขาย (ลูกค้า/โปรเจค/ค้นหา/ช่วงวันที่)
+ */
+export async function buildSalesSummary(filters: SalesReportFilters = {}): Promise<SalesSummary> {
+  const where = salesReportWhere(filters)
+
+  const [all, returned] = await Promise.all([
+    prisma.scanLog.groupBy({
+      by: ['productId', 'customerId', 'projectId'],
+      where,
+      _sum: { quantity: true },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+    prisma.scanLog.groupBy({
+      by: ['productId', 'customerId', 'projectId'],
+      where: { ...where, reversedBy: { isNot: null } },
+      _sum: { quantity: true },
+    }),
+  ])
+
+  const returnedByKey = new Map(
+    returned.map((g) => [
+      summaryGroupKey(g.productId, g.customerId, g.projectId),
+      g._sum.quantity ?? 0,
+    ])
+  )
+
+  const productIds = [...new Set(all.map((g) => g.productId).filter((v): v is string => !!v))]
+  const projectIds = [...new Set(all.map((g) => g.projectId).filter((v): v is string => !!v))]
+  const customerIds = [...new Set(all.map((g) => g.customerId).filter((v): v is string => !!v))]
+
+  const [products, projects, customers] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, sku: true, name: true, unitLabel: true },
+    }),
+    prisma.project.findMany({
+      where: { id: { in: projectIds } },
+      select: { id: true, name: true },
+    }),
+    prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      select: { id: true, code: true, name: true },
+    }),
+  ])
+
+  const productMap = new Map(products.map((p) => [p.id, p]))
+  const projectMap = new Map(projects.map((p) => [p.id, p]))
+  const customerMap = new Map(customers.map((c) => [c.id, c]))
+
+  const rows: SalesSummaryRow[] = all
+    .map((group) => {
+      const product = group.productId ? productMap.get(group.productId) : undefined
+      const project = group.projectId ? projectMap.get(group.projectId) : undefined
+      const customer = group.customerId ? customerMap.get(group.customerId) : undefined
+      const quantity = group._sum.quantity ?? 0
+      const returnedQty =
+        returnedByKey.get(
+          summaryGroupKey(group.productId, group.customerId, group.projectId)
+        ) ?? 0
+
+      return {
+        productId: group.productId,
+        sku: product?.sku ?? null,
+        productName: product?.name ?? '(สินค้าถูกลบแล้ว)',
+        unitLabel: product?.unitLabel ?? null,
+        customerId: group.customerId,
+        customerName: customer ? `${customer.code} · ${customer.name}` : null,
+        projectId: group.projectId,
+        projectName: project?.name ?? null,
+        quantity,
+        returnedQty,
+        netQty: quantity - returnedQty,
+        rounds: group._count._all,
+        lastAt: (group._max.createdAt ?? new Date(0)).toISOString(),
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.lastAt.localeCompare(a.lastAt) ||
+        a.productName.localeCompare(b.productName, 'th')
+    )
+
+  const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0)
+  const totalReturned = rows.reduce((sum, row) => sum + row.returnedQty, 0)
+
+  return {
+    rows,
+    total: rows.length,
+    totalRounds: rows.reduce((sum, row) => sum + row.rounds, 0),
+    totalQuantity,
+    totalReturned,
+    totalNet: totalQuantity - totalReturned,
+  }
+}
+
 // ─────────────────────── รายงานความเคลื่อนไหวตามช่วงวัน ───────────────────────
 
 export type MovementReportRow = {
